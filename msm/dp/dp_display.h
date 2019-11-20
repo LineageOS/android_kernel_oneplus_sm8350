@@ -15,6 +15,7 @@
 #include "dp_parser.h"
 
 #define DP_MST_SIM_MAX_PORTS	8
+#define MAX_DP_ACTIVE_DISPLAY	8
 
 enum dp_drv_state {
 	PM_DEFAULT,
@@ -29,6 +30,13 @@ struct dp_mst_hpd_info {
 	bool mst_sim_add_con;
 	bool mst_sim_remove_con;
 	int mst_sim_remove_con_id;
+};
+
+struct dp_display_info {
+	u32 cell_idx;
+	u32 intf_idx[DP_STREAM_MAX];
+	u32 phy_idx;
+	u32 stream_cnt;
 };
 
 struct dp_mst_drm_cbs {
@@ -146,6 +154,7 @@ struct dp_display {
 int dp_display_get_num_of_displays(void);
 int dp_display_get_displays(void **displays, int count);
 int dp_display_get_num_of_streams(void);
+int dp_display_get_info(void *dp_display, struct dp_display_info *dp_info);
 #else
 static inline int dp_display_get_num_of_displays(void)
 {
@@ -156,6 +165,10 @@ static inline int dp_display_get_displays(void **displays, int count)
 	return 0;
 }
 static inline int dp_display_get_num_of_streams(void)
+{
+	return 0;
+}
+static inline int dp_display_get_info(void *dp_display, struct dp_display_info *dp_info)
 {
 	return 0;
 }

@@ -124,6 +124,10 @@ struct dp_pll *dp_pll_get(struct dp_pll_in *in)
 		goto error;
 	}
 
+	pll->name = of_get_property(pdev->dev.of_node, "label", NULL);
+	if (!pll->name)
+		pll->name = "dp0";
+
 	pll->ssc_en = of_property_read_bool(pdev->dev.of_node,
 						"qcom,ssc-feature-enable");
 	pll->bonding_en = of_property_read_bool(pdev->dev.of_node,
