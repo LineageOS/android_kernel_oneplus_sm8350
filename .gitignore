@@ -156,3 +156,8 @@ arch/*/configs/vendor/*_defconfig
 #include/linux/oem
 #techpack/
 #opslalib/slalib
+
+#
+#Ignoring Android.bp link file
+#
+Android.bp
