@@ -214,6 +214,7 @@
 		qcom,sde-cdp-setting = <1 1>, <1 0>;
 
 		qcom,sde-qos-cpu-mask = <0x3>;
+		qcom,sde-qos-cpu-mask-performance = <0xf>;
 		qcom,sde-qos-cpu-dma-latency = <300>;
 		qcom,sde-qos-cpu-irq-latency = <300>;
 
@@ -226,6 +227,10 @@
 		qcom,sde-reg-dma-clk-ctrl = <0x2bc 20>;
 
 		qcom,sde-secure-sid-mask = <0x4000821>;
+
+		/* SPMI address related to display */
+		qcom,pmic-arb = <&spmi_bus>;
+		qcom,pmic-arb-address = <0x3F800 0x3F900 0x3FA00>;
 
 		qcom,sde-reg-bus,vectors-KBps = <0 0>,
 				<0 74000>,
