@@ -194,6 +194,9 @@ void operate_mode_switch(struct touchpanel_data *ts)
 		if (ts->fw_edge_limit_support)
 			ts->ts_ops->mode_switch(ts->chip_data, MODE_EDGE, ts->limit_enable);
 
+		if (ts->game_switch_support)
+			ts->ts_ops->mode_switch(ts->chip_data, MODE_GAME, ts->noise_level);
+
 		if (ts->charger_pump_support)
 			ts->ts_ops->mode_switch(ts->chip_data, MODE_CHARGE, ts->is_usb_checked);
 
