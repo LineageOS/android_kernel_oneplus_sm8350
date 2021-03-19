@@ -929,6 +929,19 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			apply_req.report_if_bubble =
 				in_q->slot[idx].recover;
 
+			/*
+			 * If it is dual trigger usecase, need to tell
+			 * devices that the req is re-applied, then the
+			 * devices need to skip applying if the req has
+			 * been handled.
+			 * e.x. ISP device
+			 */
+			if (link->retry_cnt > 0) {
+				if (!apply_req.report_if_bubble &&
+					link->dual_trigger)
+					apply_req.re_apply = true;
+			}
+
 			if ((slot->ops.dev_hdl == dev->dev_hdl) &&
 				(slot->ops.is_applied)) {
 				slot->ops.is_applied = false;
@@ -3153,8 +3166,12 @@ static int __cam_req_mgr_check_for_dual_trigger(
 		(link->trigger_cnt[1] &&
 		(link->trigger_cnt[1] - link->trigger_cnt[0] > 1))) {
 
-		CAM_ERR(CAM_CRM,
+		CAM_WARN(CAM_CRM,
 			"One of the devices could not generate trigger");
+
+		link->trigger_cnt[0] = 0;
+		link->trigger_cnt[1] = 0;
+		CAM_DBG(CAM_CRM, "Reset the trigger cnt");
 		return rc;
 	}
 
