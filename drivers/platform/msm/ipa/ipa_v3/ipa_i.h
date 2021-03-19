@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _IPA3_I_H_
@@ -59,6 +59,7 @@
 #define IPA_QMAP_HEADER_LENGTH (4)
 #define IPA_DL_CHECKSUM_LENGTH (8)
 #define IPA_NUM_DESC_PER_SW_TX (3)
+#define IPA_GENERIC_RX_POOL_SZ_WAN 224
 #define IPA_GENERIC_RX_POOL_SZ 192
 #define IPA_UC_FINISH_MAX 6
 #define IPA_UC_WAIT_MIN_SLEEP 1000
@@ -83,6 +84,10 @@
 #define NAPI_TX_WEIGHT 64
 
 #define IPA_WAN_AGGR_PKT_CNT 1
+
+#define IPA_PAGE_POLL_DEFAULT_THRESHOLD 15
+#define IPA_PAGE_POLL_THRESHOLD_MAX 30
+
 
 #define IPADBG(fmt, args...) \
 	do { \
@@ -1062,6 +1067,12 @@ struct ipa3_repl_ctx {
 	atomic_t pending;
 };
 
+struct ipa3_page_repl_ctx {
+	struct list_head page_repl_head;
+	u32 capacity;
+	atomic_t pending;
+};
+
 /**
  * struct ipa3_sys_context - IPA GPI pipes context
  * @head_desc_list: header descriptors list
@@ -1100,7 +1111,7 @@ struct ipa3_sys_context {
 	struct work_struct repl_work;
 	void (*repl_hdlr)(struct ipa3_sys_context *sys);
 	struct ipa3_repl_ctx *repl;
-	struct ipa3_repl_ctx *page_recycle_repl;
+	struct ipa3_page_repl_ctx *page_recycle_repl;
 	u32 pkt_sent;
 	struct napi_struct *napi_obj;
 	struct list_head pending_pkts[GSI_VEID_MAX];
@@ -1431,8 +1442,10 @@ enum ipa3_config_this_ep {
 
 struct ipa3_page_recycle_stats {
 	u64 total_replenished;
+	u64 page_recycled;
 	u64 tmp_alloc;
 };
+
 struct ipa3_stats {
 	u32 tx_sw_pkts;
 	u32 tx_hw_pkts;
@@ -1459,6 +1472,7 @@ struct ipa3_stats {
 	struct ipa3_page_recycle_stats page_recycle_stats[2];
 	u64 lower_order;
 	u32 pipe_setup_fail_cnt;
+	u64 page_recycle_cnt[2][IPA_PAGE_POLL_THRESHOLD_MAX];
 };
 
 /* offset for each stats */
@@ -2174,7 +2188,7 @@ struct ipa3_context {
 	bool fnr_stats_not_supported;
 	bool is_device_crashed;
 	int ipa_pil_load;
-
+	u8 page_poll_threshold;
 };
 
 struct ipa3_plat_drv_res {
