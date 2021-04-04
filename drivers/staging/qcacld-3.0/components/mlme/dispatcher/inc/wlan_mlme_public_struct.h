@@ -1204,6 +1204,15 @@ enum mlme_cfg_frame_type {
 
 #define MAX_MGMT_HW_TX_RETRY_COUNT 127
 
+/**
+ * struct dual_sta_policy - Concurrent STA policy configuration
+ * @concurrent_sta_policy: Possible values are defined in enum
+ * qca_wlan_concurrent_sta_policy_config
+ */
+struct dual_sta_policy {
+	uint8_t concurrent_sta_policy;
+};
+
 /* struct wlan_mlme_generic - Generic CFG config items
  *
  * @band_capability: HW Band Capability - Both or 2.4G only or 5G only
@@ -1254,6 +1263,7 @@ enum mlme_cfg_frame_type {
  * @tx_retry_multiplier: TX xretry extension parameter
  * @mgmt_hw_tx_retry_count: MGMT HW tx retry count for frames
  * @std_6ghz_conn_policy: 6GHz standard connection policy
+ * @dual_sta_policy: Dual STA policies configuration
  */
 struct wlan_mlme_generic {
 	uint32_t band_capability;
@@ -1303,6 +1313,7 @@ struct wlan_mlme_generic {
 #ifdef CONFIG_BAND_6GHZ
 	bool std_6ghz_conn_policy;
 #endif
+	struct dual_sta_policy dual_sta_policy;
 };
 
 /*
