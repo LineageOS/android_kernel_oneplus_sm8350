@@ -16235,7 +16235,7 @@ void hdd_init_start_completion(void)
 	INIT_COMPLETION(wlan_start_comp);
 }
 
-static int hdd_driver_load(void);
+int hdd_driver_load(void);
 static ssize_t wlan_hdd_state_ctrl_param_write(struct file *filp,
 						const char __user *user_buf,
 						size_t count,

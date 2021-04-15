@@ -27,10 +27,6 @@
 #include "qdf_platform.h"
 
 static bool g_ipa_is_ready;
-bool ipa_is_ready(void)
-{
-	return g_ipa_is_ready;
-}
 
 void ipa_disable_register_cb(void)
 {
