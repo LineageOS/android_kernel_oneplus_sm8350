@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/slab.h>
@@ -182,33 +182,6 @@ int cam_context_handle_crm_apply_req(struct cam_context *ctx,
 	return rc;
 }
 
-int cam_context_handle_crm_state_change(struct cam_context *ctx,
-	struct cam_req_mgr_request_change_state *state_info)
-{
-	int rc;
-
-	if (!ctx->state_machine) {
-		CAM_ERR(CAM_CORE, "Context is not ready");
-		return -EINVAL;
-	}
-
-	if (!state_info) {
-		CAM_ERR(CAM_CORE, "Invalid change state payload");
-		return -EINVAL;
-	}
-
-	if (ctx->state_machine[ctx->state].crm_ops.change_state) {
-		rc = ctx->state_machine[ctx->state].crm_ops.change_state(ctx,
-			state_info);
-	} else {
-		CAM_ERR(CAM_CORE, "No crm change state req in dev %d, state %d",
-			ctx->dev_hdl, ctx->state);
-		rc = -EPROTO;
-	}
-
-	return rc;
-}
-
 int cam_context_handle_crm_notify_frame_skip(
 	struct cam_context *ctx,
 	struct cam_req_mgr_apply_request *apply)
@@ -324,6 +297,7 @@ int cam_context_dump_pf_info(struct cam_context *ctx,
 		return -EINVAL;
 	}
 
+	mutex_lock(&ctx->ctx_mutex);
 	if ((ctx->state > CAM_CTX_AVAILABLE) &&
 		(ctx->state < CAM_CTX_STATE_MAX)) {
 		if (ctx->state_machine[ctx->state].pagefault_ops) {
@@ -334,6 +308,7 @@ int cam_context_dump_pf_info(struct cam_context *ctx,
 				ctx->dev_hdl, ctx->state);
 		}
 	}
+	mutex_unlock(&ctx->ctx_mutex);
 
 	return rc;
 }
