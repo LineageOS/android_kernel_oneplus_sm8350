@@ -61,6 +61,9 @@
 #define IPA_NUM_DESC_PER_SW_TX (3)
 #define IPA_GENERIC_RX_POOL_SZ_WAN 224
 #define IPA_GENERIC_RX_POOL_SZ 192
+#define IPA_GENERIC_RX_PAGE_POOL_SZ_FACTOR 2
+#define IPA_GENERIC_RX_CMN_PAGE_POOL_SZ_FACTOR 5
+#define IPA_GENERIC_RX_CMN_TEMP_POOL_SZ_FACTOR 3
 #define IPA_UC_FINISH_MAX 6
 #define IPA_UC_WAIT_MIN_SLEEP 1000
 #define IPA_UC_WAII_MAX_SLEEP 1200
@@ -1121,6 +1124,8 @@ struct ipa3_sys_context {
 	u32 eob_drop_cnt;
 	struct napi_struct napi_tx;
 	atomic_t in_napi_context;
+	bool common_buff_pool;
+	struct ipa3_sys_context *common_sys;
 
 	/* ordering is important - mutable fields go above */
 	struct ipa3_ep_context *ep;
@@ -1460,6 +1465,7 @@ struct ipa3_stats {
 	u32 aggr_close;
 	u32 wan_aggr_close;
 	u32 wan_rx_empty;
+	u32 wan_rx_empty_coal;
 	u32 wan_repl_rx_empty;
 	u32 lan_rx_empty;
 	u32 lan_repl_rx_empty;
@@ -2189,6 +2195,7 @@ struct ipa3_context {
 	bool is_device_crashed;
 	int ipa_pil_load;
 	u8 page_poll_threshold;
+	bool wan_common_page_pool;
 };
 
 struct ipa3_plat_drv_res {
