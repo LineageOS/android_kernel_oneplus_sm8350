@@ -2507,9 +2507,240 @@
 				qcom,mdss-dsc-slice-width = <540>;
 			};
 
-			timing@wqhd_sdc_60 {
+			timing@wqhd_sdc_120 {
 				#include "dsi-panel-samsung-amb670yf01-dsc-cmd-common.dtsi"
 				qcom,mdss-dsi-splash-dms-switch-to-this-timing;
+				qcom,mdss-mdp-transfer-time-us = <7700>;
+				qcom,mdss-dsi-panel-framerate = <120>;
+				qcom,mdss-dsi-panel-clockrate = <1372000000>;
+				qcom,mdss-dsi-panel-width = <1440>;
+				qcom,mdss-dsi-panel-height = <3216>;
+				qcom,mdss-dsi-h-front-porch = <88>;
+				qcom,mdss-dsi-h-back-porch = <57>;
+				qcom,mdss-dsi-h-pulse-width = <8>;
+				qcom,mdss-dsi-h-sync-pulse = <0>;
+				qcom,mdss-dsi-v-back-porch = <8>;
+				qcom,mdss-dsi-v-front-porch = <8>;
+				qcom,mdss-dsi-v-pulse-width = <8>;
+
+				/* SDC ADFR */
+				qcom,mdss-dsi-h-sync-skew = <0>;
+				oplus,adfr-fakeframe-config = <3>;
+				oplus,adfr-fakeframe-deferred-time = <6>;		/* period*0.7 */
+				qcom,mdss-dsi-qsync-min-fps-0 = <1314>;
+				qcom,mdss-dsi-qsync-min-fps-1 = <1314>;
+				qcom,mdss-dsi-fakeframe-command = [
+					05 00 00 00 00 00 01 2C
+					05 00 00 00 00 00 01 3C
+					05 00 00 00 00 00 01 2C
+					05 00 00 00 00 00 01 3C
+					05 01 00 00 00 00 01 00
+				];
+
+				qcom,mdss-dsi-timing-switch-command = [
+					/* CASET/PASET Setting */
+					39 00 00 00 00 00 05 2A 00 00 05 9F
+					39 00 00 00 00 00 05 2B 00 00 0C 8F
+					/* Scaler Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 C3 00
+					39 00 00 00 00 00 03 F0 A5 A5
+
+					/* OPLUS ADFR OFF */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 03 FC 5A 5A
+					15 00 00 00 00 00 02 B9 00						/* TP shift fixed */
+					39 00 00 00 00 00 04 B0 00 02 60
+					15 00 00 00 00 00 02 60 00						/* OPLUS ADFR OFF */
+					39 00 00 00 00 00 03 F2 00 01					/* 0x01,0x00:ADFR ON setting 0x00,0x01:ADFR OFF Setting */
+					15 00 00 00 00 00 02 F7 0F
+					39 00 00 00 00 00 03 FC A5 A5
+					39 00 00 00 00 00 03 F0 A5 A5
+
+					/* TSP_SYNC1 Fixed Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 22 B9
+					39 00 00 00 00 00 03 B9 A1 B1
+					39 00 00 00 00 00 04 B0 00 3A B9
+					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
+					39 00 00 00 00 00 04 B0 00 26 B9
+					39 00 00 00 00 00 03 B9 00 00
+					15 00 00 00 00 00 02 F7 0F
+					39 00 00 00 00 00 03 F0 A5 A5
+					/* TSP_SYNC3 Fixed Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 24 B9
+					15 00 00 00 00 00 02 B9 21
+					39 00 00 00 00 00 04 B0 00 38 B9
+					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
+					39 00 00 00 00 00 04 B0 00 2A B9
+					39 00 00 00 00 00 03 B9 00 00
+					15 00 00 00 00 00 02 F7 0F
+					39 00 00 00 00 00 03 F0 A5 A5
+
+					/* 120hz Transition */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 16 F2
+					39 00 00 00 00 00 03 F2 1B 50					/* 0x1B,0x50:120hz 0x24,0x70:90hz */
+					39 00 00 00 00 00 03 BD 21 02					/* 0x21,0x02:120hz 0x21,0x03:90hz */
+					15 00 00 00 00 00 02 60 00						/* 0x00:120hz 0x08:90hz 0x01:60hz */
+					39 00 00 00 00 00 04 B0 00 10 BD
+					15 00 00 00 00 00 02 BD 10						/* 0x00:1frame 0x10:2frame 0x20:3frame */
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+				];
+				qcom,mdss-dsi-on-command = [
+					/* DSC Setting */
+					39 01 00 00 00 00 5A 9E 11
+					00 00 AB 30 80 0C 90 05 A0
+					00 18 02 D0 02 D0 02 00 02
+					86 00 20 02 83 00 0A 00 0D
+					04 86 03 2E 18 00 10 F0 07
+					10 20 00 06 0F 0F 33 0E 1C
+					2A 38 46 54 62 69 70 77 79
+					7B 7D 7E 02 02 22 00 2A 40
+					2A BE 3A FC 3A FA 3A F8 3B
+					38 3B 78 3B B6 4B B6 4B F4
+					4B F4 6C 34 84 74 00
+					15 01 00 00 00 00 02 9D 01
+
+					/* Sleep Out(11h) */
+					05 01 00 00 06 00 01 11
+
+					/* TSP_SYNC1 Fixed Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 22 B9
+					39 00 00 00 00 00 03 B9 A1 B1
+					39 00 00 00 00 00 04 B0 00 3A B9
+					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
+					39 00 00 00 00 00 04 B0 00 26 B9
+					39 00 00 00 00 00 03 B9 00 00
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+					/* TSP_SYNC3 Fixed Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 24 B9
+					15 00 00 00 00 00 02 B9 21
+					39 00 00 00 00 00 04 B0 00 38 B9
+					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
+					39 00 00 00 00 00 04 B0 00 2A B9
+					39 00 00 00 00 00 03 B9 00 00
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 79 00 03 F0 A5 A5
+
+					/* 120hz Transition */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 16 F2
+					39 00 00 00 00 00 03 F2 1B 50					/* 0x1B,0x50:120hz 0x24,0x70:90hz */
+					39 00 00 00 00 00 03 BD 21 02					/* 0x21,0x02:120hz 0x21,0x03:90hz */
+					15 00 00 00 00 00 02 60 00						/* 0x00:120hz 0x08:90hz 0x01:60hz */
+					39 00 00 00 00 00 04 B0 00 10 BD
+					15 00 00 00 00 00 02 BD 10						/* 0x00:1frame 0x10:2frame 0x20:3frame */
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+
+					/* Common Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 03 F2 00 01					/* FQ_CON Setting */
+					39 01 00 00 00 00 03 F0 A5 A5
+					/* TE(Vsync) ON */
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 35 00
+					15 00 00 00 00 00 02 B9 00
+					39 01 00 00 00 00 03 F0 A5 A5
+					/* CASET/PASET Setting */
+					39 01 00 00 00 00 05 2A 00 00 05 9F
+					39 01 00 00 00 00 05 2B 00 00 0C 8F
+					/* Scaler Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 C3 00
+					39 01 00 00 00 00 03 F0 A5 A5
+					/* Pre-charge time setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 2B F6
+					39 00 00 00 00 00 04 F6 60 63 69
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+					/* HLPM Power Saving */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 46 F4
+					15 00 00 00 00 00 02 F4 08
+					39 01 00 00 00 00 03 F0 A5 A5
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 18 B1
+					39 00 00 00 00 00 02 B1 05
+					39 01 00 00 00 00 03 F0 A5 A5
+
+					/* Brightness Control */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 0D 63
+					15 00 00 00 00 00 02 63 01						/* Dimming Setting */
+					39 00 00 00 00 00 04 B0 00 0C 63
+					15 00 00 00 00 00 02 63 20
+					39 01 00 00 00 00 03 F0 A5 A5
+					15 01 00 00 00 00 02 53 28
+					15 01 00 00 00 00 02 F7 0F
+					/* ACL Mode */
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 55 00
+					39 01 00 00 00 00 03 F0 A5 A5
+					/* OPEC Setting */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 52 1F
+					15 00 00 00 00 00 02 1F 02
+					39 00 00 00 00 00 04 B0 00 54 1F
+					15 00 00 00 00 00 02 1F 00
+					39 01 00 00 00 00 03 F0 A5 A5
+
+					/* Display On */
+					05 01 00 00 00 00 01 29
+				];
+
+				qcom,mdss-dsi-qsync-on-commands = [
+					/* SDC Auto On */
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 10 BD
+					15 00 00 00 00 00 02 BD 10						/* 0x00:1frame 0x10:2frame 0x20:3frame */
+					15 00 00 00 00 00 02 BD 23						/* 0x21:Manual On 0x23:Auto On */
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+				];
+				qcom,mdss-dsi-qsync-off-commands = [
+					/* SDC Auto Off */
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 BD 21						/* 0x21:Manual On 0x23:Auto On */
+					39 00 00 00 00 00 04 B0 00 10 BD
+					15 00 00 00 00 00 02 BD 00						/* 0x00:1frame 0x10:2frame 0x20:3frame */
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+				];
+				qcom,mdss-dsi-qsync-min-fps-0-command = [
+					39 00 00 00 00 00 03 F0 5A 5A
+					15 00 00 00 00 00 02 60 00						/* Manual Setting */
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+				];
+				qcom,mdss-dsi-qsync-min-fps-1-command = [
+					39 00 00 00 00 00 03 F0 5A 5A
+					39 00 00 00 00 00 04 B0 00 14 BD
+					15 00 00 00 00 00 02 BD 00						/* SDC Auto mode Low Freq. Setting */
+					15 00 00 00 00 00 02 F7 0F
+					39 01 00 00 00 00 03 F0 A5 A5
+				];
+
+				qcom,mdss-dsi-fakeframe-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-qsync-on-commands-state ="dsi_hs_mode";
+				qcom,mdss-dsi-qsync-off-commands-state ="dsi_hs_mode";
+				qcom,mdss-dsi-qsync-min-fps-0-command-state = "dsi_hs_mode";
+				qcom,mdss-dsi-qsync-min-fps-1-command-state = "dsi_hs_mode";
+
+				qcom,lm-split = <720 720>;
+				qcom,mdss-dsc-slice-height = <24>;
+				qcom,mdss-dsc-slice-width = <720>;
+			};
+
+			timing@wqhd_sdc_60 {
+				#include "dsi-panel-samsung-amb670yf01-dsc-cmd-common.dtsi"
 				qcom,mdss-mdp-transfer-time-us = <7700>;
 				qcom,mdss-dsi-panel-framerate = <60>;
 				qcom,mdss-dsi-panel-clockrate = <1372000000>;
@@ -3404,237 +3635,6 @@
 				qcom,mdss-dsc-bit-per-pixel = <8>;
 				qcom,mdss-dsc-scr-version = <1>;
 				qcom,mdss-dsc-block-prediction-enable;
-			};
-
-			timing@wqhd_sdc_120 {
-				#include "dsi-panel-samsung-amb670yf01-dsc-cmd-common.dtsi"
-				qcom,mdss-mdp-transfer-time-us = <7700>;
-				qcom,mdss-dsi-panel-framerate = <120>;
-				qcom,mdss-dsi-panel-clockrate = <1372000000>;
-				qcom,mdss-dsi-panel-width = <1440>;
-				qcom,mdss-dsi-panel-height = <3216>;
-				qcom,mdss-dsi-h-front-porch = <88>;
-				qcom,mdss-dsi-h-back-porch = <57>;
-				qcom,mdss-dsi-h-pulse-width = <8>;
-				qcom,mdss-dsi-h-sync-pulse = <0>;
-				qcom,mdss-dsi-v-back-porch = <8>;
-				qcom,mdss-dsi-v-front-porch = <8>;
-				qcom,mdss-dsi-v-pulse-width = <8>;
-
-				/* SDC ADFR */
-				qcom,mdss-dsi-h-sync-skew = <0>;
-				oplus,adfr-fakeframe-config = <3>;
-				oplus,adfr-fakeframe-deferred-time = <6>;		/* period*0.7 */
-				qcom,mdss-dsi-qsync-min-fps-0 = <1314>;
-				qcom,mdss-dsi-qsync-min-fps-1 = <1314>;
-				qcom,mdss-dsi-fakeframe-command = [
-					05 00 00 00 00 00 01 2C
-					05 00 00 00 00 00 01 3C
-					05 00 00 00 00 00 01 2C
-					05 00 00 00 00 00 01 3C
-					05 01 00 00 00 00 01 00
-				];
-
-				qcom,mdss-dsi-timing-switch-command = [
-					/* CASET/PASET Setting */
-					39 00 00 00 00 00 05 2A 00 00 05 9F
-					39 00 00 00 00 00 05 2B 00 00 0C 8F
-					/* Scaler Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					15 00 00 00 00 00 02 C3 00
-					39 00 00 00 00 00 03 F0 A5 A5
-
-					/* OPLUS ADFR OFF */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 03 FC 5A 5A
-					15 00 00 00 00 00 02 B9 00						/* TP shift fixed */
-					39 00 00 00 00 00 04 B0 00 02 60
-					15 00 00 00 00 00 02 60 00						/* OPLUS ADFR OFF */
-					39 00 00 00 00 00 03 F2 00 01					/* 0x01,0x00:ADFR ON setting 0x00,0x01:ADFR OFF Setting */
-					15 00 00 00 00 00 02 F7 0F
-					39 00 00 00 00 00 03 FC A5 A5
-					39 00 00 00 00 00 03 F0 A5 A5
-
-					/* TSP_SYNC1 Fixed Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 22 B9
-					39 00 00 00 00 00 03 B9 A1 B1
-					39 00 00 00 00 00 04 B0 00 3A B9
-					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
-					39 00 00 00 00 00 04 B0 00 26 B9
-					39 00 00 00 00 00 03 B9 00 00
-					15 00 00 00 00 00 02 F7 0F
-					39 00 00 00 00 00 03 F0 A5 A5
-					/* TSP_SYNC3 Fixed Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 24 B9
-					15 00 00 00 00 00 02 B9 21
-					39 00 00 00 00 00 04 B0 00 38 B9
-					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
-					39 00 00 00 00 00 04 B0 00 2A B9
-					39 00 00 00 00 00 03 B9 00 00
-					15 00 00 00 00 00 02 F7 0F
-					39 00 00 00 00 00 03 F0 A5 A5
-
-					/* 120hz Transition */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 16 F2
-					39 00 00 00 00 00 03 F2 1B 50					/* 0x1B,0x50:120hz 0x24,0x70:90hz */
-					39 00 00 00 00 00 03 BD 21 02					/* 0x21,0x02:120hz 0x21,0x03:90hz */
-					15 00 00 00 00 00 02 60 00						/* 0x00:120hz 0x08:90hz 0x01:60hz */
-					39 00 00 00 00 00 04 B0 00 10 BD
-					15 00 00 00 00 00 02 BD 10						/* 0x00:1frame 0x10:2frame 0x20:3frame */
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-				];
-				qcom,mdss-dsi-on-command = [
-					/* DSC Setting */
-					39 01 00 00 00 00 5A 9E 11
-					00 00 AB 30 80 0C 90 05 A0
-					00 18 02 D0 02 D0 02 00 02
-					86 00 20 02 83 00 0A 00 0D
-					04 86 03 2E 18 00 10 F0 07
-					10 20 00 06 0F 0F 33 0E 1C
-					2A 38 46 54 62 69 70 77 79
-					7B 7D 7E 02 02 22 00 2A 40
-					2A BE 3A FC 3A FA 3A F8 3B
-					38 3B 78 3B B6 4B B6 4B F4
-					4B F4 6C 34 84 74 00
-					15 01 00 00 00 00 02 9D 01
-
-					/* Sleep Out(11h) */
-					05 01 00 00 06 00 01 11
-
-					/* TSP_SYNC1 Fixed Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 22 B9
-					39 00 00 00 00 00 03 B9 A1 B1
-					39 00 00 00 00 00 04 B0 00 3A B9
-					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
-					39 00 00 00 00 00 04 B0 00 26 B9
-					39 00 00 00 00 00 03 B9 00 00
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-					/* TSP_SYNC3 Fixed Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 24 B9
-					15 00 00 00 00 00 02 B9 21
-					39 00 00 00 00 00 04 B0 00 38 B9
-					15 00 00 00 00 00 02 B9 02						/* TSP_VSYNC Fixed TE 02:120 03:90 05:60 */
-					39 00 00 00 00 00 04 B0 00 2A B9
-					39 00 00 00 00 00 03 B9 00 00
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 79 00 03 F0 A5 A5
-
-					/* 120hz Transition */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 16 F2
-					39 00 00 00 00 00 03 F2 1B 50					/* 0x1B,0x50:120hz 0x24,0x70:90hz */
-					39 00 00 00 00 00 03 BD 21 02					/* 0x21,0x02:120hz 0x21,0x03:90hz */
-					15 00 00 00 00 00 02 60 00						/* 0x00:120hz 0x08:90hz 0x01:60hz */
-					39 00 00 00 00 00 04 B0 00 10 BD
-					15 00 00 00 00 00 02 BD 10						/* 0x00:1frame 0x10:2frame 0x20:3frame */
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-
-					/* Common Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 03 F2 00 01					/* FQ_CON Setting */
-					39 01 00 00 00 00 03 F0 A5 A5
-					/* TE(Vsync) ON */
-					39 00 00 00 00 00 03 F0 5A 5A
-					15 00 00 00 00 00 02 35 00
-					15 00 00 00 00 00 02 B9 00
-					39 01 00 00 00 00 03 F0 A5 A5
-					/* CASET/PASET Setting */
-					39 01 00 00 00 00 05 2A 00 00 05 9F
-					39 01 00 00 00 00 05 2B 00 00 0C 8F
-					/* Scaler Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					15 00 00 00 00 00 02 C3 00
-					39 01 00 00 00 00 03 F0 A5 A5
-					/* Pre-charge time setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 2B F6
-					39 00 00 00 00 00 04 F6 60 63 69
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-					/* HLPM Power Saving */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 46 F4
-					15 00 00 00 00 00 02 F4 08
-					39 01 00 00 00 00 03 F0 A5 A5
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 18 B1
-					39 00 00 00 00 00 02 B1 05
-					39 01 00 00 00 00 03 F0 A5 A5
-
-					/* Brightness Control */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 0D 63
-					15 00 00 00 00 00 02 63 01						/* Dimming Setting */
-					39 00 00 00 00 00 04 B0 00 0C 63
-					15 00 00 00 00 00 02 63 20
-					39 01 00 00 00 00 03 F0 A5 A5
-					15 01 00 00 00 00 02 53 28
-					15 01 00 00 00 00 02 F7 0F
-					/* ACL Mode */
-					39 00 00 00 00 00 03 F0 5A 5A
-					15 00 00 00 00 00 02 55 00
-					39 01 00 00 00 00 03 F0 A5 A5
-					/* OPEC Setting */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 52 1F
-					15 00 00 00 00 00 02 1F 02
-					39 00 00 00 00 00 04 B0 00 54 1F
-					15 00 00 00 00 00 02 1F 00
-					39 01 00 00 00 00 03 F0 A5 A5
-
-					/* Display On */
-					05 01 00 00 00 00 01 29
-				];
-
-				qcom,mdss-dsi-qsync-on-commands = [
-					/* SDC Auto On */
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 10 BD
-					15 00 00 00 00 00 02 BD 10						/* 0x00:1frame 0x10:2frame 0x20:3frame */
-					15 00 00 00 00 00 02 BD 23						/* 0x21:Manual On 0x23:Auto On */
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-				];
-				qcom,mdss-dsi-qsync-off-commands = [
-					/* SDC Auto Off */
-					39 00 00 00 00 00 03 F0 5A 5A
-					15 00 00 00 00 00 02 BD 21						/* 0x21:Manual On 0x23:Auto On */
-					39 00 00 00 00 00 04 B0 00 10 BD
-					15 00 00 00 00 00 02 BD 00						/* 0x00:1frame 0x10:2frame 0x20:3frame */
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-				];
-				qcom,mdss-dsi-qsync-min-fps-0-command = [
-					39 00 00 00 00 00 03 F0 5A 5A
-					15 00 00 00 00 00 02 60 00						/* Manual Setting */
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-				];
-				qcom,mdss-dsi-qsync-min-fps-1-command = [
-					39 00 00 00 00 00 03 F0 5A 5A
-					39 00 00 00 00 00 04 B0 00 14 BD
-					15 00 00 00 00 00 02 BD 00						/* SDC Auto mode Low Freq. Setting */
-					15 00 00 00 00 00 02 F7 0F
-					39 01 00 00 00 00 03 F0 A5 A5
-				];
-
-				qcom,mdss-dsi-fakeframe-command-state = "dsi_hs_mode";
-				qcom,mdss-dsi-qsync-on-commands-state ="dsi_hs_mode";
-				qcom,mdss-dsi-qsync-off-commands-state ="dsi_hs_mode";
-				qcom,mdss-dsi-qsync-min-fps-0-command-state = "dsi_hs_mode";
-				qcom,mdss-dsi-qsync-min-fps-1-command-state = "dsi_hs_mode";
-
-				qcom,lm-split = <720 720>;
-				qcom,mdss-dsc-slice-height = <24>;
-				qcom,mdss-dsc-slice-width = <720>;
 			};
 
 			timing@wqhd_oplus_60 {
