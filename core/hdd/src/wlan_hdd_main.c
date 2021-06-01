@@ -201,6 +201,7 @@
 #ifdef WLAN_FEATURE_DYNAMIC_RX_AGGREGATION
 #include <net/pkt_cls.h>
 #endif
+#include <linux/bitfield.h>
 
 #ifdef MODULE
 #ifdef WLAN_WEAR_CHIPSET
@@ -2256,7 +2257,7 @@ static void hdd_extract_fw_version_info(struct hdd_context *hdd_ctx)
 	(defined(CFG80211_SBAND_IFTYPE_DATA_BACKPORT) || \
 	 (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)))
 
-#if defined(CONFIG_BAND_6GHZ) && (KERNEL_VERSION(5, 8, 0) <= LINUX_VERSION_CODE)
+#if defined(CONFIG_BAND_6GHZ) && (defined(IEEE80211_HE_6GHZ_CAP_MIN_MPDU_START))
 static void hdd_update_wiphy_he_6ghz_capa(struct hdd_context *hdd_ctx)
 {
 	uint16_t he_6ghz_capa = 0;
