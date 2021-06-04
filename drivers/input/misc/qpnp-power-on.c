@@ -2497,6 +2497,7 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&pon->bark_work, bark_work_func);
 #ifdef CONFIG_OEM_FORCE_DUMP
 	kthread_init_delayed_work(&pon->press_work, press_work_func);
+	pon->press_work.timer.flags |= TIMER_IRQSAFE;
 	pon->kworker = kthread_create_worker(0, "press_worker");
 	if (IS_ERR(pon->kworker))
 		return -ENOMEM;
