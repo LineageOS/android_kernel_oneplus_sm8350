@@ -1684,6 +1684,8 @@ static int cam_ife_csid_tpg_start(struct cam_ife_csid_hw   *csid_hw,
 		CAM_DBG(CAM_ISP, "reg 0x%x = 0x%x", 0x600, val);
 	}
 
+	res->res_state = CAM_ISP_RESOURCE_STATE_STREAMING;
+
 	return 0;
 }
 
@@ -4240,6 +4242,8 @@ int cam_ife_csid_stop(void *hw_priv,
 		res = csid_stop->node_res[i];
 		res->res_state = CAM_ISP_RESOURCE_STATE_INIT_HW;
 	}
+
+	csid_hw->error_irq_count = 0;
 
 	CAM_DBG(CAM_ISP,  "%s: Exit\n", __func__);
 
