@@ -1597,7 +1597,7 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
 	adm_callback_debug_print(data);
 	if (data->payload_size >= sizeof(uint32_t)) {
 		copp_idx = (data->token) & 0XFF;
-		port_idx = ((data->token) >> 16) & 0xFF;
+		port_idx = ((data->token) >> 16) & 0xFFFF;
 		client_id = ((data->token) >> 8) & 0xFF;
 		if (port_idx < 0 || port_idx >= AFE_MAX_PORTS) {
 			pr_err("%s: Invalid port idx %d token %d\n",
@@ -2451,7 +2451,7 @@ static void send_adm_cal(int fedai_id, int port_id, int copp_idx, int path, int 
 				perf_mode, app_type, acdb_id, sample_rate);
 		/* send persistent cal only in case of record */
 		if (path == TX_DEVICE)
-			send_adm_cal_type(fedai_id, ADM_LSM_AUDPROC_PERSISTENT_CAL, path,
+			send_adm_cal_type(fedai_id, ADM_AUDPROC_PERSISTENT_CAL, path,
 				  port_id, copp_idx, perf_mode, app_type,
 				  acdb_id, sample_rate);
 	} else {
