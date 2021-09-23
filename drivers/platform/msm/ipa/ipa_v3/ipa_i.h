@@ -91,6 +91,9 @@
 #define IPA_PAGE_POLL_DEFAULT_THRESHOLD 15
 #define IPA_PAGE_POLL_THRESHOLD_MAX 30
 
+#define IPA_MAX_NAPI_SORT_PAGE_THRSHLD 3
+#define IPA_MAX_PAGE_WQ_RESCHED_TIME 2
+
 
 #define IPADBG(fmt, args...) \
 	do { \
@@ -1126,6 +1129,10 @@ struct ipa3_sys_context {
 	atomic_t in_napi_context;
 	bool common_buff_pool;
 	struct ipa3_sys_context *common_sys;
+	struct tasklet_struct tasklet_find_freepage;
+	atomic_t page_avilable;
+	struct delayed_work freepage_work;
+	u32 napi_sort_page_thrshld_cnt;
 
 	/* ordering is important - mutable fields go above */
 	struct ipa3_ep_context *ep;
@@ -1141,6 +1148,7 @@ struct ipa3_sys_context {
 	u32 pm_hdl;
 	unsigned int napi_sch_cnt;
 	unsigned int napi_comp_cnt;
+	struct workqueue_struct *freepage_wq;
 	/* ordering is important - other immutable fields go below */
 };
 
@@ -1479,6 +1487,9 @@ struct ipa3_stats {
 	u64 lower_order;
 	u32 pipe_setup_fail_cnt;
 	u64 page_recycle_cnt[2][IPA_PAGE_POLL_THRESHOLD_MAX];
+	u64 num_sort_tasklet_sched[3];
+	u64 num_of_times_wq_reschd;
+	u64 page_recycle_cnt_in_tasklet;
 };
 
 /* offset for each stats */
@@ -2196,6 +2207,8 @@ struct ipa3_context {
 	int ipa_pil_load;
 	u8 page_poll_threshold;
 	bool wan_common_page_pool;
+	u32 ipa_max_napi_sort_page_thrshld;
+	u32 page_wq_reschd_time;
 };
 
 struct ipa3_plat_drv_res {
