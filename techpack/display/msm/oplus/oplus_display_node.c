@@ -1430,6 +1430,7 @@ static DEVICE_ATTR_RW(seed_lp);
 static DEVICE_ATTR(adfr_debug, S_IRUGO|S_IWUSR, oplus_adfr_get_debug, oplus_adfr_set_debug);
 static DEVICE_ATTR(vsync_switch, S_IRUGO|S_IWUSR, oplus_get_vsync_switch, oplus_set_vsync_switch);
 #endif
+static DEVICE_ATTR(power_status, S_IRUGO|S_IWUSR, op_display_get_power_status, op_display_set_power_status);
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_acl.attr,
@@ -1474,6 +1475,7 @@ static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_adfr_debug.attr,
 	&dev_attr_vsync_switch.attr,
 #endif
+	&dev_attr_power_status.attr,
 	NULL
 };
 

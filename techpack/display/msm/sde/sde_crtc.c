@@ -2864,6 +2864,22 @@ ssize_t notify_fppress_store(struct device *dev,
 	return count;
 }
 
+int oneplus_panel_status = 0;
+static ssize_t op_display_get_power_status(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", oneplus_panel_status);
+}
+
+static ssize_t op_display_set_power_status(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	sscanf(buf, "%d", &oneplus_panel_status);
+
+	return count;
+}
+
 extern int aod_layer_hide;
 extern int backup_dim_status;
 extern bool backup_dimlayer_hbm;
@@ -2902,6 +2918,9 @@ ssize_t notify_dim_store(struct device *dev,
 	dsi_connector = dsi_display->drm_conn;
 	mode_config = &drm_dev->mode_config;
 	sscanf(buf, "%du", &dim_status);
+
+	if (oneplus_panel_status == 0)
+		dim_status = 0;
 
 	if(dsi_display->panel->aod_status==0 && (dim_status == 2)){
 		pr_err("fp set it in normal status\n");
