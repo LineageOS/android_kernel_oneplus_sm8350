@@ -1388,6 +1388,22 @@ static ssize_t iris_recovery_mode_check_show(struct device *dev,
 	return ret;
 }
 
+int oneplus_panel_status = 0;
+static ssize_t power_status_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", oneplus_panel_status);
+}
+
+static ssize_t power_status_store(struct device *dev,
+				struct device_attribute *attr,
+				const char *buf, size_t count)
+{
+	sscanf(buf, "%d", &oneplus_panel_status);
+
+	return count;
+}
+
 static DEVICE_ATTR_RW(acl);
 static DEVICE_ATTR_RW(hbm);
 static DEVICE_ATTR_RW(hbm_brightness);
@@ -1430,6 +1446,7 @@ static DEVICE_ATTR_RW(seed_lp);
 static DEVICE_ATTR(adfr_debug, S_IRUGO|S_IWUSR, oplus_adfr_get_debug, oplus_adfr_set_debug);
 static DEVICE_ATTR(vsync_switch, S_IRUGO|S_IWUSR, oplus_get_vsync_switch, oplus_set_vsync_switch);
 #endif
+static DEVICE_ATTR(power_status, S_IRUGO|S_IWUSR, op_display_get_power_status, op_display_set_power_status);
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_acl.attr,
@@ -1474,6 +1491,7 @@ static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_adfr_debug.attr,
 	&dev_attr_vsync_switch.attr,
 #endif
+	&dev_attr_power_status.attr,
 	NULL
 };
 
