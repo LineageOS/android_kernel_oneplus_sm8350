@@ -365,6 +365,7 @@ struct chip_bq27541 {
 	int fcc_pre;
 	int rm_pre;
 	int fc_pre;
+	int ttf_pre;
 	int qm_pre;
 	int pd_pre;
 	int rcu_pre;
