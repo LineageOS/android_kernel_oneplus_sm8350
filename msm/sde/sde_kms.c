@@ -2570,6 +2570,11 @@ error:
 		drm_framebuffer_put(fb);
 	}
 
+	drm_for_each_crtc(crtc, dev) {
+		if (!ret && crtc_mask & drm_crtc_mask(crtc))
+			sde_kms_cancel_delayed_work(crtc);
+	}
+
 end:
 	return ret;
 }
@@ -3723,6 +3728,7 @@ static int sde_kms_trigger_null_flush(struct msm_kms *kms)
 {
 	struct sde_kms *sde_kms;
 	struct sde_splash_display *splash_display;
+	struct drm_crtc *crtc;
 	int i, rc = 0;
 
 	if (!kms) {
@@ -3740,10 +3746,14 @@ static int sde_kms_trigger_null_flush(struct msm_kms *kms)
 		splash_display = &sde_kms->splash_data.splash_display[i];
 
 		if (splash_display->cont_splash_enabled && splash_display->encoder) {
+			crtc = splash_display->encoder->crtc;
 			SDE_DEBUG("triggering null commit on enc:%d\n",
 					DRMID(splash_display->encoder));
 			SDE_EVT32(DRMID(splash_display->encoder), SDE_EVTLOG_FUNC_ENTRY);
 			rc = _sde_kms_null_commit(sde_kms->dev, splash_display->encoder);
+
+			if (!rc && crtc)
+				sde_kms_cancel_delayed_work(crtc);
 		}
 	}
 
@@ -3804,7 +3814,7 @@ static inline int _sde_kms_pm_deepsleep_helper(struct sde_kms *sde_kms,
 static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 	struct device *dev)
 {
-	int i, ret, crtc_id = 0;
+	int ret, crtc_id = 0;
 	struct drm_device *ddev = dev_get_drvdata(dev);
 	struct drm_connector *conn;
 	struct drm_connector_list_iter conn_iter;
@@ -3841,15 +3851,7 @@ static void _sde_kms_pm_suspend_idle_helper(struct sde_kms *sde_kms,
 	}
 	drm_connector_list_iter_end(&conn_iter);
 
-	for (i = 0; i < priv->num_crtcs; i++) {
-		if (priv->disp_thread[i].thread)
-			kthread_flush_worker(
-				&priv->disp_thread[i].worker);
-		if (priv->event_thread[i].thread)
-			kthread_flush_worker(
-				&priv->event_thread[i].worker);
-	}
-	kthread_flush_worker(&priv->pp_event_worker);
+	msm_atomic_flush_display_threads(priv);
 }
 
 static int sde_kms_pm_suspend(struct device *dev)
