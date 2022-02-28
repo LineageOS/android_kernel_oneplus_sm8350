@@ -76,10 +76,6 @@
 #include <oneplus/houston/houston_helper.h>
 #endif
 
-#ifdef CONFIG_TPD
-#include <linux/oem/tpd.h>
-#endif
-
 static void __unhash_process(struct task_struct *p, bool group_dead)
 {
 	nr_threads--;
@@ -190,10 +186,6 @@ static void delayed_put_task_struct(struct rcu_head *rhp)
 
 #ifdef CONFIG_CONTROL_CENTER
 	cc_tsk_free((void *) tsk);
-#endif
-
-#ifdef CONFIG_TPD
-	tpd_tglist_del(tsk);
 #endif
 
 	perf_event_delayed_put(tsk);

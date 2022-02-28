@@ -40,9 +40,6 @@
 #endif
 
 #include <linux/oem/cpufreq_bouncing.h>
-#ifdef CONFIG_TPD
-#include <linux/oem/tpd.h>
-#endif
 
 static LIST_HEAD(cpufreq_policy_list);
 
@@ -1476,9 +1473,6 @@ static int cpufreq_online(unsigned int cpu)
 			per_cpu(cpufreq_cpu_data, j) = policy;
 			add_cpu_dev_symlink(policy, j);
 		}
-#ifdef CONFIG_TPD
-		tpd_init_policy(policy);
-#endif
 
 		policy->min_freq_req = kzalloc(2 * sizeof(*policy->min_freq_req),
 					       GFP_KERNEL);

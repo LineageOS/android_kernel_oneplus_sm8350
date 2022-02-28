@@ -46,9 +46,6 @@
 #ifdef CONFIG_CONTROL_CENTER
 #include <linux/oem/control_center.h>
 #endif
-#ifdef CONFIG_TPD
-#include <linux/oem/tpd.h>
-#endif
 
 #ifdef CONFIG_ONEPLUS_FG_OPT
 extern unsigned int ht_fuse_boost;
@@ -3981,15 +3978,6 @@ bias_to_this_cpu(struct task_struct *p, int cpu, int start_cpu)
 	bool start_cap_test = (capacity_orig_of(cpu) >=
 					capacity_orig_of(start_cpu));
 
-#ifdef CONFIG_TPD
-	cpumask_t mask = CPU_MASK_ALL;
-
-	if (is_tpd_enable() && is_tpd_task(p)) {
-		tpd_mask(p, &mask);
-		base_test = cpumask_test_cpu(cpu, &mask) && cpu_active(cpu);
-	}
-#endif
-
 	return base_test && start_cap_test;
 }
 
@@ -6796,12 +6784,6 @@ static void walt_get_indicies(struct task_struct *p, int *order_index,
 	}
 
 	*order_index = i;
-
-#ifdef CONFIG_TPD
-	if ((is_dynamic_tpd_task(p) || is_tpd_task(p)) && is_tpd_enable()) {
-		*order_index = tpd_suggested(p, *order_index);
-	}
-#endif
 }
 
 enum fastpaths {
@@ -6860,11 +6842,6 @@ static void walt_find_best_target(struct sched_domain *sd, cpumask_t *cpus,
 
 	cpumask_copy(&new_allowed_cpus, &p->cpus_mask);
 
-#ifdef CONFIG_TPD
-	if (is_tpd_enable() && is_tpd_task(p)) {
-		tpd_mask(p,&new_allowed_cpus);
-	}
-#endif
 	for (cluster = 0; cluster < num_sched_clusters; cluster++) {
 		cpumask_and(&visit_cpus, &new_allowed_cpus,
 				&cpu_array[order_index][cluster]);
@@ -7415,15 +7392,9 @@ int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu,
 
 	if (p->state == TASK_WAKING)
 		delta = task_util(p);
-#ifdef CONFIG_TPD
-	if (task_placement_boost_enabled(p) || fbt_env.need_idle || boosted ||
-		is_rtg || __cpu_overutilized(prev_cpu, delta) ||
-		!task_fits_max(p, prev_cpu) || cpu_isolated(prev_cpu) || (is_tpd_enable() && is_tpd_task(p))) {
-#else
 	if (task_placement_boost_enabled(p) || fbt_env.need_idle ||
 	    boosted || is_rtg || __cpu_overutilized(prev_cpu, delta) ||
 	    !task_fits_max(p, prev_cpu) || cpu_isolated(prev_cpu)) {
-#endif
 		best_energy_cpu = cpu;
 		goto unlock;
 	}
@@ -8448,12 +8419,6 @@ static inline int migrate_degrades_locality(struct task_struct *p,
 static inline bool can_migrate_boosted_task(struct task_struct *p,
 			int src_cpu, int dst_cpu)
 {
-#ifdef CONFIG_TPD
-	if (is_tpd_enable() && is_tpd_task(p)) {
-		if (tpd_check(p, dst_cpu))
-			return false;
-        }
-#endif
 	if (per_task_boost(p) == TASK_BOOST_STRICT_MAX &&
 		task_in_related_thread_group(p) &&
 		(capacity_orig_of(dst_cpu) < capacity_orig_of(src_cpu)))

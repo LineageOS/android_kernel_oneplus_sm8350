@@ -15,7 +15,6 @@ obj-$(CONFIG_HOUSTON) += houston/
 obj-$(CONFIG_OP_FREEZER) += op_freezer/
 obj-$(CONFIG_CONTROL_CENTER) += control_center/
 obj-$(CONFIG_IM) += im/
-obj-$(CONFIG_TPD) += tpd/
 obj-$(CONFIG_PCCORE) += pccore/
 obj-$(CONFIG_TPP) += tpp/
 obj-$(CONFIG_VM_FRAGMENT_MONITOR) += vm_fragment_monitor/
