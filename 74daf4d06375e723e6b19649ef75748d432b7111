@@ -16,6 +16,24 @@
       "message": "Ehh, different author. I would keep it separate.",
       "revId": "74daf4d06375e723e6b19649ef75748d432b7111",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "5a686f55_04cab6c3",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2022-03-01T21:16:22Z",
+      "side": 1,
+      "message": "m5 is co-authored in original change and I bet he doesn\u0027t mind squashing this in.",
+      "parentUuid": "19660f33_fd73c7f5",
+      "revId": "74daf4d06375e723e6b19649ef75748d432b7111",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
