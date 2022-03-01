@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "6e8a1c6a_0d6e13af",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2022-03-01T23:04:47Z",
+      "side": 1,
+      "message": "Works properly. We should merge in lineage-18.1 as well.",
+      "revId": "789aa51cb5f2c34f9b46898b7420091bcc6ec686",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
