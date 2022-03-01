@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "32c2aef5_f4cf445b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2022-03-01T22:25:21Z",
+      "side": 1,
+      "message": "Pretty sure that there\u0027s a whole lot more to remove besides TPD. Any particular reason?",
+      "revId": "b77fdc76180a86f7cfcc5d579f069eba5e926efd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
