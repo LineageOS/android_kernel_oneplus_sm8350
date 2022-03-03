@@ -1131,7 +1131,6 @@ struct ipa3_sys_context {
 	struct ipa3_sys_context *common_sys;
 	struct tasklet_struct tasklet_find_freepage;
 	atomic_t page_avilable;
-	struct delayed_work freepage_work;
 	u32 napi_sort_page_thrshld_cnt;
 
 	/* ordering is important - mutable fields go above */
@@ -1149,6 +1148,7 @@ struct ipa3_sys_context {
 	unsigned int napi_sch_cnt;
 	unsigned int napi_comp_cnt;
 	struct workqueue_struct *freepage_wq;
+	struct delayed_work freepage_work;
 	/* ordering is important - other immutable fields go below */
 };
 
