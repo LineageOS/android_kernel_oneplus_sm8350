@@ -169,7 +169,6 @@
 	qcom,mdss-dsi-panel-status-command-state = "dsi_lp_mode";
 	qcom,mdss-dsi-panel-status-value = <0x9c>;
 	qcom,mdss-dsi-panel-status-read-length = <1>;
-	qcom,esd-check-enabled;
 
 	qcom,mdss-dsi-display-timings {
 		timing@0 {
