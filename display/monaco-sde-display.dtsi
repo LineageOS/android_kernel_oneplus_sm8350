@@ -142,6 +142,7 @@
 
 		qcom,platform-te-gpio = <&tlmm 73 0>;
 		qcom,panel-te-source = <0>;
+		qcom,needs-clk-src-reset;
 		vddio-supply = <&L21A>;
 		ibb-supply = <&display_panel_ibb>;
 		qcom,mdp = <&mdss_mdp>;
