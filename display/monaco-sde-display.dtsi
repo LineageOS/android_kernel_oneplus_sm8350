@@ -209,6 +209,7 @@
 
 &dsi_rm6d030_amoled_cmd {
 	qcom,ulps-enabled;
+	qcom,skip-panel-power-off;
 	qcom,mdss-dsi-t-clk-post = <0x07>;
 	qcom,mdss-dsi-t-clk-pre = <0x0A>;
 	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
