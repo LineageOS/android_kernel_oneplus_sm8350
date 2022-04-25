@@ -1,0 +1,71 @@
+# oplus kernel whitelist
+[abi_whitelist]
+#ifdef OPLUS_FEATURE_TP_BASIC
+  int_sqrt
+  __kfifo_alloc
+  remove_proc_subtree
+  strcat
+  wait_for_completion_killable_timeout
+  __kfifo_to_user
+#endif
+
+#ifdef OPLUS_FEATURE_OPROJECT
+  kobject_create_and_add
+  sysfs_create_group
+  proc_symlink
+  seq_printf
+  proc_create_data
+  remove_proc_entry
+#endif /* OPLUS_FEATURE_OPROJECT */
+
+#ifdef OPLUS_FEATURE_UFS_DRIVER
+  trace_printk
+  tracepoint_probe_register
+  tracepoint_probe_unregister
+  __tracepoint_android_vh_ufs_gen_proc_devinfo
+  __tracepoint_android_vh_ufs_latency_hist
+#endif /* OPLUS_FEATURE_UFS_DRIVER */
+
+  do_gettimeofday
+  device_remove_bin_file
+  snd_pcm_format_physical_width
+  snd_pcm_hw_constraint_mask64
+
+#ifdef OPLUS_BUG_STABILITY
+  drm_crtc_vblank_count_and_time
+#endif
+
+#ifdef OPLUS_FEATURE_UFS_DRIVER
+  __tracepoint_android_vh_check_throttle
+  __tracepoint_android_vh_set_inactive_ratio
+  __tracepoint_android_vh_set_swappiness
+#endif /* OPLUS_FEATURE_UFS_DRIVER */
+
+#ifdef CONFIG_QCOM_KGSL
+  msm_drm_register_client
+  msm_drm_unregister_client
+  msm_drm_notifier_call_chain
+#endif
+
+#ifdef CONFIG_QCOM_COMMAND_DB
+  cmd_db_ready
+  cmd_db_is_standalone
+  cmd_db_read_aux_data
+  cmd_db_read_addr
+  cmd_db_read_slave_id
+#endif
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+  devm_gpiod_put
+  __kfifo_out_r
+  __kfifo_len_r
+  request_firmware_direct
+  __kfifo_in_r
+#endif
+
+#ifdef OPLUS_FEATURE_TP_BASIC
+  flush_cache_all
+  thermal_zone_device_unregister
+#endif
+
+revert_creds

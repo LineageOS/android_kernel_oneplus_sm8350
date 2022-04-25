@@ -29,6 +29,12 @@ config DEVFREQ_GOV_QCOM_GPUBW_MON
 	  This governor will not be useful for non-Adreno based
 	  targets.
 
+config DRM_OPLUS_NOTIFY
+	tristate "CONFIG_DRM_OPLUS_NOTIFY"
+	depends on QCOM_KGSL
+	help
+	  Say 'Y' here to enable OPLUS DRM notify.
+
 config QCOM_ADRENO_DEFAULT_GOVERNOR
 	string "devfreq governor for the adreno core"
 	default "msm-adreno-tz" if DEVFREQ_GOV_QCOM_ADRENO_TZ

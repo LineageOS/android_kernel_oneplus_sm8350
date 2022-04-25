@@ -5,6 +5,11 @@
 #include <linux/module.h>
 #include <linux/soc/qcom/qmi.h>
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_BDF)
+#include <soc/oplus/system/oplus_project.h>
+#include <linux/fs.h>
+#endif
+
 #include "bus.h"
 #include "debug.h"
 #include "main.h"
@@ -23,6 +28,9 @@
 #define BIN_BDF_FILE_NAME_PREFIX	"bdwlan.b"
 #define BIN_BDF_FILE_NAME_GF_PREFIX	"bdwlang.b"
 #define REGDB_FILE_NAME			"regdb.bin"
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_BDF)
+#define REGDBW_FILE_NAME                "regdbw.bin"
+#endif
 #define HDS_FILE_NAME			"hds.bin"
 #define CHIP_ID_GF_MASK			0x10
 
@@ -44,6 +52,11 @@
 
 #define QMI_WLFW_MAC_READY_TIMEOUT_MS	50
 #define QMI_WLFW_MAC_READY_MAX_RETRY	200
+
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_BDF
+#define ELF_BDF_FILE_NAME_WCN           "bdwlanw.elf"
+#define CHIP_ID_WCN6856                 0x2
+#endif
 
 #ifdef CONFIG_CNSS2_DEBUG
 static bool ignore_qmi_failure;
@@ -510,6 +523,24 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_BDF
+static void cnss_get_oplus_bdf_file_name(struct cnss_plat_data *plat_priv,
+					 char *file_name, u32 filename_len)
+{
+	cnss_pr_dbg("wcn chip id: %x", plat_priv->chip_info.chip_id);
+
+	if (plat_priv->chip_info.chip_id & CHIP_ID_WCN6856) {
+		if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK) {
+			snprintf(file_name, filename_len, ELF_BDF_FILE_NAME_GF);
+		} else {
+			snprintf(file_name, filename_len, ELF_BDF_FILE_NAME_WCN);
+		}
+	} else {
+		snprintf(file_name, filename_len, ELF_BDF_FILE_NAME);
+	}
+}
+#endif
+
 static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 				  u32 bdf_type, char *filename,
 				  u32 filename_len)
@@ -521,12 +552,16 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 	case CNSS_BDF_ELF:
 		/* Board ID will be equal or less than 0xFF in GF mask case */
 		if (plat_priv->board_info.board_id == 0xFF) {
+#ifndef CONFIG_OPLUS_FEATURE_WIFI_BDF
 			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME_GF);
 			else
 				snprintf(filename_tmp, filename_len,
 					 ELF_BDF_FILE_NAME);
+#else
+			cnss_get_oplus_bdf_file_name(plat_priv, filename_tmp, filename_len);
+#endif
 		} else if (plat_priv->board_info.board_id < 0xFF) {
 			if (plat_priv->chip_info.chip_id & CHIP_ID_GF_MASK)
 				snprintf(filename_tmp, filename_len,
@@ -568,6 +603,12 @@ static int cnss_get_bdf_file_name(struct cnss_plat_data *plat_priv,
 		}
 		break;
 	case CNSS_BDF_REGDB:
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_BDF)
+		if (plat_priv->chip_info.chip_id & CHIP_ID_WCN6856)
+			snprintf(filename_tmp, filename_len, REGDBW_FILE_NAME);
+		else
+			snprintf(filename_tmp, filename_len, REGDB_FILE_NAME);
+#endif
 		snprintf(filename_tmp, filename_len, REGDB_FILE_NAME);
 		break;
 	case CNSS_BDF_HDS:
@@ -636,6 +677,14 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 
 	/* Typecast to match with interface defintition */
 	remaining = (u32)fw_entry->size;
+
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	if (bdf_type == CNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_SUCCESS, &plat_priv->loadRegdbState);
+	} else if (bdf_type == CNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_SUCCESS, &plat_priv->loadBdfState);
+	}
+#endif
 
 	cnss_pr_dbg("Downloading BDF: %s, size: %u\n", filename, remaining);
 
@@ -714,6 +763,13 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 err_send:
 	release_firmware(fw_entry);
 err_req_fw:
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+	if (bdf_type == CNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_FAIL, &plat_priv->loadRegdbState);
+	} else if (bdf_type == CNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_FAIL, &plat_priv->loadBdfState);
+	}
+#endif
 	if (!(bdf_type == CNSS_BDF_REGDB ||
 	      test_bit(CNSS_IN_REBOOT, &plat_priv->driver_state) ||
 	      ret == -EAGAIN))
@@ -807,6 +863,10 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 	struct wlfw_mac_addr_resp_msg_v01 resp = {0};
 	struct qmi_txn txn;
 	int ret;
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_MAC)
+	int i;
+	char revert_mac[QMI_WLFW_MAC_ADDR_SIZE_V01];
+#endif
 
 	if (!plat_priv || !mac || mac_len != QMI_WLFW_MAC_ADDR_SIZE_V01)
 		return -EINVAL;
@@ -822,7 +882,17 @@ int cnss_wlfw_wlan_mac_req_send_sync(struct cnss_plat_data *plat_priv,
 
 		cnss_pr_dbg("Sending WLAN mac req [%pM], state: 0x%lx\n",
 			    mac, plat_priv->driver_state);
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_MAC)
+	for (i = 0; i < QMI_WLFW_MAC_ADDR_SIZE_V01 ; i ++){
+		revert_mac[i] = mac[QMI_WLFW_MAC_ADDR_SIZE_V01 - i -1];
+	}
+		cnss_pr_dbg("Sending revert WLAN mac req [%pM], state: 0x%lx\n",
+			    revert_mac, plat_priv->driver_state);
+	memcpy(req.mac_addr, revert_mac, mac_len);
+#else
 	memcpy(req.mac_addr, mac, mac_len);
+#endif
 	req.mac_addr_valid = 1;
 
 	ret = qmi_send_request(&plat_priv->qmi_wlfw, NULL, &txn,
