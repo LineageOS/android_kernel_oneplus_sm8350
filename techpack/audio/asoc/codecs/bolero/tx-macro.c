@@ -43,7 +43,11 @@
 #define TX_MACRO_ADC_MUX_CFG_OFFSET 0x8
 #define TX_MACRO_ADC_MODE_CFG0_SHIFT 1
 
+#ifndef OPLUS_BUG_STABILITY
 #define TX_MACRO_DMIC_UNMUTE_DELAY_MS	40
+#else /* OPLUS_BUG_STABILITY */
+#define TX_MACRO_DMIC_UNMUTE_DELAY_MS	70
+#endif /* OPLUS_BUG_STABILITY */
 #define TX_MACRO_AMIC_UNMUTE_DELAY_MS	100
 #define TX_MACRO_DMIC_HPF_DELAY_MS	300
 #define TX_MACRO_AMIC_HPF_DELAY_MS	300
@@ -180,7 +184,11 @@ struct tx_macro_priv {
 	int bcs_ch;
 	bool bcs_clk_en;
 	bool hs_slow_insert_complete;
+	#ifdef OPLUS_BUG_STABILITY
 	int pcm_rate[NUM_DECIMATORS];
+	#else /* OPLUS_BUG_STABILITY */
+	int amic_sample_rate;
+	#endif /* OPLUS_BUG_STABILITY */
 	bool lpi_enable;
 	bool register_event_listener;
 	u16 current_clk_id;
@@ -547,6 +555,7 @@ static void tx_macro_tx_hpf_corner_freq_callback(struct work_struct *work)
 		snd_soc_component_update_bits(component, hpf_gate_reg,
 						0x03, 0x02);
 		/* Add delay between toggle hpf gate based on sample rate */
+		#ifdef OPLUS_BUG_STABILITY
 		switch (tx_priv->pcm_rate[hpf_work->decimator]) {
 		case 0:
 			usleep_range(125, 130);
@@ -566,6 +575,27 @@ static void tx_macro_tx_hpf_corner_freq_callback(struct work_struct *work)
 		case 6:
 			usleep_range(5, 6);
 			break;
+		#else /* OPLUS_BUG_STABILITY */
+		switch(tx_priv->amic_sample_rate) {
+		case 8000:
+			usleep_range(125, 130);
+			break;
+		case 16000:
+			usleep_range(62, 65);
+			break;
+		case 32000:
+			usleep_range(31, 32);
+			break;
+		case 48000:
+			usleep_range(20, 21);
+			break;
+		case 96000:
+			usleep_range(10, 11);
+			break;
+		case 192000:
+			usleep_range(5, 6);
+			break;
+		#endif /* OPLUS_BUG_STABILITY */
 		default:
 			usleep_range(125, 130);
 		}
@@ -1055,8 +1085,13 @@ static int tx_macro_enable_dec(struct snd_soc_dapm_widget *w,
 	tx_fs_reg = BOLERO_CDC_TX0_TX_PATH_CTL +
 				TX_MACRO_TX_PATH_OFFSET * decimator;
 
+	#ifdef OPLUS_BUG_STABILITY
 	tx_priv->pcm_rate[decimator] = (snd_soc_component_read32(component,
 				     tx_fs_reg) & 0x0F);
+	#else /* OPLUS_BUG_STABILITY */
+	tx_priv->amic_sample_rate = (snd_soc_component_read32(component,
+				     tx_fs_reg) & 0x0F);
+	#endif /* OPLUS_BUG_STABILITY */
 	if(!is_smic_enabled(component, decimator))
 		tx_macro_enable_dmic(w, kcontrol, event, adc_mux0_reg);
 

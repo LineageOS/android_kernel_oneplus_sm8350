@@ -11390,6 +11390,14 @@ struct afe_spkr_prot_calib_get_resp {
 	struct asm_calib_res_cfg res_cfg;
 } __packed;
 
+#ifdef OPLUS_FEATURE_EAR_PROTECTION
+#define TOPOLOGY_ID_EAR_PROTECTION                              0x10012D20
+#define MODULE_ID_EAR_PROTECTION                                0x10012D21
+
+#define AFE_PARAM_ID_EAR_PROTECTION_ENABLE                      0x10012D23
+#define AFE_PARAM_ID_EAR_PROTECTION_GET_PARAM               0x10012D25
+#define AFE_PARAM_ID_EAR_PROTECTION_SET_PARAM               0x10012D27
+#endif /* OPLUS_FEATURE_EAR_PROTECTION */
 
 #define AFE_MODULE_SPEAKER_PROTECTION_V4_RX       0x000102C7
 #define AFE_PARAM_ID_SP_V4_OP_MODE                0x000102C9

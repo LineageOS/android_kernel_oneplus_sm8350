@@ -365,14 +365,24 @@ static int haptics_vmax_put(struct snd_kcontrol *kcontrol,
 			snd_soc_component_get_drvdata(component);
 
 	swr_hap->vmax = ucontrol->value.integer.value[0];
+#ifdef OPLUS_ARCH_EXTENDS
+	if (swr_hap->vmax > 200) {
+		swr_hap->vmax = 200;
+	}
+#endif /* OPLUS_ARCH_EXTENDS */
 	pr_debug("%s: vmax %u\n", __func__, swr_hap->vmax);
 
 	return 0;
 }
 
 static const struct snd_kcontrol_new haptics_snd_controls[] = {
+#ifndef OPLUS_ARCH_EXTENDS
 	SOC_SINGLE_EXT("Haptics Amplitude Step", SND_SOC_NOPM, 0, 100, 0,
 		haptics_vmax_get, haptics_vmax_put),
+#else /* OPLUS_ARCH_EXTENDS */
+	SOC_SINGLE_EXT("Haptics Amplitude Step", SND_SOC_NOPM, 0, 200, 0,
+		haptics_vmax_get, haptics_vmax_put),
+#endif /* OPLUS_ARCH_EXTENDS */
 };
 
 static const struct snd_soc_dapm_widget haptics_comp_dapm_widgets[] = {

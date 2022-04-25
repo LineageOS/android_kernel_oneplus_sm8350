@@ -173,6 +173,11 @@ int adm_validate_and_get_port_index(int port_id);
 
 int adm_get_default_copp_idx(int port_id);
 
+#ifdef OPLUS_FEATURE_AUDIODETECT
+int adm_set_auddet_enable_param(int port_id, uint8_t val);
+int adm_get_all_mute_pp_param_from_port(int port_id);
+#endif /* OPLUS_FEATURE_AUDIODETECT */
+
 int adm_get_topology_for_port_from_copp_id(int port_id, int copp_id);
 
 int adm_get_topology_for_port_copp_idx(int port_id, int copp_idx);

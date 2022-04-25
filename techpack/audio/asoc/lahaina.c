@@ -73,7 +73,11 @@
 #define CODEC_EXT_CLK_RATE          9600000
 #define ADSP_STATE_READY_TIMEOUT_MS 3000
 #define DEV_NAME_STR_LEN            32
+#ifndef OPLUS_ARCH_EXTENDS
 #define WCD_MBHC_HS_V_MAX           1600
+#else /* OPLUS_ARCH_EXTENDS */
+#define WCD_MBHC_HS_V_MAX           1700
+#endif /* OPLUS_ARCH_EXTENDS */
 
 #define TDM_CHANNEL_MAX		8
 
@@ -922,6 +926,116 @@ static int dmic_0_1_gpio_cnt;
 static int dmic_2_3_gpio_cnt;
 static int dmic_4_5_gpio_cnt;
 
+#ifdef OPLUS_FEATURE_EAR_PROTECTION
+typedef struct {
+	unsigned int val_l;
+	unsigned int val_r;
+	unsigned int sample_rate;
+	unsigned int channels;
+} peak_val;
+
+static unsigned int ep_port_id = 0x400e; /* AFE_PORT_ID_SLIMBUS_MULTI_CHAN_7_RX */
+static char const* ep_ctrl_text[] = {"OFF", "ON"};
+static const struct soc_enum ep_ctrl_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(ep_ctrl_text), ep_ctrl_text);
+
+extern int afe_ear_protection_get_peak_val(int port_id, peak_val* val);
+extern int afe_ear_protection_ctrl_set(int port_id, unsigned int val);
+
+static int peak_value_get(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_value *ucontrol)
+{
+	int ret = 0;
+	peak_val data;
+
+	ret = afe_ear_protection_get_peak_val(ep_port_id, &data);
+
+	if (ret) {
+		pr_err("%s(), peak val get failed, ret = %d", __func__, ret);
+		return ret;
+	}
+
+	ucontrol->value.integer.value[0] = data.val_l;
+	ucontrol->value.integer.value[1] = data.val_r;
+	ucontrol->value.integer.value[2] = data.sample_rate;
+	ucontrol->value.integer.value[3] = data.channels;
+
+	return ret;
+};
+
+static int ep_ctrl_put(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+{
+	int ret = 0;
+	unsigned int val = 0;
+
+	if ((kcontrol == NULL) || (ucontrol == NULL)) {
+		pr_err("%s(), invalid param", __func__);
+		return -EINVAL;
+	}
+
+	val = ucontrol->value.integer.value[0];
+
+	ret = afe_ear_protection_ctrl_set(ep_port_id, val);
+	if (ret) {
+		pr_err("%s(), apr set failed, ret = %d", __func__, ret);
+	}
+
+	return ret;
+}
+
+static int peak_value_info(struct snd_kcontrol *kcontrol,
+			       struct snd_ctl_elem_info *uinfo)
+{
+	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
+	uinfo->count = 4;
+	uinfo->value.integer.min = 0;
+	uinfo->value.integer.max = 0x7fffffff; /* 32 bit value,  */
+
+	return 0;
+}
+
+static int ep_port_get(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_value *ucontrol)
+{
+	if ((kcontrol == NULL) || (ucontrol == NULL)) {
+		pr_err("%s(), invalid param", __func__);
+		return -EINVAL;
+	}
+
+	ucontrol->value.integer.value[0]  = ep_port_id;
+	pr_info("%s(), current port id = 0x%x", __func__, ep_port_id);
+
+	return 0;
+}
+
+static int ep_port_put(struct snd_kcontrol *kcontrol,
+			      struct snd_ctl_elem_value *ucontrol)
+{
+	if ((kcontrol == NULL) || (ucontrol == NULL)) {
+		pr_err("%s(), invalid param", __func__);
+		return -EINVAL;
+	}
+
+	ep_port_id = ucontrol->value.integer.value[0];
+	pr_info("%s(), new port id = 0x%x", __func__, ep_port_id);
+
+	return 0;
+}
+
+static const struct snd_kcontrol_new ear_protection_controls[] = {
+	SOC_ENUM_EXT("EP_CTRL", ep_ctrl_enum, NULL, ep_ctrl_put),
+	SOC_SINGLE_EXT("EP_PORT", 0, 0, UINT_MAX, 0, ep_port_get, ep_port_put),
+	{
+		.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
+		.name = "PEAK_VALUE",
+		.access = SNDRV_CTL_ELEM_ACCESS_READ,
+		.info = peak_value_info,
+		.get = peak_value_get
+	},
+};
+#endif /* OPLUS_FEATURE_EAR_PROTECTION */
+
 static void *def_wcd_mbhc_cal(void);
 
 static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime*);
@@ -934,7 +1048,11 @@ static int msm_int_wsa_init(struct snd_soc_pcm_runtime*);
 static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.read_fw_bin = false,
 	.calibration = NULL,
+	#ifndef OPLUS_ARCH_EXTENDS
 	.detect_extn_cable = true,
+	#else /* OPLUS_ARCH_EXTENDS */
+	.detect_extn_cable = false,
+	#endif /* OPLUS_ARCH_EXTENDS */
 	.mono_stero_detection = false,
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
@@ -951,7 +1069,11 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.mbhc_micbias = MIC_BIAS_2,
 	.anc_micbias = MIC_BIAS_2,
 	.enable_anc_mic_detect = false,
+	#ifndef OPLUS_ARCH_EXTENDS
 	.moisture_duty_cycle_en = true,
+	#else /*OPLUS_ARCH_EXTENDS*/
+	.moisture_duty_cycle_en = false,
+	#endif /*OPLUS_ARCH_EXTENDS*/
 };
 
 /* set audio task affinity to core 1 & 2 */
@@ -4755,7 +4877,11 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool acti
 	if (!pdata->fsa_handle)
 		return false;
 
+	#ifndef OPLUS_ARCH_EXTENDS
 	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	#else
+	return (0 == fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP));
+	#endif /* OPLUS_ARCH_EXTENDS */
 }
 
 static bool msm_swap_gnd_mic(struct snd_soc_component *component, bool active)
@@ -5788,6 +5914,7 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high = ((void *)&btn_cfg->_v_btn_low) +
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
+	#ifndef OPLUS_ARCH_EXTENDS
 	btn_high[0] = 75;
 	btn_high[1] = 150;
 	btn_high[2] = 237;
@@ -5796,6 +5923,16 @@ static void *def_wcd_mbhc_cal(void)
 	btn_high[5] = 500;
 	btn_high[6] = 500;
 	btn_high[7] = 500;
+	#else /* OPLUS_ARCH_EXTENDS */
+	btn_high[0] = 130;		/* Hook ,0 ~ 160 Ohm*/
+	btn_high[1] = 131;
+	btn_high[2] = 253;		/* Volume + ,160 ~ 360 Ohm*/
+	btn_high[3] = 425;		/* Volume - ,360 ~ 680 Ohm*/
+	btn_high[4] = 426;
+	btn_high[5] = 426;
+	btn_high[6] = 426;
+	btn_high[7] = 426;
+	#endif /* OPLUS_ARCH_EXTENDS */
 
 	return wcd_mbhc_cal;
 }
@@ -7281,6 +7418,30 @@ static struct snd_soc_dai_link msm_afe_rxtx_lb_be_dai_link[] = {
 	},
 };
 
+#ifdef OPLUS_ARCH_EXTENDS
+SND_SOC_DAILINK_DEFS(tfa98xx_tert_mi2s_rx,
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.2")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.4-0035", "tfa98xx-aif-4-35"),
+			COMP_CODEC("tfa98xx.4-0034", "tfa98xx-aif-4-34"),),
+	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
+
+static struct snd_soc_dai_link tfa98xx_stereo_be_dai_links[] = {
+	{
+		.name = LPASS_BE_TERT_MI2S_RX,
+		.stream_name = "Tertiary MI2S Playback",
+		.no_pcm = 1,
+		.dpcm_playback = 1,
+		.id = MSM_BACKEND_DAI_TERTIARY_MI2S_RX,
+		.be_hw_params_fixup = msm_be_hw_params_fixup,
+		.ops = &msm_mi2s_be_ops,
+		.ignore_suspend = 1,
+		.ignore_pmdown_time = 1,
+		SND_SOC_DAILINK_REG(tfa98xx_tert_mi2s_rx),
+		.num_codecs = ARRAY_SIZE(tfa98xx_tert_mi2s_rx_codecs),
+	},
+};
+#endif /* OPLUS_ARCH_EXTENDS */
+
 static struct snd_soc_dai_link msm_lahaina_dai_links[
 			ARRAY_SIZE(msm_common_dai_links) +
 			ARRAY_SIZE(msm_bolero_fe_dai_links) +
@@ -7608,6 +7769,12 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 	u32 val = 0;
 	u32 wcn_btfm_intf = 0;
 	const struct of_device_id *match;
+#ifdef OPLUS_ARCH_EXTENDS
+	int i;
+	const char *product_name = NULL;
+	const char *oplus_speaker_type = "oplus,speaker-pa";
+	struct snd_soc_dai_link *temp_link;
+#endif /* OPLUS_ARCH_EXTENDS */
 	u32 wsa_max_devs = 0;
 
 	match = of_match_node(lahaina_asoc_machine_of_match, dev->of_node);
@@ -7682,6 +7849,24 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 				__func__);
 		} else {
 			if (mi2s_audio_intf) {
+#ifdef OPLUS_ARCH_EXTENDS
+				if (!of_property_read_string(dev->of_node, oplus_speaker_type,
+						&product_name)) {
+					pr_err("%s: custom speaker product %s\n", __func__, product_name);
+					for (i = 0; i < ARRAY_SIZE(msm_mi2s_be_dai_links); i++) {
+						temp_link = &msm_mi2s_be_dai_links[i];
+						if (temp_link->id == MSM_BACKEND_DAI_TERTIARY_MI2S_RX) {
+							#ifdef CONFIG_SND_SOC_TFA98XX
+							if (!strcmp(product_name, "nxp")) {
+								pr_info("%s: use nxp stereo dailink replace\n", __func__);
+								memcpy(temp_link, &tfa98xx_stereo_be_dai_links[0],
+										sizeof(tfa98xx_stereo_be_dai_links[0]));
+							}
+							#endif
+						}
+					}
+				}
+#endif /* OPLUS_ARCH_EXTENDS */
 				memcpy(msm_lahaina_dai_links + total_links,
 					msm_mi2s_be_dai_links,
 					sizeof(msm_mi2s_be_dai_links));
@@ -7877,6 +8062,15 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 			__func__, ret);
 		return ret;
 	}
+
+#ifdef OPLUS_FEATURE_EAR_PROTECTION
+	ret = snd_soc_add_component_controls(component, ear_protection_controls,
+									ARRAY_SIZE(ear_protection_controls));
+	if (ret < 0) {
+		pr_err("%s: add ear_protection_controls failed: %d\n", __func__, ret);
+		return ret;
+	}
+#endif /* OPLUS_FEATURE_EAR_PROTECTION */
 
 	snd_soc_dapm_new_controls(dapm, msm_int_dapm_widgets,
 				ARRAY_SIZE(msm_int_dapm_widgets));

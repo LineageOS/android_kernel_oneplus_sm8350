@@ -2161,6 +2161,10 @@ static int wcd938x_event_notify(struct notifier_block *block,
 						     NULL);
 		wcd938x->mbhc->wcd_mbhc.deinit_in_progress = true;
 		mbhc = &wcd938x->mbhc->wcd_mbhc;
+		#ifdef OPLUS_ARCH_EXTENDS
+		mbhc->plug_before_ssr = mbhc->current_plug;
+		pr_info("%s: mbhc->plug_before_ssr=%d\n", __func__, mbhc->plug_before_ssr);
+		#endif /* OPLUS_ARCH_EXTENDS */
 		wcd938x->usbc_hs_status = get_usbc_hs_status(component,
 						mbhc->mbhc_cfg);
 		wcd938x_mbhc_ssr_down(wcd938x->mbhc, component);
@@ -3087,6 +3091,46 @@ static const struct snd_kcontrol_new wcd9385_snd_controls[] = {
 			wcd938x_tx_mode_get, wcd938x_tx_mode_put),
 };
 
+#ifdef OPLUS_ARCH_EXTENDS
+static const char * const wcd_reg_dump_text[] = {
+	"ALL",
+};
+
+static SOC_ENUM_SINGLE_EXT_DECL(wcd_reg_dump_enum,
+				wcd_reg_dump_text);
+static int wcd_reg_dump_set(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	int i = 0;
+	u32 reg = 0;
+	struct snd_soc_component *component = NULL;
+	struct wcd938x_priv *wcd938x = NULL;
+
+	if (!kcontrol) {
+		return -1;
+	}
+	component = snd_soc_kcontrol_component(kcontrol);
+
+	if (!component) {
+		return -1;
+	}
+	wcd938x = snd_soc_component_get_drvdata(component);
+
+	if (!wcd938x || !(wcd938x->regmap)) {
+		return -1;
+	}
+	dev_err(component->dev, "wcd_reg_dump");
+
+	for (i = WCD938X_BASE_ADDRESS + 1; i <= wcd938x_regmap_config.max_register; i++) {
+		regmap_read(wcd938x->regmap, i, &reg);
+		dev_err(component->dev, "%04x:%04x\n", i, reg);
+	}
+
+	dev_err(component->dev, "wcd_reg_dump end");
+	return 0;
+}
+#endif /* OPLUS_ARCH_EXTENDS */
+
 static const struct snd_kcontrol_new wcd938x_snd_controls[] = {
 	SOC_SINGLE_EXT("HPHL_COMP Switch", SND_SOC_NOPM, 0, 1, 0,
 		wcd938x_get_compander, wcd938x_set_compander),
@@ -3143,6 +3187,10 @@ static const struct snd_kcontrol_new wcd938x_snd_controls[] = {
 			wcd938x_get_micbias, wcd938x_set_micbias),
 	SOC_SINGLE_EXT("MIC BIAS4 Standalone", SND_SOC_NOPM, MIC_BIAS_4, 1, 0,
 			wcd938x_get_micbias, wcd938x_set_micbias),
+#ifdef OPLUS_ARCH_EXTENDS
+	SOC_ENUM_EXT("WCD REG DUMP", wcd_reg_dump_enum,
+			NULL, wcd_reg_dump_set),
+#endif /* OPLUS_ARCH_EXTENDS */
 };
 
 static const struct snd_kcontrol_new adc1_switch[] = {
@@ -3939,6 +3987,7 @@ static int wcd938x_soc_codec_probe(struct snd_soc_component *component)
 			return ret;
 		}
 	}
+
 	return ret;
 
 err_hwdep:
