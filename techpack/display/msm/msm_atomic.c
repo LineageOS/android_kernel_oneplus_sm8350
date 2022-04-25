@@ -16,6 +16,10 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <drm/drm_panel.h>
+#ifdef OPLUS_BUG_STABILITY
+#include <linux/msm_drm_notify.h>
+#include <linux/notifier.h>
+#endif /* OPLUS_BUG_STABILITY */
 
 #include "msm_drv.h"
 #include "msm_gem.h"

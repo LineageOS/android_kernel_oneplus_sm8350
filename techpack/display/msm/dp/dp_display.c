@@ -162,6 +162,7 @@ struct dp_display_private {
 
 	struct platform_device *pdev;
 	struct device_node *aux_switch_node;
+	bool aux_switch_ready;
 	struct dentry *root;
 	struct completion notification_comp;
 	struct completion attention_comp;
@@ -1336,6 +1337,55 @@ static int dp_display_process_hpd_low(struct dp_display_private *dp)
 	return rc;
 }
 
+static int dp_display_fsa4480_callback(struct notifier_block *self,
+		unsigned long event, void *data)
+{
+	return 0;
+}
+
+static int dp_display_init_aux_switch(struct dp_display_private *dp)
+{
+	int rc = 0;
+	struct notifier_block nb;
+	const u32 max_retries = 50;
+	u32 retry;
+
+	if (dp->aux_switch_ready)
+	       return rc;
+
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY);
+
+	nb.notifier_call = dp_display_fsa4480_callback;
+	nb.priority = 0;
+
+	/*
+	 * Iteratively wait for reg notifier which confirms that fsa driver is probed.
+	 * Bootup DP with cable connected usecase can hit this scenario.
+	 */
+	for (retry = 0; retry < max_retries; retry++) {
+		rc = fsa4480_reg_notifier(&nb, dp->aux_switch_node);
+		if (rc == 0) {
+			DP_DEBUG("registered notifier successfully\n");
+			dp->aux_switch_ready = true;
+			break;
+		} else {
+			DP_DEBUG("failed to register notifier retry=%d rc=%d\n", retry, rc);
+			msleep(100);
+		}
+	}
+
+	if (retry == max_retries) {
+		DP_WARN("Failed to register fsa notifier\n");
+		dp->aux_switch_ready = false;
+		return rc;
+	}
+
+	fsa4480_unreg_notifier(&nb, dp->aux_switch_node);
+
+	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, rc);
+	return rc;
+}
+
 static int dp_display_usbpd_configure_cb(struct device *dev)
 {
 	int rc = 0;
@@ -1353,7 +1403,11 @@ static int dp_display_usbpd_configure_cb(struct device *dev)
 	}
 
 	if (!dp->debug->sim_mode && !dp->parser->no_aux_switch
-	    && !dp->parser->gpio_aux_switch) {
+		&& !dp->parser->gpio_aux_switch && dp->aux_switch_node) {
+		rc = dp_display_init_aux_switch(dp);
+		if (rc)
+			return rc;
+
 		rc = dp->aux->aux_switch(dp->aux, true, dp->hpd->orientation);
 		if (rc)
 			return rc;
@@ -1866,6 +1920,7 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 {
 	int rc = 0;
 	bool hdcp_disabled;
+	const char *phandle = "qcom,dp-aux-switch";
 	struct device *dev = &dp->pdev->dev;
 	struct dp_hpd_cb *cb = &dp->hpd_cb;
 	struct dp_ctrl_in ctrl_in = {
@@ -1907,6 +1962,10 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 		dp->catalog = NULL;
 		goto error_catalog;
 	}
+
+	dp->aux_switch_node = of_parse_phandle(dp->pdev->dev.of_node, phandle, 0);
+	if (!dp->aux_switch_node)
+		DP_DEBUG("cannot parse %s handle\n", phandle);
 
 	dp->aux = dp_aux_get(dev, &dp->catalog->aux, dp->parser,
 			dp->aux_switch_node);
@@ -3082,48 +3141,6 @@ static int dp_display_create_workqueue(struct dp_display_private *dp)
 	return 0;
 }
 
-static int dp_display_fsa4480_callback(struct notifier_block *self,
-		unsigned long event, void *data)
-{
-	return 0;
-}
-
-static int dp_display_init_aux_switch(struct dp_display_private *dp)
-{
-	int rc = 0;
-	const char *phandle = "qcom,dp-aux-switch";
-	struct notifier_block nb;
-
-	if (!dp->pdev->dev.of_node) {
-		DP_ERR("cannot find dev.of_node\n");
-		rc = -ENODEV;
-		goto end;
-	}
-
-	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY);
-	dp->aux_switch_node = of_parse_phandle(dp->pdev->dev.of_node,
-			phandle, 0);
-	if (!dp->aux_switch_node) {
-		DP_WARN("cannot parse %s handle\n", phandle);
-		rc = -ENODEV;
-		goto end;
-	}
-
-	nb.notifier_call = dp_display_fsa4480_callback;
-	nb.priority = 0;
-
-	rc = fsa4480_reg_notifier(&nb, dp->aux_switch_node);
-	if (rc) {
-		DP_ERR("failed to register notifier (%d)\n", rc);
-		goto end;
-	}
-
-	fsa4480_unreg_notifier(&nb, dp->aux_switch_node);
-end:
-	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_EXIT, rc);
-	return rc;
-}
-
 static int dp_display_mst_install(struct dp_display *dp_display,
 			struct dp_mst_drm_install_info *mst_install_info)
 {
@@ -3574,12 +3591,6 @@ static int dp_display_probe(struct platform_device *pdev)
 	dp->name = "drm_dp";
 
 	memset(&dp->mst, 0, sizeof(dp->mst));
-
-	rc = dp_display_init_aux_switch(dp);
-	if (rc) {
-		rc = -EPROBE_DEFER;
-		goto error;
-	}
 
 	rc = dp_display_create_workqueue(dp);
 	if (rc) {
