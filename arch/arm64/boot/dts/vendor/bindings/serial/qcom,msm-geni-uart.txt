@@ -39,3 +39,10 @@ qupv3_uart11: qcom,qup_uart@0xa88000 {
 	qcom,change-sampling-rate;
 	qcom,wakeup-byte = <0xFF>;
 };
+
+oem_serial_pinctrl {
+    compatible = "oem,oem_serial_pinctrl";
+    pinctrl-names = "uart_pinctrl_active","uart_pinctrl_deactive";
+    pinctrl-0 = <&qupv3_se3_2uart_active>;
+    pinctrl-1 = <&qupv3_se3_2uart_oem_sleep>;
+};
