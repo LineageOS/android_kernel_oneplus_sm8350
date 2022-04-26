@@ -466,6 +466,7 @@
 &usb0 {
 	dwc3@a600000 {
 		maximum-speed = "super-speed";
+		snps,usb2-gadget-lpm-disable;
 	};
 };
 
