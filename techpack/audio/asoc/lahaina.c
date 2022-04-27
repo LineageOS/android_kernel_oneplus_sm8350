@@ -7420,7 +7420,7 @@ static struct snd_soc_dai_link msm_afe_rxtx_lb_be_dai_link[] = {
 
 #ifdef OPLUS_ARCH_EXTENDS
 SND_SOC_DAILINK_DEFS(tfa98xx_tert_mi2s_rx,
-	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.2")),
+	DAILINK_COMP_ARRAY(COMP_CPU("msm-dai-q6-mi2s.4")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("tfa98xx.7-0035", "tfa98xx-aif-7-35"),
 			COMP_CODEC("tfa98xx.7-0034", "tfa98xx-aif-7-34"),),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("msm-pcm-routing")));
