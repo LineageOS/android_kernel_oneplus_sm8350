@@ -739,7 +739,7 @@ QDF_STATUS fwol_set_ilp_config(struct wlan_objmgr_pdev *pdev,
 			       uint32_t enable_ilp)
 {
 	QDF_STATUS status;
-	struct pdev_params pdev_param;
+	struct pdev_params pdev_param = {};
 
 	pdev_param.param_id = WMI_PDEV_PARAM_PCIE_HW_ILP;
 	pdev_param.param_value = enable_ilp;
@@ -755,7 +755,7 @@ QDF_STATUS fwol_configure_hw_assist(struct wlan_objmgr_pdev *pdev,
 				    bool disable_hw_assist)
 {
 	QDF_STATUS status;
-	struct pdev_params pdev_param;
+	struct pdev_params pdev_param = {};
 
 	pdev_param.param_id = WMI_PDEV_PARAM_DISABLE_HW_ASSIST;
 	pdev_param.param_value = disable_hw_assist;
