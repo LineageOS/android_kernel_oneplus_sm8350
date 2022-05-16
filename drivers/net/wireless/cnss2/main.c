@@ -20,7 +20,7 @@
 #include "debug.h"
 #include "genl.h"
 
-#ifdef OPLUS_FEATURE_WIFI_MAC
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_MAC
 #include <soc/oplus/boot_mode.h>
 #endif
 
@@ -74,7 +74,7 @@ struct cnss_driver_event {
 	void *data;
 };
 
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 static unsigned int cnssprobestate = 0;
 #endif
 
@@ -551,7 +551,7 @@ static int cnss_setup_dms_mac(struct cnss_plat_data *plat_priv)
 	/* DTSI property use-nv-mac is used to force DMS MAC address for WLAN.
 	 * Thus assert on failure to get MAC from DMS even after retries
 	 */
-#ifndef OPLUS_FEATURE_WIFI_MAC
+#ifndef CONFIG_OPLUS_FEATURE_WIFI_MAC
 	if (plat_priv->use_nv_mac) {
 		for (i = 0; i < CNSS_DMS_QMI_CONNECTION_WAIT_RETRY; i++) {
 			if (plat_priv->dms.mac_valid)
@@ -3148,7 +3148,7 @@ static const struct of_device_id cnss_of_match_table[] = {
 };
 MODULE_DEVICE_TABLE(of, cnss_of_match_table);
 
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 static void icnss_create_fw_state_kobj(void);
 static ssize_t icnss_show_fw_ready(struct device_driver *driver, char *buf)
 {
@@ -3244,7 +3244,7 @@ static int cnss_probe(struct platform_device *plat_dev)
 	cnss_get_cpr_info(plat_priv);
 	cnss_init_control_params(plat_priv);
 
-    #ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+    #ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 	icnss_create_fw_state_kobj();
 	#endif
 
@@ -3313,7 +3313,7 @@ retry:
 	if (ret < 0)
 		cnss_pr_err("CNSS genl init failed %d\n", ret);
 
-    #ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+    #ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 	cnssprobestate = CNSS_PROBE_SUCCESS;
 	#endif
 
@@ -3347,7 +3347,7 @@ reset_ctx:
 	platform_set_drvdata(plat_dev, NULL);
 	cnss_set_plat_priv(plat_dev, NULL);
 out:
-    #ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+    #ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 	cnssprobestate = CNSS_PROBE_FAIL;
     #endif
 	return ret;
@@ -3388,7 +3388,7 @@ static struct platform_driver cnss_platform_driver = {
 	},
 };
 
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 static void icnss_create_fw_state_kobj(void) {
 	if (driver_create_file(&(cnss_platform_driver.driver), &fw_ready_attr)) {
 		cnss_pr_info("failed to create %s", fw_ready_attr.attr.name);

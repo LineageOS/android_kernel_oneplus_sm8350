@@ -22,7 +22,7 @@
 #include "aw8697.h"
 #include "aw8697_reg.h"
 #include "aw8697_config.h"
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 #include <linux/proc_fs.h>
 #include <linux/pm_qos.h>
 #include <linux/vmalloc.h>
@@ -211,7 +211,7 @@ static char aw8697_ringtone_rtp_f0_170_name[][AW8697_RTP_NAME_MAX] = {
 	{ "barca_notice_ring_RTP_122_170.bin" },
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static char aw8697_rtp_name_165Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
@@ -380,11 +380,11 @@ static char aw8697_rtp_name_165Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp_lighthouse.bin" },
 	{ "aw8697_rtp_silk.bin" },
 };
-#endif /* OPLUS_FEATURE_CHG_BASIC */
+#endif /* CONFIG_OPLUS_FEATURE_CHG_BASIC */
 
 static char aw8697_rtp_name[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
 	{ "aw8697_Instant_channel_RTP_2.bin" },
 	{ "aw8697_Music_channel_RTP_3.bin" },
@@ -694,7 +694,7 @@ static char aw8697_rtp_name[][AW8697_RTP_NAME_MAX] = {
 	{ "500ms_RTP.bin" },
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static char aw8697_rtp_name_175Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
@@ -958,7 +958,7 @@ static char aw8697_rtp_name_175Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "shuntai24k_rtp.bin" },
 	{ "wentai24k_rtp.bin" },
 };
-#endif /* OPLUS_FEATURE_CHG_BASIC */
+#endif /* CONFIG_OPLUS_FEATURE_CHG_BASIC */
 
 static char aw8697_ram_name_19065[5][30] = {
 	{ "aw8697_haptic_235.bin" }, { "aw8697_haptic_235.bin" },
@@ -972,7 +972,7 @@ static char aw8697_ram_name_19161[5][30] = {
 	{ "aw8697_haptic_235_19161.bin" },
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static char aw8697_rtp_name_19065_226Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
@@ -1164,9 +1164,9 @@ static char aw8697_rtp_name_19065_226Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_reserved_169.bin" },
 	{ "aw8697_reserved_170.bin" },
 };
-#endif /* OPLUS_FEATURE_CHG_BASIC */
+#endif /* CONFIG_OPLUS_FEATURE_CHG_BASIC */
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static char aw8697_rtp_name_19065_230Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
@@ -1358,11 +1358,11 @@ static char aw8697_rtp_name_19065_230Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_reserved_169.bin" },
 	{ "aw8697_reserved_170.bin" },
 };
-#endif /* OPLUS_FEATURE_CHG_BASIC */
+#endif /* CONFIG_OPLUS_FEATURE_CHG_BASIC */
 
 static char aw8697_rtp_name_19065_234Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
 	{ "aw8697_Instant_channel_RTP_2_234Hz.bin" },
 	{ "aw8697_Music_channel_RTP_3.bin" },
@@ -1555,7 +1555,7 @@ static char aw8697_rtp_name_19065_234Hz[][AW8697_RTP_NAME_MAX] = {
 
 static char aw8697_rtp_name_19065_237Hz[][AW8697_RTP_NAME_MAX] = {
 	{ "aw8697_rtp.bin" },
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	{ "aw8697_Hearty_channel_RTP_1.bin" },
 	{ "aw8697_Instant_channel_RTP_2_237Hz.bin" },
 	{ "aw8697_Music_channel_RTP_3.bin" },
@@ -2559,7 +2559,7 @@ static void aw8697_rtp_loaded(const struct firmware *cont, void *context)
 
 	/* aw8697 rtp update */
 	mutex_lock(&aw8697->rtp_lock);
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697_rtp = kzalloc(cont->size + sizeof(int), GFP_KERNEL);
 
 	if (!aw8697_rtp) {
@@ -3441,7 +3441,7 @@ static int aw8697_haptic_trig_param_init(struct aw8697 *aw8697)
 {
 	pr_debug("%s enter\n", __func__);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697->trig[0].enable = 0;
 #else
 	aw8697->trig[0].enable = AW8697_TRG1_ENABLE;
@@ -3450,7 +3450,7 @@ static int aw8697_haptic_trig_param_init(struct aw8697 *aw8697)
 	aw8697->trig[0].dual_edge = AW8697_TRG1_DUAL_EDGE;
 	aw8697->trig[0].frist_seq = AW8697_TRG1_FIRST_EDGE_SEQ;
 	aw8697->trig[0].second_seq = AW8697_TRG1_SECOND_EDGE_SEQ;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697->trig[1].enable = 0;
 #else
 	aw8697->trig[1].enable = AW8697_TRG2_ENABLE;
@@ -3459,7 +3459,7 @@ static int aw8697_haptic_trig_param_init(struct aw8697 *aw8697)
 	aw8697->trig[1].dual_edge = AW8697_TRG2_DUAL_EDGE;
 	aw8697->trig[1].frist_seq = AW8697_TRG2_FIRST_EDGE_SEQ;
 	aw8697->trig[1].second_seq = AW8697_TRG2_SECOND_EDGE_SEQ;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697->trig[2].enable = 0;
 #else
 	aw8697->trig[2].enable = AW8697_TRG3_ENABLE;
@@ -3736,7 +3736,7 @@ static int aw8697_haptic_read_f0(struct aw8697 *aw8697)
 	f0_reg = (reg_val << 8);
 	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_F0_L, &reg_val);
 	f0_reg |= (reg_val << 0);
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	f0_tmp = 1000000000 / (f0_reg * AW8697_HAPTIC_F0_COEFF);
 #else
 
@@ -3770,7 +3770,7 @@ static int aw8697_haptic_read_cont_f0(struct aw8697 *aw8697)
 	ret = aw8697_i2c_read(aw8697, AW8697_REG_F_LRA_CONT_L, &reg_val);
 	f0_reg |= (reg_val << 0);
 
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	f0_tmp = 1000000000 / (f0_reg * AW8697_HAPTIC_F0_COEFF);
 #else
 
@@ -4103,7 +4103,7 @@ static int aw8697_rtp_osc_calibration(struct aw8697 *aw8697)
 
 	aw8697->rtp_init = 0;
 	mutex_lock(&aw8697->rtp_lock);
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	kfree(aw8697_rtp);
 	aw8697_rtp = kzalloc(rtp_file->size + sizeof(int), GFP_KERNEL);
 	if (!aw8697_rtp) {
@@ -4666,7 +4666,7 @@ static void aw8697_rtp_work_routine(struct work_struct *work)
 
 	mutex_lock(&aw8697->rtp_lock);
 #ifndef CONFIG_OPLUS_HAPTIC_OOS
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	kfree(aw8697_rtp);
 	aw8697_rtp = kzalloc(rtp_file->size + sizeof(int), GFP_KERNEL);
 
@@ -4833,7 +4833,7 @@ static void aw8697_rtp_single_cycle_routine(struct work_struct *work)
 	}
 
 	aw8697->rtp_init = 0;
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	kfree(aw8697_rtp);
 	printk("%s---%d\n", __func__, __LINE__);
 	aw8697_rtp = kzalloc(rtp_file->size + sizeof(int), GFP_KERNEL);
@@ -4953,7 +4953,7 @@ static void aw8697_rtp_regroup_routine(struct work_struct *work)
 
 	rtp_len_tmp = 0;
 	aw8697->rtp_init = 0;
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	kfree(aw8697_rtp);
 	aw8697_rtp = kzalloc(aw8697_rtp_len + sizeof(int), GFP_KERNEL);
 
@@ -5736,7 +5736,7 @@ static int aw8697_haptic_f0_calibration(struct aw8697 *aw8697)
 		f0_limit = aw8697->f0;
 		pr_err("%s get f0=%d\n", __func__, f0_limit);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 		if (aw8697->device_id == 832 || aw8697->device_id == 833) {
 			if (aw8697->f0 * 100 <
@@ -6176,7 +6176,7 @@ static ssize_t aw8697_file_write(struct file *filp, const char *buff,
 	ret = copy_from_user(pbuff, buff, len);
 
 	if (ret) {
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 		if (pbuff != NULL)
 			kfree(pbuff);
@@ -6335,7 +6335,7 @@ static int aw8697_haptic_init(struct aw8697 *aw8697)
 	ret = aw8697_i2c_read(aw8697, AW8697_REG_DATDBG, &reg_val);
 	aw8697->gain = reg_val & 0xFF;
 	ret = aw8697_i2c_read(aw8697, AW8697_REG_BSTDBG4, &reg_val);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697->vmax = AW8697_HAPTIC_HIGH_LEVEL_REG_VAL;
 #else
 	aw8697->vmax = (reg_val >> 1) & 0x1F;
@@ -6379,7 +6379,7 @@ static int aw8697_haptic_init(struct aw8697 *aw8697)
 
 	/* f0 calibration */
 	mutex_lock(&aw8697->lock);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 	if (aw8697->device_id == 832 ||
 			aw8697->device_id == 833) {
@@ -6401,7 +6401,7 @@ static int aw8697_haptic_init(struct aw8697 *aw8697)
 
 	pr_err("%s get f0_pre=%d\n", __func__, aw8697->f0_pre);
 #endif
-#ifndef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697_haptic_f0_calibration(aw8697);
 #endif
 	mutex_unlock(&aw8697->lock);
@@ -6557,7 +6557,7 @@ static ssize_t aw8697_duration_store(struct device *dev,
 	if (rc < 0)
 		return rc;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	pr_err("%s: value=%d\n", __FUNCTION__, val);
 #endif
 
@@ -6659,7 +6659,7 @@ static ssize_t aw8697_activate_store(struct device *dev,
 	aw8697->state = val;
 
 #ifndef CONFIG_OPLUS_HAPTIC_OOS
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 	if (aw8697->state) {
 #ifdef CONFIG_OPLUS_HAPTIC_OOS
@@ -6943,7 +6943,7 @@ static ssize_t aw8697_vmax_store(struct device *dev,
 	pr_err("%s: value=%d\n", __FUNCTION__, val);
 
 	mutex_lock(&aw8697->lock);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 	if (val <= 255)
 		aw8697->gain = (val * AW8697_HAPTIC_RAM_VBAT_COMP_GAIN) / 255;
@@ -7471,7 +7471,7 @@ static ssize_t aw8697_f0_show(struct device *dev, struct device_attribute *attr,
 	aw8697_haptic_get_f0(aw8697);
 	mutex_unlock(&aw8697->lock);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", aw8697->f0);
 #else
 	len += snprintf(buf + len, PAGE_SIZE - len, "aw8697 lra f0 = %d\n",
@@ -7966,7 +7966,7 @@ static ssize_t aw8697_lra_resistance_show(struct device *dev,
 	aw8697_i2c_read(aw8697, AW8697_REG_RLDET, &reg_val);
 	aw8697->lra = 298 * reg_val;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", aw8697->lra);
 #else
 	len += snprintf(buf + len, PAGE_SIZE - len, "r_lra=%dmohm\n",
@@ -8205,7 +8205,7 @@ static ssize_t aw8697_ram_vbat_comp_store(struct device *dev,
 	return count;
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static ssize_t aw8697_f0_data_show(struct device *dev,
 				   struct device_attribute *attr, char *buf)
 {
@@ -8234,7 +8234,7 @@ static int aw8697_check_f0_data(struct aw8697 *aw8697)
 	f0_limit = aw8697->f0;
 	pr_err("%s get f0=%d\n", __func__, f0_limit);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 	if (aw8697->device_id == 832 || aw8697->device_id == 833) {
 		if (aw8697->f0 * 100 <
@@ -8598,7 +8598,7 @@ static ssize_t aw8697_haptic_audio_time_store(struct device *dev,
 	return count;
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static void motor_old_test_work(struct work_struct *work)
 {
 	struct aw8697 *aw8697 =
@@ -9009,7 +9009,7 @@ static ssize_t aw8697_haptic_ram_test_store(struct device *dev,
 
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static ssize_t aw8697_device_id_show(struct device *dev,
 				     struct device_attribute *attr, char *buf)
 {
@@ -9086,7 +9086,7 @@ static DEVICE_ATTR(trig, S_IWUSR | S_IRUGO, aw8697_trig_show,
 		   aw8697_trig_store);
 static DEVICE_ATTR(ram_vbat_comp, S_IWUSR | S_IRUGO, aw8697_ram_vbat_comp_show,
 		   aw8697_ram_vbat_comp_store);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static DEVICE_ATTR(osc_cali, S_IWUSR | S_IRUGO, aw8697_osc_cali_show,
 		   aw8697_osc_cali_store);
 #endif
@@ -9098,7 +9098,7 @@ static DEVICE_ATTR(haptic_audio, S_IWUSR | S_IRUGO, aw8697_haptic_audio_show,
 static DEVICE_ATTR(haptic_audio_time, S_IWUSR | S_IRUGO,
 		   aw8697_haptic_audio_time_show,
 		   aw8697_haptic_audio_time_store);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static DEVICE_ATTR(motor_old, S_IWUSR | S_IRUGO, aw8697_motor_old_test_show,
 		   aw8697_motor_old_test_store);
 static DEVICE_ATTR(waveform_index, S_IWUSR | S_IRUGO,
@@ -9112,7 +9112,7 @@ static DEVICE_ATTR(f0_data, S_IWUSR | S_IRUGO, aw8697_f0_data_show,
 static DEVICE_ATTR(rtp_going, S_IWUSR | S_IRUGO, aw8697_rtp_going_show,
 		   aw8697_rtp_going_store);
 #endif
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static DEVICE_ATTR(device_id, S_IWUSR | S_IRUGO, aw8697_device_id_show,
 		   aw8697_device_id_store);
 #endif
@@ -9157,7 +9157,7 @@ static struct attribute *aw8697_vibrator_attributes[] = {
 	&dev_attr_rtp_num.attr,
 	&dev_attr_haptic_audio.attr,
 	&dev_attr_haptic_audio_time.attr,
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	&dev_attr_motor_old.attr,
 	&dev_attr_waveform_index.attr,
 	&dev_attr_osc_data.attr,
@@ -9165,7 +9165,7 @@ static struct attribute *aw8697_vibrator_attributes[] = {
 	&dev_attr_f0_data.attr,
 	&dev_attr_rtp_going.attr,
 #endif
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	&dev_attr_device_id.attr,
 #endif
 	&dev_attr_gun_type.attr,
@@ -9196,7 +9196,7 @@ static void aw8697_vibrator_work_routine(struct work_struct *work)
 	struct aw8697 *aw8697 =
 		container_of(work, struct aw8697, vibrator_work);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	aw8697->activate_mode = AW8697_HAPTIC_ACTIVATE_RAM_MODE;
 	pr_err("%s enter, aw8697->state[%d], aw8697->activate_mode[%d], aw8697->ram_vbat_comp[%d]\n",
 	       __func__, aw8697->state, aw8697->activate_mode,
@@ -9492,7 +9492,7 @@ static int aw8697_parse_dt(struct device *dev, struct aw8697 *aw8697,
 	else
 		dev_info(dev, "%s: irq gpio provided ok.\n", __func__);
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 
 	if (of_property_read_u32(np, "qcom,device_id", &aw8697->device_id))
 		aw8697->device_id = 815;
@@ -9864,7 +9864,7 @@ static int aw8697_i2c_probe(struct i2c_client *i2c,
 	aw8697_haptic_init(aw8697);
 
 	aw8697_ram_init(aw8697);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	INIT_WORK(&aw8697->motor_old_test_work, motor_old_test_work);
 	aw8697->motor_old_test_mode = 0;
 	atomic_set(&aw8697->qos_cnt, 0);

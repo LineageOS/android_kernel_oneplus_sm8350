@@ -2280,7 +2280,7 @@ ufs_qcom_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 		case QUERY_DESC_IDN_INTERCONNECT:
 		case QUERY_DESC_IDN_GEOMETRY:
 		case QUERY_DESC_IDN_POWER:
-#ifdef OPLUS_FEATURE_STORAGE_TOOL
+#ifdef CONFIG_OPLUS_FEATURE_STORAGE_TOOL
 		case QUERY_DESC_IDN_HEALTH:
 #endif
 			index = 0;
@@ -2327,7 +2327,7 @@ ufs_qcom_query_ioctl(struct ufs_hba *hba, u8 lun, void __user *buffer)
 		case QUERY_ATTR_IDN_EE_CONTROL:
 		case QUERY_ATTR_IDN_EE_STATUS:
 		case QUERY_ATTR_IDN_SECONDS_PASSED:
-#ifdef OPLUS_FEATURE_STORAGE_TOOL
+#ifdef CONFIG_OPLUS_FEATURE_STORAGE_TOOL
 		case QUERY_ATTR_IDN_FFU_STATUS:
 #endif
 			index = 0;

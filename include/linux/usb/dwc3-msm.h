@@ -172,7 +172,7 @@ static inline __maybe_unused void rmnet_gsi_update_in_buffer_mem_type(
 { }
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 #if IS_ENABLED(CONFIG_OPLUS_CHG)
 enum oplus_dwc3_notify_event {
 	DWC3_ENUM_DONE,

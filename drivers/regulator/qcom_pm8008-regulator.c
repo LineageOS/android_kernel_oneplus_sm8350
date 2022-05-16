@@ -62,7 +62,7 @@
 
 #define LDO_STEPPER_CTL_REG(base)	(base + 0x3b)
 #define STEP_RATE_MASK			GENMASK(1, 0)
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 /* Step rate in uV/us */
 #define PM8010_STEP_RATE		4800
 #endif
@@ -72,7 +72,7 @@
 
 #define PM8008_MAX_LDO			7
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 enum pmic_subtype {
 	PM8008_SUBTYPE,
 	PM8010_SUBTYPE,
@@ -92,7 +92,7 @@ struct pm8008_chip {
 	bool			suspended;
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 struct reg_init_data {
 	u8			offset;
 	u8			data;
@@ -106,7 +106,7 @@ struct regulator_data {
 	int				max_uv;
 	int				hpm_min_load_ua;
 	int				min_dropout_uv;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	const struct reg_init_data	*reg_init;
 	unsigned int			reg_init_size;
 #endif
@@ -128,12 +128,12 @@ struct pm8008_regulator {
 	bool			chip_enabled;
 	int			mode;
 	int			uv;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	enum pmic_subtype	pmic_subtype;
 #endif
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static const struct regulator_data pm8008_reg_data[PM8008_MAX_LDO] = {
 #else
 static struct regulator_data reg_data[PM8008_MAX_LDO] = {
@@ -148,7 +148,7 @@ static struct regulator_data reg_data[PM8008_MAX_LDO] = {
 	{"l7", "vdd_l7",    1504000, 3400000, 10000, 300000},
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static const struct reg_init_data pm8010_p300_reg_init_data[] = {
 	{0x55, 0x8A},
 	{0x77, 0x03},
@@ -196,7 +196,7 @@ static int pm8008_read(struct regmap *regmap,  u16 reg, u8 *val, int count)
 	return rc;
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static int pm8008_write(struct regmap *regmap, u16 reg, const u8 *val,
 			int count)
 #else
@@ -657,7 +657,7 @@ error:
 	return NOTIFY_OK;
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static int pm8008_regulator_register_init(struct pm8008_regulator *pm8008_reg,
 					  const struct regulator_data *reg_data)
 {
@@ -685,14 +685,14 @@ static int pm8008_register_ldo(struct pm8008_regulator *pm8008_reg,
 	struct regulator_init_data *init_data;
 	struct device *dev = pm8008_reg->dev;
 	struct device_node *reg_node = pm8008_reg->of_node;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	const struct regulator_data *reg_data;
 #endif
 	int rc, i, init_voltage, is_enabled;
 	u32 base = 0;
 	u8 reg;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	reg_data = pm8008_reg->pmic_subtype == PM8008_SUBTYPE ? pm8008_reg_data
 							      : pm8010_reg_data;
 #endif
@@ -714,7 +714,7 @@ static int pm8008_register_ldo(struct pm8008_regulator *pm8008_reg,
 	}
 	pm8008_reg->base = base;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	rc = pm8008_regulator_register_init(pm8008_reg, &reg_data[i]);
 	if (rc)
 		return rc;
@@ -750,7 +750,7 @@ static int pm8008_register_ldo(struct pm8008_regulator *pm8008_reg,
 	}
 
 	/* get slew rate */
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (pm8008_reg->pmic_subtype == PM8008_SUBTYPE) {
 		rc = pm8008_read(pm8008_reg->regmap,
 				LDO_STEPPER_CTL_REG(pm8008_reg->base), &reg, 1);
@@ -848,7 +848,7 @@ static int pm8008_register_ldo(struct pm8008_regulator *pm8008_reg,
 			return rc;
 		}
 	}
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 /*
 	rc = devm_regulator_debug_register(dev, pm8008_reg->rdev);
 	if (rc)
@@ -860,7 +860,7 @@ static int pm8008_register_ldo(struct pm8008_regulator *pm8008_reg,
 	return 0;
 }
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static const struct of_device_id pm8008_regulator_match_table[] = {
 	{
 		.compatible	= "qcom,pm8008-regulator",
@@ -883,13 +883,13 @@ static int pm8008_parse_regulator(struct regmap *regmap, struct device *dev)
 	struct pm8008_regulator *pm8008_reg;
 	struct regulator *en_supply;
 	struct pm8008_chip *chip;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	const struct of_device_id *match;
 	enum pmic_subtype pmic_subtype;
 #endif
 	bool ocp;
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	match = of_match_node(pm8008_regulator_match_table, dev->of_node);
 	if (match) {
 		pmic_subtype = (uintptr_t)match->data;
@@ -904,7 +904,7 @@ static int pm8008_parse_regulator(struct regmap *regmap, struct device *dev)
 	en_supply = devm_regulator_get(dev, "pm8008_en");
 	if (IS_ERR(en_supply)) {
 		rc = PTR_ERR(en_supply);
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 		if (rc != -EPROBE_DEFER)
 #endif
 			dev_err(dev, "failed to get pm8008_en supply\n");
@@ -929,7 +929,7 @@ static int pm8008_parse_regulator(struct regmap *regmap, struct device *dev)
 		pm8008_reg->enable_ocp_broadcast = ocp;
 		pm8008_reg->en_supply = en_supply;
 		pm8008_reg->chip = chip;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 		pm8008_reg->pmic_subtype = pmic_subtype;
 #endif
 
@@ -1068,7 +1068,7 @@ static int pm8008_chip_init_regulator(struct pm8008_chip *chip)
 		chip->rdev = NULL;
 		return rc;
 	}
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 /*
 	rc = devm_regulator_debug_register(chip->dev, chip->rdev);
 	if (rc)
@@ -1175,7 +1175,7 @@ static int pm8008_chip_resume(struct device *dev)
 }
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 /*
 static const struct of_device_id pm8008_regulator_match_table[] = {
 	{

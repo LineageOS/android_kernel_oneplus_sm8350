@@ -502,7 +502,7 @@ struct cnss_plat_data {
 	struct cnss_dms_data dms;
 	int power_up_error;
 	u32 hw_trc_override;
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 	unsigned long loadBdfState;
 	unsigned long loadRegdbState;
 #endif
@@ -512,7 +512,7 @@ struct cnss_plat_data {
 	bool adsp_pc_enabled;
 };
 
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 enum cnss_load_state {
 	CNSS_LOAD_BDF_FAIL = 1,
 	CNSS_LOAD_BDF_SUCCESS,

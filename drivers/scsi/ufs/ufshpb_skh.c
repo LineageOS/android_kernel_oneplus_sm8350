@@ -94,7 +94,7 @@ static void skhpb_hit_lru_info(struct skhpb_victim_select_info *lru_info,
 static int create_skh_hpbfn_enable_proc(void);
 static void remove_skh_hpbfn_enable_proc(void);
 
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSFEATURE) && defined(CONFIG_UFSHPB)
 extern int ufsplus_hpb_status;
 #endif
@@ -2029,7 +2029,7 @@ static int skhpb_lu_hpb_init(struct ufs_hba *hba, struct skhpb_lu *hpb,
 	INIT_LIST_HEAD(&hpb->lh_map_ctx);
 
 	hpb->lu_hpb_enable = true;
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSFEATURE) && defined(CONFIG_UFSHPB)
 	ufsplus_hpb_status=1;
 	SKHPB_DRIVER_I("ufsplus_hpb_status = %d\n",

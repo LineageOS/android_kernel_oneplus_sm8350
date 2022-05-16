@@ -20,17 +20,10 @@ enum{
 };
 
 extern int get_boot_mode(void);
-#ifdef OPLUS_BUG_STABILITY
 /*add for charge*/
 extern bool qpnp_is_power_off_charging(void);
-#endif
-#ifdef OPLUS_BUG_STABILITY
 /*add for detect charger when reboot */
 extern bool qpnp_is_charger_reboot(void);
-#endif /*OPLUS_BUG_STABILITY*/
-#endif  /*_OPLUS_BOOT_H*/
-
-#ifdef OPLUS_BUG_STABILITY
 /*Add for kernel monitor whole bootup*/
 #ifdef PHOENIX_PROJECT
 extern bool op_is_monitorable_boot(void);
