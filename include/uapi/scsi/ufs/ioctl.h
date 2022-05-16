@@ -2,7 +2,6 @@
 #ifndef UAPI_UFS_IOCTL_H_
 #define UAPI_UFS_IOCTL_H_
 
-#ifdef OPLUS_FEATURE_UFSPLUS
 #include <linux/types.h>
 
 /*
@@ -58,5 +57,4 @@ struct ufs_ioctl_query_data {
 	 */
 	__u8 buffer[0];
 };
-#endif /* OPLUS_FEATURE_UFSPLUS */
 #endif /* UAPI_UFS_IOCTL_H_ */

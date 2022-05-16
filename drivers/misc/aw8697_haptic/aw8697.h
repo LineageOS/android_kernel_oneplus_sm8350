@@ -58,7 +58,7 @@
 #ifdef LRA_0619
 #define AW8697_HAPTIC_F0_PRE 1700
 #define AW8697_HAPTIC_F0_CALI_PERCEN 7
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 #define AW8697_HAPTIC_CONT_DRV_LVL 52
 #else
 #define AW8697_HAPTIC_CONT_DRV_LVL 105
@@ -78,7 +78,7 @@
 #define AW8697_HAPTIC_CONT_ZC_THR 0x0ff1
 #define AW8697_HAPTIC_CONT_NUM_BRK 3
 #endif
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 #define AW8697_0832_HAPTIC_F0_PRE 2350
 #define AW8697_0832_HAPTIC_F0_CALI_PERCEN 7
 #define AW8697_0832_HAPTIC_CONT_DRV_LVL 105
@@ -465,7 +465,7 @@ struct aw8697 {
 	bool haptic_rtp_mode;
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	struct work_struct motor_old_test_work;
 	unsigned int motor_old_test_mode;
 	atomic_t qos_cnt;
@@ -509,7 +509,7 @@ struct aw8697_que_seq {
 #define AW8697_HAPTIC_PLAY_REPEAT_SEQ                                          \
 	_IOWR(AW8697_HAPTIC_IOCTL_MAGIC, 7, unsigned int)
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 #define F0_VAL_MAX_0815 1800
 #define F0_VAL_MIN_0815 1600
 #define F0_VAL_MAX_0832 2350

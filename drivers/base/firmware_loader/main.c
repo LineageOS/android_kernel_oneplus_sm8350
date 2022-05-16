@@ -498,19 +498,6 @@ fw_get_filesystem_firmware(struct device *device, struct fw_priv *fw_priv,
 			break;
 		}
 
-#if defined(OPLUS_FEATURE_PXLW_IRIS5)
-		if (!strcmp(fw_priv->fw_name, "iris5.fw")
-			|| !strcmp(fw_priv->fw_name, "iris5_ccf1.fw")
-			|| !strcmp(fw_priv->fw_name, "iris5_ccf2.fw")) {
-			snprintf(path, PATH_MAX, "%s/%s", "/odm/vendor/firmware", fw_priv->fw_name);
-		}
-
-		if (!strcmp(fw_priv->fw_name, "iris5_ccf1b.fw")
-			|| !strcmp(fw_priv->fw_name, "iris5_ccf2b.fw")) {
-			snprintf(path, PATH_MAX, "%s/%s", "/data/vendor/display", fw_priv->fw_name);
-	}
-#endif /* OPLUS_FEATURE_PXLW_IRIS5 */
-
 		fw_priv->size = 0;
 		rc = kernel_read_file_from_path(path, &buffer, &size,
 						msize, id);

@@ -69,4 +69,16 @@ config OPLUS_SHIP_MODE_SUPPORT
 	default n
 	help
 	  Say Y to include support
+
+config OPLUS_KEVENT_UPLOAD
+	bool "OPLUS KEVENT UPLOAD"
+	default n
+	help
+	  Say Y to include support
+
+config OPLUS_FEATURE_CHG_BASIC
+	bool "OPLUS charger"
+	default n
+	help
+	  Say Y to include support
 #endif

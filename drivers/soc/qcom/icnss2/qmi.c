@@ -1081,14 +1081,6 @@ request_bdf:
 	remaining = fw_entry->size;
 
 bypass_bdf:
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH)
-	if (bdf_type == CNSS_BDF_REGDB) {
-		set_bit(CNSS_LOAD_REGDB_SUCCESS, &plat_priv->loadRegdbState);
-	} else if (bdf_type == CNSS_BDF_ELF){
-		set_bit(CNSS_LOAD_BDF_SUCCESS, &plat_priv->loadBdfState);
-	}
-#endif
-
 	icnss_pr_dbg("Downloading %s: %s, size: %u\n",
 		     icnss_bdf_type_to_str(bdf_type), filename, remaining);
 
@@ -1410,13 +1402,6 @@ int icnss_wlfw_qdss_dnld_send_sync(struct icnss_priv *priv)
 err_send:
 	release_firmware(fw_entry);
 err_req_fw:
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH)
-	if (bdf_type == CNSS_BDF_REGDB) {
-		set_bit(CNSS_LOAD_REGDB_FAIL, &plat_priv->loadRegdbState);
-	} else if (bdf_type == CNSS_BDF_ELF){
-		set_bit(CNSS_LOAD_BDF_FAIL, &plat_priv->loadBdfState);
-	}
-#endif
 
 	kfree(req);
 	kfree(resp);

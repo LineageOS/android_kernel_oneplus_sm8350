@@ -103,6 +103,12 @@ config OPLUS_FEATURE_WIFI_MAC
 	  These changes are needed to support the new hardware architecture
 	  for CNSS QCA6851 chipset.
 
+config OPLUS_FEATURE_WIFI_DCS_SWITCH
+	bool "Modify for: DCS switch"
+	depends on CNSS2
+	help
+	  Modify for: DCS switch.
+
 config CNSS_WCN7850
 	bool "Enable CNSS WCN7850 chipset specific changes"
 	depends on CNSS2

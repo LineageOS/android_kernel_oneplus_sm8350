@@ -682,7 +682,7 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 	/* Typecast to match with interface defintition */
 	remaining = (u32)fw_entry->size;
 
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 	if (bdf_type == CNSS_BDF_REGDB) {
 		set_bit(CNSS_LOAD_REGDB_SUCCESS, &plat_priv->loadRegdbState);
 	} else if (bdf_type == CNSS_BDF_ELF){
@@ -767,7 +767,7 @@ int cnss_wlfw_bdf_dnld_send_sync(struct cnss_plat_data *plat_priv,
 err_send:
 	release_firmware(fw_entry);
 err_req_fw:
-#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+#ifdef CONFIG_OPLUS_FEATURE_WIFI_DCS_SWITCH
 	if (bdf_type == CNSS_BDF_REGDB) {
 		set_bit(CNSS_LOAD_REGDB_FAIL, &plat_priv->loadRegdbState);
 	} else if (bdf_type == CNSS_BDF_ELF){

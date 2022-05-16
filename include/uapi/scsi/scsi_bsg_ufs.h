@@ -30,7 +30,6 @@ struct utp_upiu_header {
 	__be32 dword_2;
 };
 
-#ifdef OPLUS_FEATURE_UFSPLUS
 /**
  * struct utp_upiu_task_req - Task request UPIU structure
  * @header - UPIU header structure DW0 to DW-2
@@ -46,7 +45,6 @@ struct utp_upiu_task_req {
 	__be32 input_param3;
 	__be32 reserved[2];
 };
-#endif
 
 /**
  * struct utp_upiu_query - upiu request buffer structure for

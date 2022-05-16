@@ -113,7 +113,7 @@ struct msm_hsphy {
 
 	int			*param_override_seq;
 	int			param_override_seq_cnt;
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	int			*param_override_seq_host;
 	int			param_override_seq_cnt_host;
 #endif
@@ -134,7 +134,7 @@ struct msm_hsphy {
 	u8			param_ovrd3;
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 static int txvref_tune0 = 0;
 module_param(txvref_tune0, int, 0644);
 MODULE_PARM_DESC(txvref_tune0, "debug txvref_tune0");
@@ -426,7 +426,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 				VBUSVLDEXT0, VBUSVLDEXT0);
 
 	/* set parameter ovrride  if needed */
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if ((phy->phy.flags & PHY_HOST_MODE) && phy->param_override_seq_host) {
 		hsusb_phy_write_seq(phy->base, phy->param_override_seq_host,
 				phy->param_override_seq_cnt_host, 0);
@@ -442,7 +442,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 				phy->param_override_seq_cnt, 0);
 #endif
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (pre_emphasis)
 		phy->pre_emphasis = pre_emphasis;
 #endif
@@ -455,7 +455,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 				TXPREEMPAMPTUNE0_MASK, val);
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (txvref_tune0)
 		phy->txvref_tune0 = txvref_tune0;
 #endif
@@ -467,7 +467,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			TXVREFTUNE0_MASK, val);
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (param_ovrd0)
 		phy->param_ovrd0 = param_ovrd0;
 #endif
@@ -477,7 +477,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			PARAM_OVRD_MASK, phy->param_ovrd0);
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (param_ovrd1)
 		phy->param_ovrd1 = param_ovrd1;
 #endif
@@ -487,7 +487,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			PARAM_OVRD_MASK, phy->param_ovrd1);
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (param_ovrd2)
 		phy->param_ovrd2 = param_ovrd2;
 #endif
@@ -497,7 +497,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			PARAM_OVRD_MASK, phy->param_ovrd2);
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	if (param_ovrd3)
 		phy->param_ovrd3 = param_ovrd3;
 #endif
@@ -506,7 +506,7 @@ static int msm_hsphy_init(struct usb_phy *uphy)
 			USB2PHY_USB_PHY_PARAMETER_OVERRIDE_X3,
 			PARAM_OVRD_MASK, phy->param_ovrd3);
 	}
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	dev_info(uphy->dev, "param ovrride x0:%02x x1:%02x x2:%02x x3:%02x\n",
 			phy->param_ovrd0, phy->param_ovrd1, phy->param_ovrd2, phy->param_ovrd3);
 	dev_info(uphy->dev, "x0:%08x x1:%08x x2:%08x x3:%08x\n",
@@ -921,7 +921,7 @@ static int msm_hsphy_probe(struct platform_device *pdev)
 		}
 	}
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifdef CONFIG_OPLUS_FEATURE_CHG_BASIC
 	phy->param_override_seq_cnt_host = of_property_count_elems_of_size(
 					dev->of_node,
 					"qcom,param-override-seq-host",

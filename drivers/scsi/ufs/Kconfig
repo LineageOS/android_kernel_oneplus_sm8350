@@ -280,11 +280,24 @@ config UFSHID_POC
 	3. set flag bDefragOperation
 	4. debug msg enable (default : disable)
 
+config OPLUS_FEATURE_STORAGE_TOOL
+	tristate "Vendor specific UFS storage tool modify"
+	depends on SCSI_UFSHCD
+	help
+	 Vendor specific UFS storage tool modify.
+
 config OPLUS_FEATURE_UFS
 	tristate "Vendor specific UFS common modify"
 	depends on SCSI_UFSHCD
 	help
 	 Vendor specific UFS common modify.
+
+config OPLUS_FEATURE_UFSPLUS
+	bool "Vendor specific UFS plus common modify"
+	depends on SCSI_UFSHCD
+	help
+	 Vendor specific UFS plus common modify.
+
 config SCSI_SKHPB
 	bool "Activate HPB Host-aware Performance Booster"
 	depends on (SCSI_UFSHCD || SCSI_UFSHCD_QTI)

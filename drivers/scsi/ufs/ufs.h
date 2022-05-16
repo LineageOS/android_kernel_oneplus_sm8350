@@ -40,11 +40,11 @@
 #include <linux/types.h>
 #include <uapi/scsi/scsi_bsg_ufs.h>
 
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSFEATURE)
 #define UFSFEATURE_QUERY_OPCODE         0x5500
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 
 #ifdef CONFIG_SCSI_UFSHCD_QTI
 #define MAX_QUERY_IDN		0x12
@@ -158,7 +158,7 @@ enum flag_idn {
 	QUERY_FLAG_IDN_WB_EN                            = 0x0E,
 	QUERY_FLAG_IDN_WB_BUFF_FLUSH_EN                 = 0x0F,
 	QUERY_FLAG_IDN_WB_BUFF_FLUSH_DURING_HIBERN8     = 0x10,
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
 	QUERY_FLAG_IDN_HPB_RESET                        = 0x11,
 #endif
@@ -167,7 +167,7 @@ enum flag_idn {
 	QUERY_FLAG_IDN_TW_BUF_FLUSH_EN                  = 0x0F,
 	QUERY_FLAG_IDN_TW_FLUSH_DURING_HIBERN           = 0x10,
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 };
 
 /* Attribute idn for Query requests */
@@ -200,7 +200,7 @@ enum attr_idn {
 	QUERY_ATTR_IDN_AVAIL_WB_BUFF_SIZE       = 0x1D,
 	QUERY_ATTR_IDN_WB_BUFF_LIFE_TIME_EST    = 0x1E,
 	QUERY_ATTR_IDN_CURR_WB_BUFF_SIZE        = 0x1F,
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSTW)
 	QUERY_ATTR_IDN_TW_FLUSH_STATUS          = 0x1C,
 	QUERY_ATTR_IDN_TW_AVAIL_BUF_SIZE        = 0x1D,
@@ -214,14 +214,14 @@ enum attr_idn {
 #if defined(CONFIG_UFSFEATURE)
 	QUERY_ATTR_IDN_SUP_VENDOR_OPTIONS       = 0xFF,
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 };
 
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSFEATURE)
 #define QUERY_ATTR_IDN_BOOT_LU_EN_MAX   0x02
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 
 /* Descriptor idn for Query requests */
 enum desc_idn {
@@ -244,7 +244,7 @@ enum desc_header_offset {
 };
 
 enum ufs_desc_def_size {
-#if defined(OPLUS_FEATURE_UFSPLUS) && defined(CONFIG_UFSFEATURE)
+#if defined(CONFIG_OPLUS_FEATURE_UFSPLUS) && defined(CONFIG_UFSFEATURE)
 	QUERY_DESC_DEVICE_DEF_SIZE              = 0x5F,
 	QUERY_DESC_CONFIGURATION_DEF_SIZE       = 0xE6,
 #else
@@ -253,7 +253,7 @@ enum ufs_desc_def_size {
 #endif
 	QUERY_DESC_UNIT_DEF_SIZE		= 0x2D,
 	QUERY_DESC_INTERCONNECT_DEF_SIZE	= 0x06,
-#if defined(OPLUS_FEATURE_UFSPLUS) &&  defined(CONFIG_UFSFEATURE)
+#if defined(CONFIG_OPLUS_FEATURE_UFSPLUS) &&  defined(CONFIG_UFSFEATURE)
 	QUERY_DESC_GEOMETRY_DEF_SIZE        = 0x59,
 #else
 	QUERY_DESC_GEOMETRY_DEF_SIZE		= 0x48,
@@ -282,7 +282,7 @@ enum unit_desc_param {
 	UNIT_DESC_PARAM_CTX_CAPABILITIES	= 0x20,
 	UNIT_DESC_PARAM_LARGE_UNIT_SIZE_M1	= 0x22,
 	UNIT_DESC_PARAM_WB_BUF_ALLOC_UNITS	= 0x29,
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
 	UNIT_DESC_HPB_LU_MAX_ACTIVE_REGIONS             = 0x23,
 	UNIT_DESC_HPB_LU_PIN_REGION_START_OFFSET        = 0x25,
@@ -291,7 +291,7 @@ enum unit_desc_param {
 #if defined(CONFIG_UFSTW)
 	UNIT_DESC_TW_LU_WRITE_BUFFER_ALLOC_UNIT         = 0x29,
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 };
 
 /* Device descriptor parameters offsets in bytes*/
@@ -335,7 +335,7 @@ enum device_desc_param {
 	DEVICE_DESC_PARAM_WB_PRESRV_USRSPC_EN	= 0x53,
 	DEVICE_DESC_PARAM_WB_TYPE		= 0x54,
 	DEVICE_DESC_PARAM_WB_SHARED_ALLOC_UNITS = 0x55,
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
 	DEVICE_DESC_PARAM_HPB_VER               = 0x40,
 	DEVICE_DESC_PARAM_HPB_CONTROL           = 0x42,
@@ -352,7 +352,7 @@ enum device_desc_param {
 #if defined(CONFIG_UFSHID)
 	DEVICE_DESC_PARAM_HID_VER               = 0x59,
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 };
 
 /* Interconnect descriptor parameters offsets in bytes*/
@@ -402,7 +402,7 @@ enum geometry_desc_param {
 	GEOMETRY_DESC_PARAM_WB_BUFF_CAP_ADJ	= 0x54,
 	GEOMETRY_DESC_PARAM_WB_SUP_RED_TYPE	= 0x55,
 	GEOMETRY_DESC_PARAM_WB_SUP_WB_TYPE	= 0x56,
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSHPB) || defined(CONFIG_SCSI_SKHPB)
 	GEOMETRY_DESC_HPB_REGION_SIZE                   = 0x48,
 	GEOMETRY_DESC_HPB_NUMBER_LU                     = 0x49,
@@ -417,7 +417,7 @@ enum geometry_desc_param {
 	GEOMETRY_DESC_TW_SUPPORT_USER_REDUCTION_TYPES   = 0x55,
 	GEOMETRY_DESC_TW_SUPPORT_BUF_TYPE               = 0x56,
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 };
 
 /* Health descriptor parameters offsets in bytes*/
@@ -481,11 +481,11 @@ enum power_desc_param_offset {
 enum {
 	MASK_EE_STATUS		= 0xFFFF,
 	MASK_EE_URGENT_BKOPS	= (1 << 2),
-#ifdef OPLUS_FEATURE_UFSPLUS
+#ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSTW)
 	MASK_EE_TW              = (1 << 5),
 #endif
-#endif /* OPLUS_FEATURE_UFSPLUS */
+#endif /* CONFIG_OPLUS_FEATURE_UFSPLUS */
 };
 
 /* Background operation status */
