@@ -178,8 +178,7 @@ msm_drm-$(CONFIG_MSM_SDE_ROTATOR) += ../rotator/sde_rotator_dev.o \
 
 oplus_notify-$(CONFIG_DRM_OPLUS_NOTIFY) += ../oplus/oplus_notify.o
 
-ifeq ($(findstring OPLUS_FEATURE_PXLW_IRIS5,$(KBUILD_CFLAGS)),OPLUS_FEATURE_PXLW_IRIS5)
-msm_drm-$(CONFIG_DRM_MSM_DSI) += dsi/iris/dsi_iris5_ioctl.o \
+msm_drm-$(OPLUS_FEATURE_PXLW_IRIS5) += dsi/iris/dsi_iris5_ioctl.o \
                                dsi/iris/dsi_iris5_lightup.o \
                                dsi/iris/dsi_iris5_lightup_ocp.o \
                                dsi/iris/dsi_iris5_lp.o \
@@ -197,7 +196,6 @@ msm_drm-$(CONFIG_DRM_MSM_DSI) += dsi/iris/dsi_iris5_ioctl.o \
                                dsi/iris/msm_iris5_extended.o \
                                dsi/iris/sde_iris5_extended.o \
                                dsi/iris/dsi_iris5_extended.o
-endif #/* OPLUS_FEATURE_PXLW_IRIS5 */
 
 obj-$(CONFIG_DISPLAY_BUILD)	+= msm_drm.o
 obj-$(CONFIG_DRM_OPLUS_NOTIFY) += oplus_notify.o
