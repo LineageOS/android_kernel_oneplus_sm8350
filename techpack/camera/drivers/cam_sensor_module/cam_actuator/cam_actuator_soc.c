@@ -60,6 +60,14 @@ int32_t cam_actuator_parse_dt(struct cam_actuator_ctrl_t *a_ctrl,
 	if (rc < 0)
 		return rc;
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (!of_property_read_bool(of_node, "need-check-pid")) {
+		a_ctrl->need_check_pid = false;
+	} else {
+		a_ctrl->need_check_pid = true;
+	}
+#endif
+
 	if (!soc_info->gpio_data) {
 		CAM_DBG(CAM_ACTUATOR, "No GPIO found");
 		rc = 0;

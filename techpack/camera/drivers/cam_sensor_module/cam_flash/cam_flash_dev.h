@@ -222,6 +222,10 @@ struct cam_flash_ctrl {
 	uint32_t                            last_flush_req;
 	uint32_t                            streamoff_count;
 	int32_t                             apply_streamoff;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	const char *                        flash_name;
+	uint32_t                            flash_current;
+#endif
 };
 
 int cam_flash_pmic_pkt_parser(struct cam_flash_ctrl *fctrl, void *arg);

@@ -57,7 +57,6 @@ void cam_req_mgr_core_link_reset(struct cam_req_mgr_core_link *link)
 	link->num_sync_links = 0;
 	link->last_sof_trigger_jiffies = 0;
 	link->wq_congestion = false;
-	atomic_set(&link->eof_event_cnt, 0);
 
 	for (pd = 0; pd < CAM_PIPELINE_DELAY_MAX; pd++) {
 		link->req.apply_data[pd].req_id = -1;
@@ -572,7 +571,6 @@ static void __cam_req_mgr_flush_req_slot(
 		}
 	}
 
-	atomic_set(&link->eof_event_cnt, 0);
 	in_q->wr_idx = 0;
 	in_q->rd_idx = 0;
 	link->trigger_cnt[0][CAM_TRIGGER_POINT_SOF] = 0;
@@ -901,8 +899,6 @@ static int __cam_req_mgr_send_req(struct cam_req_mgr_core_link *link,
 			(slot->ops.apply_at_eof)) {
 			slot->ops.is_applied = true;
 			slot->ops.apply_at_eof = false;
-			if (atomic_read(&link->eof_event_cnt) > 0)
-				atomic_dec(&link->eof_event_cnt);
 			return 0;
 		}
 	}
@@ -1763,6 +1759,12 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 		goto end;
 	}
 
+	if ((trigger == CAM_TRIGGER_POINT_SOF) &&
+		(eof_trigger_type == CAM_REQ_EOF_TRIGGER_NOT_APPLY)) {
+		CAM_DBG(CAM_CRM, "EOF apply first");
+		goto end;
+	}
+
 	if (trigger == CAM_TRIGGER_POINT_SOF) {
 		/*
 		 * Update the timestamp in session lock protection
@@ -1782,8 +1784,11 @@ static int __cam_req_mgr_process_req(struct cam_req_mgr_core_link *link,
 
 	if (slot->status != CRM_SLOT_STATUS_REQ_READY) {
 		if (slot->sync_mode == CAM_REQ_MGR_SYNC_MODE_SYNC) {
-			rc = __cam_req_mgr_check_multi_sync_link_ready(
-				link, slot, trigger);
+			rc = __cam_req_mgr_inject_delay(link->req.l_tbl,
+					slot->idx, trigger);
+			if (!rc)
+				rc = __cam_req_mgr_check_multi_sync_link_ready(
+					link, slot, trigger);
 		} else {
 			if (link->in_msync_mode) {
 				CAM_DBG(CAM_CRM,
@@ -3067,7 +3072,8 @@ static int cam_req_mgr_process_trigger(void *priv, void *data)
 	 * Move to next req at SOF only in case
 	 * the rd_idx is updated at EOF.
 	 */
-	if (in_q->slot[in_q->rd_idx].status == CRM_SLOT_STATUS_REQ_APPLIED) {
+	if ((in_q->slot[in_q->rd_idx].status == CRM_SLOT_STATUS_REQ_APPLIED) &&
+		(trigger_data->trigger == CAM_TRIGGER_POINT_SOF)) {
 		/*
 		 * Do NOT reset req q slot data here, it can not be done
 		 * here because we need to preserve the data to handle bubble.
@@ -3195,11 +3201,6 @@ static int cam_req_mgr_cb_add_req(struct cam_req_mgr_add_request *add_req)
 	dev_req->trigger_eof = add_req->trigger_eof;
 	dev_req->skip_at_sof = add_req->skip_at_sof;
 	dev_req->skip_at_eof = add_req->skip_at_eof;
-	if (dev_req->trigger_eof) {
-		atomic_inc(&link->eof_event_cnt);
-		CAM_DBG(CAM_REQ, "Req_id: %llu, eof_event_cnt: %d",
-			dev_req->req_id, link->eof_event_cnt);
-	}
 
 	task->process_cb = &cam_req_mgr_process_add_req;
 	rc = cam_req_mgr_workq_enqueue_task(task, link, CRM_TASK_PRIORITY_0);
@@ -3298,11 +3299,14 @@ static int __cam_req_mgr_check_for_dual_trigger(
 		(link->trigger_cnt[1][trigger] - link->trigger_cnt[0][trigger] > 1))) {
 
 		CAM_WARN(CAM_CRM,
-			"One of the devices could not generate trigger");
+			"One of the devices could not generate trigger for %s",
+			(trigger == CAM_TRIGGER_POINT_SOF) ? "SOF" : "EOF");
 
 		link->trigger_cnt[0][trigger] = 0;
 		link->trigger_cnt[1][trigger] = 0;
-		CAM_DBG(CAM_CRM, "Reset the trigger cnt");
+		CAM_DBG(CAM_CRM,
+			"Reset the trigger cnt for %s trigger",
+			(trigger == CAM_TRIGGER_POINT_SOF) ? "SOF" : "EOF");
 		return rc;
 	}
 
@@ -3467,16 +3471,6 @@ static int cam_req_mgr_cb_notify_trigger(
 
 	trigger_id = trigger_data->trigger_id;
 	trigger = trigger_data->trigger;
-
-	/*
-	 * Reduce the workq overhead when there is
-	 * not any eof event found.
-	 */
-	if ((!atomic_read(&link->eof_event_cnt)) &&
-		(trigger == CAM_TRIGGER_POINT_EOF)) {
-		CAM_DBG(CAM_CRM, "Not any request to schedule at EOF");
-		goto end;
-	}
 
 	spin_lock_bh(&link->link_state_spin_lock);
 	if (link->state < CAM_CRM_LINK_STATE_READY) {

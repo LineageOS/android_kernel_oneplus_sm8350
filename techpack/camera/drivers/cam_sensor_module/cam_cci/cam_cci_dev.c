@@ -27,6 +27,7 @@ struct v4l2_subdev *cam_cci_get_subdev(int cci_dev_index)
 
 	return sub_device;
 }
+EXPORT_SYMBOL(cam_cci_get_subdev);
 
 static long cam_cci_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)

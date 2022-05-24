@@ -101,10 +101,16 @@ static const char *cam_icp_dev_type_to_name(
 	switch (dev_type) {
 	case CAM_ICP_RES_TYPE_BPS:
 		return "BPS";
-	case CAM_ICP_RES_TYPE_IPE_RT:
-		return "IPE_RT";
+	case CAM_ICP_RES_TYPE_BPS_RT:
+		return "BPS_RT";
+	case CAM_ICP_RES_TYPE_BPS_SEMI_RT:
+		return "BPS_SEMI_RT";
 	case CAM_ICP_RES_TYPE_IPE:
 		return "IPE";
+	case CAM_ICP_RES_TYPE_IPE_RT:
+		return "IPE_RT";
+	case CAM_ICP_RES_TYPE_IPE_SEMI_RT:
+		return "IPE_SEMI_RT";
 	default:
 		return "Invalid dev type";
 	}
@@ -1463,10 +1469,18 @@ static int cam_icp_update_clk_rate(struct cam_icp_hw_mgr *hw_mgr,
 		dev_intf = bps_dev_intf;
 		curr_clk_rate = hw_mgr->clk_info[ICP_CLK_HW_BPS].curr_clk;
 		id = CAM_ICP_BPS_CMD_UPDATE_CLK;
+		cam_cpas_notify_event("Before BPS Clk Update",
+			hw_mgr->clk_info[ICP_CLK_HW_BPS].prev_clk);
+		hw_mgr->clk_info[ICP_CLK_HW_BPS].prev_clk = curr_clk_rate;
+		cam_cpas_notify_event("After BPS Clk Update", curr_clk_rate);
 	} else {
 		dev_intf = ipe0_dev_intf;
 		curr_clk_rate = hw_mgr->clk_info[ICP_CLK_HW_IPE].curr_clk;
 		id = CAM_ICP_IPE_CMD_UPDATE_CLK;
+		cam_cpas_notify_event("Before IPE Clk Update",
+			hw_mgr->clk_info[ICP_CLK_HW_IPE].prev_clk);
+		hw_mgr->clk_info[ICP_CLK_HW_IPE].prev_clk = curr_clk_rate;
+		cam_cpas_notify_event("After IPE Clk Update", curr_clk_rate);
 	}
 
 	CAM_DBG(CAM_PERF, "clk_rate %u for dev_type %d", curr_clk_rate,
@@ -4081,6 +4095,8 @@ static int cam_icp_mgr_config_hw(void *hw_mgr_priv, void *config_hw_args)
 			"Anomaly submitting flushed req %llu [last_flush %llu] in ctx %u",
 			req_id, ctx_data->last_flush_req, ctx_data->ctx_id);
 
+	cam_cpas_notify_event(ctx_data->ctx_id_string, req_id);
+
 	rc = cam_icp_mgr_enqueue_config(hw_mgr, config_args);
 	if (rc)
 		goto config_err;
@@ -5052,7 +5068,7 @@ static int cam_icp_mgr_delete_sync_obj(struct cam_icp_hw_ctx_data *ctx_data)
 	return rc;
 }
 
-static int cam_icp_mgr_flush_all(struct cam_icp_hw_ctx_data *ctx_data,
+static noinline int cam_icp_mgr_flush_all(struct cam_icp_hw_ctx_data *ctx_data,
 	struct cam_hw_flush_args *flush_args)
 {
 	struct hfi_frame_process_info *hfi_frame_process;
@@ -5081,7 +5097,7 @@ static int cam_icp_mgr_flush_all(struct cam_icp_hw_ctx_data *ctx_data,
 	return 0;
 }
 
-static int cam_icp_mgr_flush_req(struct cam_icp_hw_ctx_data *ctx_data,
+static noinline int cam_icp_mgr_flush_req(struct cam_icp_hw_ctx_data *ctx_data,
 	struct cam_hw_flush_args *flush_args)
 {
 	int64_t request_id;
@@ -5115,7 +5131,7 @@ static int cam_icp_mgr_flush_req(struct cam_icp_hw_ctx_data *ctx_data,
 	return 0;
 }
 
-static void cam_icp_mgr_flush_info_dump(
+static noinline void cam_icp_mgr_flush_info_dump(
 	struct cam_hw_flush_args *flush_args, uint32_t ctx_id)
 {
 	int i;
@@ -5133,7 +5149,7 @@ static void cam_icp_mgr_flush_info_dump(
 	}
 }
 
-static int cam_icp_mgr_enqueue_abort(
+static noinline int cam_icp_mgr_enqueue_abort(
 	struct cam_icp_hw_ctx_data *ctx_data)
 {
 	int timeout = 1000, rc;
@@ -5282,7 +5298,7 @@ hw_dump:
 	return rc;
 }
 
-static int cam_icp_mgr_hw_flush(void *hw_priv, void *hw_flush_args)
+static noinline int cam_icp_mgr_hw_flush(void *hw_priv, void *hw_flush_args)
 {
 	struct cam_hw_flush_args *flush_args = hw_flush_args;
 	struct cam_icp_hw_ctx_data *ctx_data;
@@ -5726,6 +5742,14 @@ static int cam_icp_mgr_acquire_hw(void *hw_mgr_priv, void *acquire_hw_args)
 
 	ctx_data->context_priv = args->context_data;
 	args->ctxt_to_hw_map = ctx_data;
+	args->hw_mgr_ctx_id = ctx_data->ctx_id;
+
+	snprintf(ctx_data->ctx_id_string, sizeof(ctx_data->ctx_id_string),
+		"%s_ctx[%d]_hwmgrctx[%d]_Submit",
+		cam_icp_dev_type_to_name(
+		ctx_data->icp_dev_acquire_info->dev_type),
+		args->ctx_id,
+		ctx_data->ctx_id);
 
 	bitmap_size = BITS_TO_LONGS(CAM_FRAME_CMD_MAX) * sizeof(long);
 	ctx_data->hfi_frame_process.bitmap =

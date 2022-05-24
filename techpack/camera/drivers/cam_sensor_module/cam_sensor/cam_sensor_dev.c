@@ -8,6 +8,9 @@
 #include "cam_sensor_soc.h"
 #include "cam_sensor_core.h"
 #include "camera_main.h"
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+#include "oplus_cam_sensor_core.h"
+#endif
 
 static int cam_sensor_subdev_close_internal(struct v4l2_subdev *sd,
 	struct v4l2_subdev_fh *fh)
@@ -21,7 +24,12 @@ static int cam_sensor_subdev_close_internal(struct v4l2_subdev *sd,
 	}
 
 	mutex_lock(&(s_ctrl->cam_sensor_mutex));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if (!cam_ftm_if_do())
+		cam_sensor_shutdown(s_ctrl);
+#else
 	cam_sensor_shutdown(s_ctrl);
+#endif
 	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
 
 	return 0;
@@ -54,6 +62,20 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 			CAM_ERR(CAM_SENSOR,
 				"Failed in Driver cmd: %d", rc);
 		break;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	case VIDIOC_CAM_FTM_POWNER_DOWN:
+		rc = cam_ftm_power_down(s_ctrl);
+		break;
+	case VIDIOC_CAM_FTM_POWNER_UP:
+		rc = cam_ftm_power_up(s_ctrl);
+		break;
+	case VIDIOC_CAM_SENSOR_STATR:
+		rc = cam_sensor_start(s_ctrl);
+		break;
+	case VIDIOC_CAM_SENSOR_STOP:
+		rc = cam_sensor_stop(s_ctrl);
+		break;
+#endif
 	case CAM_SD_SHUTDOWN:
 		if (!cam_req_mgr_is_shutdown()) {
 			CAM_ERR(CAM_CORE, "SD shouldn't come from user space");
@@ -306,6 +328,12 @@ static int cam_sensor_component_bind(struct device *dev,
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.streamon_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.streamoff_settings.list_head));
 	INIT_LIST_HEAD(&(s_ctrl->i2c_data.read_settings.list_head));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	mutex_init(&(s_ctrl->sensor_power_state_mutex));
+	mutex_init(&(s_ctrl->sensor_initsetting_mutex));
+	s_ctrl->sensor_power_state = CAM_SENSOR_POWER_OFF;
+	s_ctrl->sensor_initsetting_state = CAM_SENSOR_SETTING_WRITE_INVALID;
+#endif
 
 	for (i = 0; i < MAX_PER_FRAME_ARRAY; i++) {
 		INIT_LIST_HEAD(&(s_ctrl->i2c_data.per_frame[i].list_head));
