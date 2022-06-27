@@ -688,7 +688,7 @@ export RETPOLINE_VDSO_CFLAGS
 
 # Make toolchain changes before including arch/$(SRCARCH)/Makefile to ensure
 # ar/cc/ld-* macros return correct values.
-ifdef CONFIG_LTO_CLANG
+ifdef CONFIG_LTO_CLANG_
 # LTO produces LLVM IR instead of object files. Use llvm-ar and llvm-nm, so we
 # can process these.
 AR		:= llvm-ar
@@ -909,7 +909,7 @@ KBUILD_CFLAGS	+= $(CC_FLAGS_SCS)
 export CC_FLAGS_SCS
 endif
 
-ifdef CONFIG_LTO_CLANG
+ifdef CONFIG_LTO_CLANG_
 ifdef CONFIG_THINLTO
 CC_FLAGS_LTO_CLANG := -flto=thin $(call cc-option, -fsplit-lto-unit)
 KBUILD_LDFLAGS	+= --thinlto-cache-dir=.thinlto-cache
@@ -927,13 +927,13 @@ KBUILD_LDFLAGS_MODULE += $(LD_FLAGS_LTO_CLANG)
 KBUILD_LDS_MODULE += $(srctree)/scripts/module-lto.lds
 endif
 
-ifdef CONFIG_LTO
+ifdef CONFIG_LTO_
 CC_FLAGS_LTO	:= $(CC_FLAGS_LTO_CLANG)
 KBUILD_CFLAGS	+= $(CC_FLAGS_LTO)
 export CC_FLAGS_LTO
 endif
 
-ifdef CONFIG_CFI_CLANG
+ifdef CONFIG_CFI_CLANG_
 CC_FLAGS_CFI	:= -fsanitize=cfi \
 		   -fno-sanitize-cfi-canonical-jump-tables \
 		   -fno-sanitize-blacklist
