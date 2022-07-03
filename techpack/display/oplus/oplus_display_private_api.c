@@ -120,6 +120,20 @@ struct kobj_attribute oplus_attr_##_name = __ATTR(_name, _mode, _show, _store)
 
 DEFINE_MUTEX(oplus_spr_lock);
 
+static BLOCKING_NOTIFIER_HEAD(lcdinfo_notifiers);
+
+int register_lcdinfo_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&lcdinfo_notifiers, nb);
+}
+EXPORT_SYMBOL(register_lcdinfo_notifier);
+
+int unregister_lcdinfo_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&lcdinfo_notifiers, nb);
+}
+EXPORT_SYMBOL(unregister_lcdinfo_notifier);
+
 int oplus_set_display_vendor(struct dsi_display *display)
 {
 	if (!display || !display->panel ||
