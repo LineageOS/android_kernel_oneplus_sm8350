@@ -38,6 +38,16 @@ static char *als_rear_feature[] = {
 	"als-factor",
 };
 
+int register_lcdinfo_notifier(struct notifier_block *nb);
+int unregister_lcdinfo_notifier(struct notifier_block *nb);
+
+__attribute__((weak)) int register_lcdinfo_notifier() {
+	return -1;
+}
+
+__attribute__((weak)) int unregister_lcdinfo_notifier() {
+	return -1;
+}
 
 __attribute__((weak)) void oplus_device_dir_redirect(struct sensor_info *chip)
 {
