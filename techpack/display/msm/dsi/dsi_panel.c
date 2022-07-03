@@ -1114,6 +1114,7 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		(!strcmp(panel->oplus_priv.vendor_name, "NT37701")) ||
 		(!strcmp(panel->oplus_priv.vendor_name, "AMS662ZS01")) ||
 		(!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01"))) {
+		lcdinfo_notify(LCM_BRIGHTNESS_TYPE, &bl_lvl);
 		DSI_INFO("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	} else {
 		DSI_DEBUG("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
