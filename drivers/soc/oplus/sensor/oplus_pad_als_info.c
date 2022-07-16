@@ -46,7 +46,6 @@ static ssize_t red_max_lux_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -74,7 +73,6 @@ static ssize_t red_max_lux_write_proc(struct file *file, const char __user *buf,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -104,7 +102,6 @@ static ssize_t white_max_lux_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -133,7 +130,6 @@ static ssize_t white_max_lux_write_proc(struct file *file,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -163,7 +159,6 @@ static ssize_t blue_max_lux_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -192,7 +187,6 @@ static ssize_t blue_max_lux_write_proc(struct file *file,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -222,7 +216,6 @@ static ssize_t green_max_lux_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -251,7 +244,6 @@ static ssize_t green_max_lux_write_proc(struct file *file,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -281,7 +273,6 @@ static ssize_t cali_coe_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -309,7 +300,6 @@ static ssize_t cali_coe_write_proc(struct file *file, const char __user *buf,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -339,7 +329,6 @@ static ssize_t row_coe_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -367,7 +356,6 @@ static ssize_t row_coe_write_proc(struct file *file, const char __user *buf,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -452,7 +440,6 @@ int pad_als_data_init(void)
 	struct oplus_pad_als_data *data = NULL;
 
 	pr_info("%s call\n", __func__);
-
 	if (gdata) {
 		printk("%s:just can be call one time\n", __func__);
 		return 0;
@@ -474,70 +461,68 @@ int pad_als_data_init(void)
 		return 0;
 	}
 
+	//proc pad_als
 	gdata->proc_pad_als = proc_mkdir("pad_als", sensor_proc_dir);
-
 	if (!gdata->proc_pad_als) {
 		pr_err("can't create proc_oplus_press proc\n");
 		rc = -EFAULT;
 		goto exit;
 	}
 
+	//red_max_lux
 	pentry = proc_create("red_max_lux", 0666, gdata->proc_pad_als,
 			     &red_max_lux_fops);
-
 	if (!pentry) {
 		pr_err("create red_max_lux proc failed.\n");
 		rc = -EFAULT;
 		goto exit;
 	}
 
+	//green_max_lux
 	pentry = proc_create("green_max_lux", 0666, gdata->proc_pad_als,
 			     &green_max_lux_fops);
-
 	if (!pentry) {
 		pr_err("create green_max_lux proc failed.\n");
 		rc = -EFAULT;
 		goto exit;
 	}
 
+	//blue_max_lux
 	pentry = proc_create("blue_max_lux", 0666, gdata->proc_pad_als,
 			     &blue_max_lux_fops);
-
 	if (!pentry) {
 		pr_err("create blue_max_lux proc failed.\n");
 		rc = -EFAULT;
 		goto exit;
 	}
 
+	//white_max_lux
 	pentry = proc_create("white_max_lux", 0666, gdata->proc_pad_als,
 			     &white_max_lux_fops);
-
 	if (!pentry) {
 		pr_err("create white_max_lux proc failed.\n");
 		rc = -EFAULT;
 		goto exit;
 	}
 
+	//cali_coe
 	pentry = proc_create("cali_coe", 0666, gdata->proc_pad_als,
 			     &cali_coe_fops);
-
 	if (!pentry) {
 		pr_err("create cali_coe proc failed.\n");
 		rc = -EFAULT;
 		goto exit;
 	}
 
+	//row_coe
 	pentry = proc_create("row_coe", 0666, gdata->proc_pad_als,
 			     &row_coe_fops);
-
 	if (!pentry) {
 		pr_err("create row_coe proc failed.\n");
 		rc = -EFAULT;
 		goto exit;
 	}
-
 exit:
-
 	if (rc < 0) {
 		kfree(gdata);
 		gdata = NULL;
@@ -554,5 +539,9 @@ void pad_als_data_clean(void)
 	}
 }
 
+//call init api in oplus_sensor_devinfo.c
+//due to kernel module only permit one module_init entrance in one .ko
+//module_init(oplus_press_cali_data_init);
+//module_exit(oplus_press_cali_data_clean);
 MODULE_DESCRIPTION("custom version");
 MODULE_LICENSE("GPL v2");

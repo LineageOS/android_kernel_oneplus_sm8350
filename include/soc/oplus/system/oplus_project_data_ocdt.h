@@ -5,11 +5,11 @@
 #ifndef OPLUS_PROJECT_DATA_OCDT_H
 #define OPLUS_PROJECT_DATA_OCDT_H
 
-#define MAX_OCP	6
+#define MAX_OCP 6
 #define MAX_LEN 8
 #define FEATURE_COUNT 10
-#define OCDT_VERSION_1_0	(1)
-#define OCDT_VERSION_2_0	(2)
+#define OCDT_VERSION_1_0 (1)
+#define OCDT_VERSION_2_0 (2)
 
 #ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 enum PCB_VERSION {
@@ -56,32 +56,32 @@ enum PCB_VERSION {
 	PCB_MAX,
 };
 
-/*Reboot modes*/
+//Reboot modes
 enum {
-	UNKOWN_MODE         = 0x00,
-	RECOVERY_MODE       = 0x1,
-	FASTBOOT_MODE       = 0x2,
-	ALARM_BOOT          = 0x3,
-	DM_VERITY_LOGGING   = 0x4,
+	UNKOWN_MODE = 0x00,
+	RECOVERY_MODE = 0x1,
+	FASTBOOT_MODE = 0x2,
+	ALARM_BOOT = 0x3,
+	DM_VERITY_LOGGING = 0x4,
 	DM_VERITY_ENFORCING = 0x5,
 	DM_VERITY_KEYSCLEAR = 0x6,
-	SILENCE_MODE        = 0x21,
-	SAU_MODE            = 0x22,
-	RF_MODE             = 0x23,
-	WLAN_MODE           = 0x24,
-	MOS_MODE            = 0x25,
-	FACTORY_MODE        = 0x26,
-	REBOOT_KERNEL       = 0x27,
-	REBOOT_MODEM        = 0x28,
-	REBOOT_ANDROID      = 0x29,
-/*Modify for PHOENIX_PROJECT and OPLUS_DOCTOR use*/
-	REBOOT_SBL_DDRTEST  = 0x2B,  /*Add for agingtest*/
-	REBOOT_SBL_DDR_CUS  = 0x2C,
-	REBOOT_AGINGTEST    = 0x2D,
+	SILENCE_MODE = 0x21,
+	SAU_MODE = 0x22,
+	RF_MODE = 0x23,
+	WLAN_MODE = 0x24,
+	MOS_MODE = 0x25,
+	FACTORY_MODE = 0x26,
+	REBOOT_KERNEL = 0x27,
+	REBOOT_MODEM = 0x28,
+	REBOOT_ANDROID = 0x29,
+	//Modify for PHOENIX_PROJECT and OPPO_DOCTOR use
+	REBOOT_SBL_DDRTEST = 0x2B, //Add for agingtest
+	REBOOT_SBL_DDR_CUS = 0x2C,
+	REBOOT_AGINGTEST = 0x2D,
 	REBOOT_SBLTEST_FAIL = 0x2E,
-	NORMAL_MODE         = 0x3E,
-	REBOOT_NORMAL       = 0x3F,
-	EMERGENCY_DLOAD     = 0xFF,
+	NORMAL_MODE = 0x3E,
+	REBOOT_NORMAL = 0x3F,
+	EMERGENCY_DLOAD = 0xFF,
 };
 #else
 enum PCB_VERSION {
@@ -104,50 +104,48 @@ enum PCB_VERSION {
 #endif
 
 enum OPLUS_ENG_VERSION {
-	OEM_RELEASE             = 0x00,
-	AGING                   = 0x01,
-	CTA                     = 0x02,
-	PERFORMANCE             = 0x03,
-	PREVERSION              = 0x04,
-	ALL_NET_CMCC_TEST       = 0x05,
-	ALL_NET_CMCC_FIELD      = 0x06,
-	ALL_NET_CU_TEST         = 0x07,
-	ALL_NET_CU_FIELD        = 0x08,
-	ALL_NET_CT_TEST         = 0x09,
-	ALL_NET_CT_FIELD        = 0x0A,
-	HIGH_TEMP_AGING         = 0x0B,
-	FACTORY					= 0x0C,
+	OEM_RELEASE = 0x00,
+	AGING = 0x01,
+	CTA = 0x02,
+	PERFORMANCE = 0x03,
+	PREVERSION = 0x04,
+	ALL_NET_CMCC_TEST = 0x05,
+	ALL_NET_CMCC_FIELD = 0x06,
+	ALL_NET_CU_TEST = 0x07,
+	ALL_NET_CU_FIELD = 0x08,
+	ALL_NET_CT_TEST = 0x09,
+	ALL_NET_CT_FIELD = 0x0A,
+	HIGH_TEMP_AGING = 0x0B,
+	FACTORY = 0x0C,
+	CE = 0x0D,
+	PTCRB = 0x0E
 };
 
-typedef  struct
-{
-	unsigned int projectno;
-	unsigned int dtsino;
-	unsigned int audioidx;
-	unsigned int feature[FEATURE_COUNT];
+typedef struct {
+	unsigned int ProjectNo;
+	unsigned int DtsiNo;
+	unsigned int AudioIdx;
+	unsigned int Feature[FEATURE_COUNT];
 } ProjectDataBCDT;
 
-typedef  struct
-{
-	unsigned int	 version;
-	unsigned int	 is_confidential;
+typedef struct {
+	unsigned int Version;
+	unsigned int Is_confidential;
 } ProjectDataECDT;
 
-typedef  struct
-{
-	unsigned int	  oplusbootmode;
-	unsigned int	  rf;
-	unsigned int	  pcb;
-	unsigned char	  pmicocp[MAX_OCP];
-	unsigned char	  operator;
-	unsigned char	  reserved[15];
+typedef struct {
+	unsigned int OplusBootMode;
+	unsigned int RF;
+	unsigned int PCB;
+	unsigned char PmicOcp[MAX_OCP];
+	unsigned char Operator;
+	unsigned char Reserved[15];
 } ProjectDataSCDT;
 
-typedef  struct
-{
-	unsigned int	 version;
-	ProjectDataBCDT ndatabcdt;
-	ProjectDataSCDT ndatascdt;
-	ProjectDataECDT ndataecdt;
+typedef struct {
+	unsigned int Version;
+	ProjectDataBCDT nDataBCDT;
+	ProjectDataSCDT nDataSCDT;
+	ProjectDataECDT nDataECDT;
 } ProjectInfoOCDT;
-#endif /* OPLUS_PROJECT_DATA_OCDT_H */
+#endif

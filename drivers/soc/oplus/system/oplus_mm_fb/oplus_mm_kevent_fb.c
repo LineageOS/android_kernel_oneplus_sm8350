@@ -23,7 +23,7 @@ static bool mm_fb_init = false;
 #define CAUSENAME_SIZE 128
 static char fid[CAUSENAME_SIZE] = { "12345678" };
 
-#define LIMIT_UPLOAD_TIME_MS 10000 /*ms*/
+#define LIMIT_UPLOAD_TIME_MS 10000 //ms
 struct limit_upload_frq {
 	unsigned int last_id;
 	ktime_t last_time;
@@ -49,7 +49,7 @@ struct mm_kevent {
 
 static unsigned int BKDRHash(char *str, unsigned int len)
 {
-	unsigned int seed = 131; /* 31 131 1313 13131 131313 etc.. */
+	unsigned int seed = 131; // 31 131 1313 13131 131313 etc..
 	unsigned int hash = 0;
 	unsigned int i = 0;
 
@@ -379,6 +379,7 @@ int upload_mm_fb_kevent_to_atlas_limit(unsigned int event_id,
 		user_msg_info->event_id, user_msg_info->len,
 		user_msg_info->data);
 	mm_fb_kevent_send_to_user(user_msg_info);
+	//msleep(20);
 	kfree(buffer);
 	g_limit.last_id = event_id;
 	g_limit.last_time = ktime_get();

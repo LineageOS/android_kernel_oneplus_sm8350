@@ -23,6 +23,10 @@ extern char charger_present[];
 extern char bootmode[];
 #endif
 
+#ifdef CONFIG_ARCH_LITO
+static int hw_version = 0;
+#endif
+
 int __init board_ftm_mode_init(void)
 {
 #if IS_MODULE(CONFIG_OPLUS_FEATURE_PROJECTINFO)
@@ -230,6 +234,23 @@ int __init board_boot_mode_init(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_ARCH_LITO
+int get_hw_board_version(void)
+{
+	return hw_version;
+}
+EXPORT_SYMBOL(get_hw_board_version);
+
+static int __init oplus_hw_version_init(char *str)
+{
+	hw_version = simple_strtol(str, NULL, 0);
+	pr_info("kernel get_hw_version %d\n", hw_version);
+	return 0;
+}
+
+__setup("androidboot.hw_version=", oplus_hw_version_init);
+#endif
 
 static int __init boot_mode_init(void)
 {

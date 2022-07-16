@@ -11,6 +11,7 @@
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #define SIM_DETECT_NAME "sim_detect"
 
@@ -55,17 +56,17 @@ static ssize_t proc_sim_detect_read(struct file *file, char __user *user_buf,
 	if (!sim_detect_data)
 		return 0;
 
-	if (sim_detect_data->sim_detect >= 0)
+	if (sim_detect_data->sim_detect >= 0) {
 		sim_detect_value = gpio_get_value(sim_detect_data->sim_detect);
 
-	else {
+	} else {
 		char resp_data[8] = { 0 };
-
-		if (oem_qmi_common_req(MODEM_DETECT_CMD, NULL, 0, resp_data, 8))
+		if (oem_qmi_common_req(MODEM_DETECT_CMD, NULL, 0, resp_data,
+				       8)) {
 			SIMDETECT_ERR("failed to read status from modem\n");
-
-		else
+		} else {
 			sim_detect_value = resp_data[0];
+		}
 	}
 
 	SIMDETECT_ERR("sim_detect_value:%d\n", sim_detect_value);
@@ -77,11 +78,18 @@ static ssize_t proc_sim_detect_read(struct file *file, char __user *user_buf,
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+static const struct proc_ops sim_detect_ops = {
+	.proc_read = proc_sim_detect_read,
+	.proc_open = simple_open,
+};
+#else
 static const struct file_operations sim_detect_ops = {
 	.read = proc_sim_detect_read,
 	.open = simple_open,
 	.owner = THIS_MODULE,
 };
+#endif
 
 static int sim_card_detect_init(struct sim_detect_data *sim_detect_data)
 {
@@ -95,7 +103,6 @@ static int sim_card_detect_init(struct sim_detect_data *sim_detect_data)
 	if (sim_detect_data->sim_detect < 0) {
 		const char *out_string;
 		SIMDETECT_ERR("sim detect gpio not specified\n");
-
 		if (of_property_read_string(np, "Hw,sim_det", &out_string) ||
 		    strcmp(out_string, "modem_det")) {
 			SIMDETECT_ERR("modem det not specified\n");
@@ -106,13 +113,11 @@ static int sim_card_detect_init(struct sim_detect_data *sim_detect_data)
 
 	p = proc_create_data("sim_detect", 0644, NULL, &sim_detect_ops,
 			     sim_detect_data);
-
 	if (!p) {
 		SIMDETECT_ERR("proc create sim detect failed\n");
 		ret = -1;
 		goto err;
 	}
-
 err:
 	return ret;
 }
@@ -146,9 +151,9 @@ static int sim_detect_remove(struct platform_device *pdev)
 {
 	struct sim_detect_data *sim_detect_data = platform_get_drvdata(pdev);
 
-	if (sim_detect_data)
+	if (sim_detect_data) {
 		remove_proc_entry(SIM_DETECT_NAME, NULL);
-
+	}
 	return 0;
 }
 
