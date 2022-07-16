@@ -20,7 +20,7 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <soc/oplus/system/oplus_project.h>
-#define SENSOR_DEVINFO_SYNC_TIME  10000
+#define SENSOR_DEVINFO_SYNC_TIME 10000
 
 #define SMEM_SENSOR 130
 
@@ -29,15 +29,15 @@
 #define FEATURE_NUM 10
 #define SOURCE_NUM 2
 #define ALGO_PARAMETER_NUM 15
-#define ALGO_FEATURE_NUM  5
+#define ALGO_FEATURE_NUM 5
 #define DEFAULT_CONFIG 0xff
 
 #define SENSOR_DEBUG
 #ifdef SENSOR_DEBUG
-#define SENSOR_DEVINFO_DEBUG(a, arg...) \
-	do {\
-		pr_err(a, ##arg);\
-	}while(0)
+#define SENSOR_DEVINFO_DEBUG(a, arg...)                                        \
+	do {                                                                   \
+		pr_err(a, ##arg);                                              \
+	} while (0)
 #else
 #define SENSOR_DEVINFO_DEBUG(a, arg...)
 #endif
@@ -67,7 +67,7 @@ enum sensor_algo_id {
 	SENSOR_ALGO_NUM
 };
 
-enum  {
+enum {
 	STK3A5X = 0x01,
 	TCS3701 = 0x02,
 	TCS3408 = 0x04,
@@ -94,15 +94,9 @@ enum {
 	BMP380 = 0x02,
 };
 
-enum {
-	SX9324 = 0x01,
-	SX9331 = 0x02
-};
+enum { SX9324 = 0x01, SX9331 = 0x02 };
 
-enum {
-	CCT_TCS3408 = 0x01,
-	CCT_STK37600 = 0x02
-};
+enum { CCT_TCS3408 = 0x01, CCT_STK37600 = 0x02 };
 
 enum {
 	TSL2540 = 0x01,
@@ -127,7 +121,6 @@ struct sensor_vector {
 	struct sensor_hw hw[SOURCE_NUM];
 };
 
-
 struct sensor_algorithm {
 	int sensor_id;
 	int parameter[ALGO_PARAMETER_NUM];
@@ -147,9 +140,8 @@ struct oplus_als_cali_data {
 	int white_max_lux;
 	int cali_coe;
 	int row_coe;
-	struct proc_dir_entry   *proc_oplus_als;
+	struct proc_dir_entry *proc_oplus_als;
 };
-
 
 typedef enum {
 	NORMAL = 0x01,

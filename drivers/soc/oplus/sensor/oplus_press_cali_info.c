@@ -20,14 +20,14 @@
 extern struct proc_dir_entry *sensor_proc_dir;
 struct oplus_press_cali_data {
 	int offset;
-	struct proc_dir_entry       *proc_oplus_press;
+	struct proc_dir_entry *proc_oplus_press;
 };
 static struct oplus_press_cali_data *gdata = NULL;
 
 static ssize_t press_offset_read_proc(struct file *file, char __user *buf,
 				      size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -51,17 +51,16 @@ static ssize_t press_offset_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t press_offset_write_proc(struct file *file,
-				       const char __user *buf,
-				       size_t count, loff_t *off)
+				       const char __user *buf, size_t count,
+				       loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -133,7 +132,7 @@ int oplus_press_cali_data_init(void)
 		return 0;
 	}
 
-	gdata->proc_oplus_press =  proc_mkdir("pressure_cali", sensor_proc_dir);
+	gdata->proc_oplus_press = proc_mkdir("pressure_cali", sensor_proc_dir);
 
 	if (!gdata->proc_oplus_press) {
 		pr_err("can't create proc_oplus_press proc\n");

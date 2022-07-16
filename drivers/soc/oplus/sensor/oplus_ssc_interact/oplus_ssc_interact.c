@@ -15,11 +15,8 @@
 #include <linux/atomic.h>
 #include "oplus_ssc_interact.h"
 
-
-
 #define FIFO_SIZE 32
-#define LB_TO_HB_THRD    150
-
+#define LB_TO_HB_THRD 150
 
 extern int register_lcdinfo_notifier(struct notifier_block *nb);
 extern int unregister_lcdinfo_notifier(struct notifier_block *nb);
@@ -35,7 +32,8 @@ static void ssc_interactive_set_fifo(uint8_t type, uint16_t data)
 	memset(&fifo_fm, 0, sizeof(struct fifo_frame));
 	fifo_fm.type = type;
 	fifo_fm.data = data;
-	ret = kfifo_in_spinlocked(&ssc_cxt->fifo, &fifo_fm, 1, &ssc_cxt->fifo_lock);
+	ret = kfifo_in_spinlocked(&ssc_cxt->fifo, &fifo_fm, 1,
+				  &ssc_cxt->fifo_lock);
 
 	if (ret != 1) {
 		pr_err("kfifo is full\n");
@@ -43,7 +41,6 @@ static void ssc_interactive_set_fifo(uint8_t type, uint16_t data)
 
 	wake_up_interruptible(&ssc_cxt->wq);
 }
-
 
 static void ssc_interactive_set_dc_mode(uint16_t dc_mode)
 {
@@ -59,10 +56,8 @@ static void ssc_interactive_set_dc_mode(uint16_t dc_mode)
 	ssc_cxt->a_info.dc_mode = dc_mode;
 	spin_unlock(&ssc_cxt->rw_lock);
 
-
 	ssc_interactive_set_fifo(LCM_DC_MODE_TYPE, dc_mode);
 }
-
 
 static void ssc_interactive_set_brightness(uint16_t brigtness)
 {
@@ -86,13 +81,13 @@ static void ssc_interactive_set_brightness(uint16_t brigtness)
 		return;
 	}
 
-
 	if (brigtness == ssc_cxt->a_info.brightness) {
 		spin_unlock(&ssc_cxt->rw_lock);
 		return;
 	}
 
-	pr_info("brigtness=%d brightness=%d\n", brigtness, ssc_cxt->a_info.brightness);
+	pr_info("brigtness=%d brightness=%d\n", brigtness,
+		ssc_cxt->a_info.brightness);
 
 	ssc_cxt->a_info.brightness = brigtness;
 	spin_unlock(&ssc_cxt->rw_lock);
@@ -119,7 +114,7 @@ static ssize_t ssc_interactive_write(struct file *file, const char __user *buf,
 }
 
 static unsigned int ssc_interactive_poll(struct file *file,
-		struct poll_table_struct *pt)
+					 struct poll_table_struct *pt)
 {
 	unsigned int ptr = 0;
 	int count = 0;
@@ -162,7 +157,8 @@ static ssize_t ssc_interactive_read(struct file *file, char __user *buf,
 
 		ret = kfifo_out(&ssc_cxt->fifo, &fifo_fm, 1);
 
-		if (copy_to_user(buf + read, &fifo_fm, sizeof(struct fifo_frame))) {
+		if (copy_to_user(buf + read, &fifo_fm,
+				 sizeof(struct fifo_frame))) {
 			pr_err("copy_to_user failed \n");
 			return -EFAULT;
 		}
@@ -181,10 +177,10 @@ static int ssc_interactive_release(struct inode *inode, struct file *file)
 }
 
 static const struct file_operations under_mdevice_fops = {
-	.owner  = THIS_MODULE,
-	.read   = ssc_interactive_read,
-	.write        = ssc_interactive_write,
-	.poll        = ssc_interactive_poll,
+	.owner = THIS_MODULE,
+	.read = ssc_interactive_read,
+	.write = ssc_interactive_write,
+	.poll = ssc_interactive_poll,
 	.llseek = generic_file_llseek,
 	.release = ssc_interactive_release,
 };
@@ -210,7 +206,6 @@ static ssize_t brightness_store(struct device *dev,
 		return count;
 	}
 
-
 	ssc_interactive_set_brightness(data);
 
 	pr_info("brightness_store = %s, brightness =%d\n", buf, data);
@@ -233,10 +228,8 @@ static ssize_t brightness_show(struct device *dev,
 	return sprintf(buf, "%d\n", brightness);
 }
 
-
-static ssize_t dc_mode_store(struct device *dev,
-			     struct device_attribute *attr, const char *buf,
-			     size_t count)
+static ssize_t dc_mode_store(struct device *dev, struct device_attribute *attr,
+			     const char *buf, size_t count)
 {
 	uint8_t type = 0;
 	uint16_t data = 0;
@@ -258,8 +251,8 @@ static ssize_t dc_mode_store(struct device *dev,
 	return count;
 }
 
-static ssize_t dc_mode_show(struct device *dev,
-			    struct device_attribute *attr, char *buf)
+static ssize_t dc_mode_show(struct device *dev, struct device_attribute *attr,
+			    char *buf)
 {
 	struct ssc_interactive *ssc_cxt = g_ssc_cxt;
 	uint16_t dc_mode = 0;
@@ -273,19 +266,12 @@ static ssize_t dc_mode_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%d\n", dc_mode);
 }
 
-
 DEVICE_ATTR(brightness, 0644, brightness_show, brightness_store);
 DEVICE_ATTR(dc_mode, 0644, dc_mode_show, dc_mode_store);
 
-
-
 static struct attribute *ssc_interactive_attributes[] = {
-	&dev_attr_brightness.attr,
-	&dev_attr_dc_mode.attr,
-	NULL
+	&dev_attr_brightness.attr, &dev_attr_dc_mode.attr, NULL
 };
-
-
 
 static struct attribute_group ssc_interactive_attribute_group = {
 	.attrs = ssc_interactive_attributes
@@ -339,13 +325,12 @@ static int __init ssc_interactive_init(void)
 		goto alloc_fifo_failed;
 	}
 
-
 	spin_lock_init(&ssc_cxt->fifo_lock);
 	spin_lock_init(&ssc_cxt->rw_lock);
 
 	init_waitqueue_head(&ssc_cxt->wq);
 
-	memset(&ssc_cxt->mdev, 0 , sizeof(struct miscdevice));
+	memset(&ssc_cxt->mdev, 0, sizeof(struct miscdevice));
 	ssc_cxt->mdev.minor = MISC_DYNAMIC_MINOR;
 	ssc_cxt->mdev.name = "ssc_interactive";
 	ssc_cxt->mdev.fops = &under_mdevice_fops;
@@ -363,16 +348,16 @@ static int __init ssc_interactive_init(void)
 				 &ssc_interactive_attribute_group);
 
 	if (err < 0) {
-		pr_err("unable to create ssc_interactive_attribute_group file err=%d\n", err);
+		pr_err("unable to create ssc_interactive_attribute_group file err=%d\n",
+		       err);
 		goto sysfs_create_failed;
 	}
 
-	ssc_cxt->m_dvb_coef.dvb1         = 180;
-	ssc_cxt->m_dvb_coef.dvb2         = 250;
-	ssc_cxt->m_dvb_coef.dvb3         = 320;
-	ssc_cxt->m_dvb_coef.dvb_l2h    = 350;
-	ssc_cxt->m_dvb_coef.dvb_h2l    = 320;
-
+	ssc_cxt->m_dvb_coef.dvb1 = 180;
+	ssc_cxt->m_dvb_coef.dvb2 = 250;
+	ssc_cxt->m_dvb_coef.dvb3 = 320;
+	ssc_cxt->m_dvb_coef.dvb_l2h = 350;
+	ssc_cxt->m_dvb_coef.dvb_h2l = 320;
 
 	pr_info("ssc_interactive_init success!\n");
 
