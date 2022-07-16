@@ -47,11 +47,10 @@
 
 #include "oplus_fb_guard_netlink.h"
 
-
 #define MAX_LOG (31)
 #define MAX_ID (19)
 #define LIST_MAX (50)
-#define DELAY_REPORT_US (30*1000*1000)
+#define DELAY_REPORT_US (30 * 1000 * 1000)
 #define MAX_BUF_LEN (2048)
 #define CAUSENAME_SIZE 128
 
@@ -71,23 +70,18 @@ struct packet {
 static struct packets_pool *g_pkts = NULL;
 
 static char *const _tag[FB_MAX_TYPE + 1] = {
-	"fb_stability",
-	"fb_fs",
-	"fb_storage",
-	"PSW_BSP_SENSOR",
-	"fb_boot",
+	"fb_stability", "fb_fs", "fb_storage", "PSW_BSP_SENSOR", "fb_boot",
 };
-static char fid[CAUSENAME_SIZE]={""};
-
+static char fid[CAUSENAME_SIZE] = { "" };
 
 static volatile unsigned int kevent_pid;
 
-#define OPLUS_KEVENT_MAX_UP_PALOAD_LEN			2048
-#define OPLUS_KEVENT_TEST_TAG				"test_event"
-#define OPLUS_KEVENT_TEST_ID				"test_check"
+#define OPLUS_KEVENT_MAX_UP_PALOAD_LEN 2048
+#define OPLUS_KEVENT_TEST_TAG "test_event"
+#define OPLUS_KEVENT_TEST_ID "test_check"
 
 static int fb_keventupload_sendpid_cmd(struct sk_buff *skb,
-	struct genl_info *info)
+				       struct genl_info *info)
 {
 	struct nlattr *na = NULL;
 	unsigned int *p_data = NULL;
@@ -107,7 +101,7 @@ static int fb_keventupload_sendpid_cmd(struct sk_buff *skb,
 }
 
 static int fb_keventupload_test_upload(struct sk_buff *skb,
-	struct genl_info *info)
+				       struct genl_info *info)
 {
 	int ret = 0;
 	struct nlattr *na = NULL;
@@ -126,15 +120,17 @@ static int fb_keventupload_test_upload(struct sk_buff *skb,
 		pr_info(" p_test_upload->pro_pid is %u, p_test_upload->val is %u, \n",
 			p_test_upload->pro_pid, p_test_upload->val);
 
-
 		if ((p_test_upload->val) > OPLUS_KEVENT_MAX_UP_PALOAD_LEN) {
-			pr_err("[ERROR]:p_test_upload->val too long \n", p_test_upload->val);
+			pr_err("[ERROR]:p_test_upload->val too long \n",
+			       p_test_upload->val);
 			return -1;
 		}
 
-		data_len = p_test_upload->val + sizeof(struct kernel_packet_info);
+		data_len =
+			p_test_upload->val + sizeof(struct kernel_packet_info);
 		pr_info(" data_len is %u\n", data_len);
-		p_dcs_event = (struct kernel_packet_info *)kmalloc(data_len, GFP_ATOMIC);
+		p_dcs_event = (struct kernel_packet_info *)kmalloc(data_len,
+								   GFP_ATOMIC);
 
 		if (NULL == p_dcs_event) {
 			pr_err("[ERROR]:kmalloc for p_dcs_event err\n");
@@ -155,7 +151,8 @@ static int fb_keventupload_test_upload(struct sk_buff *skb,
 		ret = fb_kevent_send_to_user(p_dcs_event);
 
 		if (ret) {
-			pr_err("[ERROR]:fb_kevent_send_to_user err, ret is %d \n", ret);
+			pr_err("[ERROR]:fb_kevent_send_to_user err, ret is %d \n",
+			       ret);
 		}
 
 		kfree(p_dcs_event);
@@ -166,36 +163,40 @@ static int fb_keventupload_test_upload(struct sk_buff *skb,
 
 static const struct genl_ops oplus_fb_kevent_upload_ops[] = {
 	{
-		.cmd		= FB_GUARD_CMD_GENL_SENDPID,
-		.doit		= fb_keventupload_sendpid_cmd,
+		.cmd = FB_GUARD_CMD_GENL_SENDPID,
+		.doit = fb_keventupload_sendpid_cmd,
 		/*.policy		= taskstats_cmd_get_policy,*/
 		/*.flags		= GENL_ADMIN_PERM,*/
 	},
 	{
-		.cmd		= FB_GUARD_CMD_GENL_TEST_UPLOAD,
-		.doit		= fb_keventupload_test_upload,
+		.cmd = FB_GUARD_CMD_GENL_TEST_UPLOAD,
+		.doit = fb_keventupload_test_upload,
 		/*.dumpit		= taskstats2_foreach,*/
 		/*.policy		= taskstats_cmd_get_policy,*/
 	},
 };
 
 #ifdef CONFIG_OPLUS_KEVENT_UPLOAD
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)) && !IS_ENABLED(CONFIG_OPLUS_KERNEL_SECURE_GUARD)
-int kevent_send_to_user(struct kernel_packet_info *userinfo) {return 0;}
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0)) &&                         \
+	!IS_ENABLED(CONFIG_OPLUS_KERNEL_SECURE_GUARD)
+int kevent_send_to_user(struct kernel_packet_info *userinfo)
+{
+	return 0;
+}
 #endif
 #endif
 
 static struct genl_family oplus_fb_kevent_family __ro_after_init = {
-	.name		= OPLUS_FB_GUARD_PROTOCAL_NAME,
-	.version	= OPLUS_FB_GUARD_GENL_VERSION,
-	.maxattr	= FB_GUARD_CMD_ATTR_MAX,
-	.module		= THIS_MODULE,
-	.ops		= oplus_fb_kevent_upload_ops,
-	.n_ops		= ARRAY_SIZE(oplus_fb_kevent_upload_ops),
+	.name = OPLUS_FB_GUARD_PROTOCAL_NAME,
+	.version = OPLUS_FB_GUARD_GENL_VERSION,
+	.maxattr = FB_GUARD_CMD_ATTR_MAX,
+	.module = THIS_MODULE,
+	.ops = oplus_fb_kevent_upload_ops,
+	.n_ops = ARRAY_SIZE(oplus_fb_kevent_upload_ops),
 };
 
 static inline int genl_msg_prepare_usr_msg(unsigned char cmd, size_t size,
-	pid_t pid, struct sk_buff **skbp)
+					   pid_t pid, struct sk_buff **skbp)
 {
 	struct sk_buff *skb;
 
@@ -214,7 +215,7 @@ static inline int genl_msg_prepare_usr_msg(unsigned char cmd, size_t size,
 }
 
 static inline int genl_msg_mk_usr_msg(struct sk_buff *skb, int type, void *data,
-	int len)
+				      int len)
 {
 	int ret;
 
@@ -245,15 +246,16 @@ int fb_kevent_send_to_user(struct kernel_packet_info *userinfo)
 	data_len = userinfo->payload_length + sizeof(struct kernel_packet_info);
 	pr_info(" data_len is %u\n", data_len);
 
-	ret = genl_msg_prepare_usr_msg(FB_GUARD_CMD_GENL_UPLOAD, data_len, kevent_pid,
-			&skbuff);
+	ret = genl_msg_prepare_usr_msg(FB_GUARD_CMD_GENL_UPLOAD, data_len,
+				       kevent_pid, &skbuff);
 
 	if (ret) {
 		pr_err("[ERROR]:genl_msg_prepare_usr_msg err, ret is %d \n");
 		return ret;
 	}
 
-	ret = genl_msg_mk_usr_msg(skbuff, FB_GUARD_CMD_ATTR_MSG, userinfo, data_len);
+	ret = genl_msg_mk_usr_msg(skbuff, FB_GUARD_CMD_ATTR_MSG, userinfo,
+				  data_len);
 
 	if (ret) {
 		kfree_skb(skbuff);
@@ -275,16 +277,14 @@ int fb_kevent_send_to_user(struct kernel_packet_info *userinfo)
 
 EXPORT_SYMBOL(fb_kevent_send_to_user);
 
-
-
 /*
 int kevent_send_to_user(struct kernel_packet_info *userinfo)
 {
 	return fb_kevent_send_to_user(userinfo);
 }*/
 
-static struct packet * package_alloc(
-	fb_tag tag_id, const char *event_id, unsigned char *payload)
+static struct packet *package_alloc(fb_tag tag_id, const char *event_id,
+				    unsigned char *payload)
 {
 	struct packet *packet;
 	struct kernel_packet_info *pkt;
@@ -292,7 +292,7 @@ static struct packet * package_alloc(
 
 	if (tag_id > FB_MAX_TYPE || !event_id || !payload || !_tag[tag_id]) {
 		return NULL;
-        }
+	}
 
 	packet = (struct packet *)kmalloc(sizeof(struct packet), GFP_ATOMIC);
 	if (!packet) {
@@ -300,15 +300,16 @@ static struct packet * package_alloc(
 	}
 
 	/*presplit payload, '\n' is not allowed*/
-	for(;*tmp != '\0'; tmp++) {
+	for (; *tmp != '\0'; tmp++) {
 		if (*tmp == '\n') {
 			*tmp = '\0';
 			break;
 		}
 	}
 
-	pkt = (struct kernel_packet_info *)
-		kzalloc(sizeof(struct kernel_packet_info) + strlen(payload) + 1, GFP_ATOMIC);
+	pkt = (struct kernel_packet_info *)kzalloc(
+		sizeof(struct kernel_packet_info) + strlen(payload) + 1,
+		GFP_ATOMIC);
 
 	if (!pkt) {
 		kfree(packet);
@@ -319,8 +320,10 @@ static struct packet * package_alloc(
 	packet->retry = 4; /* retry 4 times at most*/
 	pkt->type = 1; /*means only string is available*/
 
-	memcpy(pkt->log_tag, _tag[tag_id], strlen(_tag[tag_id]) > MAX_LOG?MAX_LOG:strlen(_tag[tag_id]));
-	memcpy(pkt->event_id, event_id, strlen(event_id) > MAX_ID?MAX_ID:strlen(event_id));
+	memcpy(pkt->log_tag, _tag[tag_id],
+	       strlen(_tag[tag_id]) > MAX_LOG ? MAX_LOG : strlen(_tag[tag_id]));
+	memcpy(pkt->event_id, event_id,
+	       strlen(event_id) > MAX_ID ? MAX_ID : strlen(event_id));
 	pkt->payload_length = strlen(payload) + 1;
 	memcpy(pkt->payload, payload, strlen(payload));
 
@@ -343,13 +346,12 @@ int oplus_kevent_fb(fb_tag tag_id, const char *event_id, unsigned char *payload)
 	/*ignore before wlock init*/
 	if (!g_pkts->wlock_init) {
 		return -ENODEV;
-        }
+	}
 
 	packet = package_alloc(tag_id, event_id, payload);
 	if (!packet) {
 		return -ENODEV;
-        }
-
+	}
 
 	spin_lock_irqsave(&g_pkts->wlock, flags);
 	list_add(&packet->list, &g_pkts->packets);
@@ -361,20 +363,18 @@ int oplus_kevent_fb(fb_tag tag_id, const char *event_id, unsigned char *payload)
 }
 EXPORT_SYMBOL(oplus_kevent_fb);
 
-
-
 static unsigned int BKDRHash(char *str, unsigned int len)
 {
 	unsigned int seed = 131;
-        /* 31 131 1313 13131 131313 etc.. */
+	/* 31 131 1313 13131 131313 etc.. */
 	unsigned int hash = 0;
-	unsigned int i    = 0;
+	unsigned int i = 0;
 
 	if (str == NULL) {
 		return 0;
 	}
 
-	for(i = 0; i < len; str++, i++) {
+	for (i = 0; i < len; str++, i++) {
 		hash = (hash * seed) + (*str);
 	}
 
@@ -383,24 +383,24 @@ static unsigned int BKDRHash(char *str, unsigned int len)
 
 int oplus_kevent_fb_str(fb_tag tag_id, const char *event_id, unsigned char *str)
 {
-	unsigned char payload[1024] = {0x00};
+	unsigned char payload[1024] = { 0x00 };
 	unsigned int hashid = 0;
 	int ret = 0;
-	char strHashSource[CAUSENAME_SIZE] = {0x00};
-/*
+	char strHashSource[CAUSENAME_SIZE] = { 0x00 };
+	/*
 	unsigned long rdm = 0;
 	rdm = get_random_u64();
 	snprintf(strHashSource, CAUSENAME_SIZE, "%s %lu", str, rdm);
 */
 	snprintf(strHashSource, CAUSENAME_SIZE, "%s", str);
 	hashid = BKDRHash(strHashSource, strlen(strHashSource));
-/*
+	/*
 	memset(fid, 0 , CAUSENAME_SIZE);
 	snprintf(fid, CAUSENAME_SIZE, "%u", hashid);
 */
 	ret = snprintf(payload, sizeof(payload),
-			"NULL$$EventField@@%u$$FieldData@@%s$$detailData@@%s",  hashid, str,
-			_tag[tag_id]);
+		       "NULL$$EventField@@%u$$FieldData@@%s$$detailData@@%s",
+		       hashid, str, _tag[tag_id]);
 	pr_err("%s, payload= %s, ret=%d\n", __func__, payload, ret);
 	return oplus_kevent_fb(tag_id, event_id, payload);
 }
@@ -414,7 +414,7 @@ static int fb_flush_thread(void *arg)
 	unsigned long flags;
 	struct list_head list_tmp;
 
-	while(!kthread_should_stop()) {
+	while (!kthread_should_stop()) {
 		if (list_empty(&pkts_pool->packets)) {
 			set_current_state(TASK_INTERRUPTIBLE);
 			schedule();
@@ -427,14 +427,18 @@ static int fb_flush_thread(void *arg)
 		list_splice_init(&pkts_pool->packets, &list_tmp);
 		spin_unlock_irqrestore(&pkts_pool->wlock, flags);
 
-		list_for_each_entry_safe(s, tmp, &list_tmp, list) {
+		list_for_each_entry_safe (s, tmp, &list_tmp, list) {
 			if (s->pkt) {
-				if (fb_kevent_send_to_user(s->pkt) && s->retry) {
-					pr_debug("failed to send feedback %s\n", s->pkt->log_tag);
+				if (fb_kevent_send_to_user(s->pkt) &&
+				    s->retry) {
+					pr_debug("failed to send feedback %s\n",
+						 s->pkt->log_tag);
 					s->retry--;
-					spin_lock_irqsave(&pkts_pool->wlock, flags);
+					spin_lock_irqsave(&pkts_pool->wlock,
+							  flags);
 					list_add(&s->list, &pkts_pool->packets);
-					spin_unlock_irqrestore(&pkts_pool->wlock, flags);
+					spin_unlock_irqrestore(
+						&pkts_pool->wlock, flags);
 				} else {
 					package_release(s);
 				}
@@ -450,27 +454,26 @@ static int fb_flush_thread(void *arg)
 /*
 * @format: tag_id:event_id:payload
 */
-static ssize_t kernel_fb_write(struct file *file,
-				const char __user *buf,
-				size_t count,
-				loff_t *lo)
+static ssize_t kernel_fb_write(struct file *file, const char __user *buf,
+			       size_t count, loff_t *lo)
 {
 	char *r_buf;
 	int tag_id = 0;
-	char event_id[MAX_ID] = {0};
+	char event_id[MAX_ID] = { 0 };
 	int idx1 = 0, idx2 = 0;
 	int len;
 
 	r_buf = (char *)kzalloc(MAX_BUF_LEN, GFP_KERNEL);
 	if (!r_buf) {
 		return count;
-        }
+	}
 
-	if (copy_from_user(r_buf, buf, MAX_BUF_LEN > count?count:MAX_BUF_LEN)) {
+	if (copy_from_user(r_buf, buf,
+			   MAX_BUF_LEN > count ? count : MAX_BUF_LEN)) {
 		goto exit;
 	}
 
-	r_buf[MAX_BUF_LEN - 1] ='\0'; /*make sure last bype is eof*/
+	r_buf[MAX_BUF_LEN - 1] = '\0'; /*make sure last bype is eof*/
 	len = strlen(r_buf);
 
 	tag_id = r_buf[0] - '0';
@@ -478,13 +481,13 @@ static ssize_t kernel_fb_write(struct file *file,
 		goto exit;
 	}
 
-	while(idx1 < len) {
+	while (idx1 < len) {
 		if (r_buf[idx1++] == ':') {
 			idx2 = idx1;
 			while (idx2 < len) {
 				if (r_buf[idx2++] == ':') {
 					break;
-                                }
+				}
 			}
 			break;
 		}
@@ -492,9 +495,10 @@ static ssize_t kernel_fb_write(struct file *file,
 
 	if (idx1 == len || idx2 == len) {
 		goto exit;
-        }
+	}
 
-	memcpy(event_id, &r_buf[idx1], idx2-idx1-1 > MAX_ID?MAX_ID: idx2-idx1-1);
+	memcpy(event_id, &r_buf[idx1],
+	       idx2 - idx1 - 1 > MAX_ID ? MAX_ID : idx2 - idx1 - 1);
 	event_id[MAX_ID - 1] = '\0';
 
 	oplus_kevent_fb(tag_id, event_id, r_buf + idx2);
@@ -505,27 +509,23 @@ exit:
 	return count;
 }
 
-static ssize_t kernel_fb_read(struct file *file,
-				char __user *buf,
-				size_t count,
-				loff_t *ppos)
+static ssize_t kernel_fb_read(struct file *file, char __user *buf, size_t count,
+			      loff_t *ppos)
 {
 	return count;
 }
 
 static const struct file_operations kern_fb_fops = {
 	.write = kernel_fb_write,
-	.read  = kernel_fb_read,
-	.open  = simple_open,
+	.read = kernel_fb_read,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 };
 
-static ssize_t crash_cause_read(struct file *file,
-    char __user *buf,
-    size_t count,
-    loff_t *off)
+static ssize_t crash_cause_read(struct file *file, char __user *buf,
+				size_t count, loff_t *off)
 {
-	char page[512] = {0x00};
+	char page[512] = { 0x00 };
 	int len = 0;
 
 	len = snprintf(page, sizeof(page), "%s", fid);
@@ -534,9 +534,9 @@ static ssize_t crash_cause_read(struct file *file,
 }
 
 static const struct file_operations crash_cause_fops = {
-	.read  = crash_cause_read,
-    .open  = simple_open,
-    .owner = THIS_MODULE,
+	.read = crash_cause_read,
+	.open = simple_open,
+	.owner = THIS_MODULE,
 };
 
 static int __init kernel_fb_init(void)
@@ -547,7 +547,7 @@ static int __init kernel_fb_init(void)
 	pr_err("%s\n", __func__);
 
 	g_pkts = (struct packets_pool *)kzalloc(sizeof(struct packets_pool),
-			GFP_KERNEL);
+						GFP_KERNEL);
 
 	if (!g_pkts) {
 		ret = -ENOMEM;
@@ -565,10 +565,11 @@ static int __init kernel_fb_init(void)
 	INIT_LIST_HEAD(&g_pkts->packets);
 	spin_lock_init(&g_pkts->wlock);
 
-	g_pkts->flush_task = kthread_create(fb_flush_thread, g_pkts, "fb_flush");
+	g_pkts->flush_task =
+		kthread_create(fb_flush_thread, g_pkts, "fb_flush");
 	if (!g_pkts->flush_task) {
 		pr_err("failed to kthread_create fb_flush\n");
-		ret =  -ENODEV;
+		ret = -ENODEV;
 		goto failed_kthread_create;
 	}
 
@@ -581,7 +582,8 @@ static int __init kernel_fb_init(void)
 		goto failed_proc_create_data;
 	}
 
-	d_entry = proc_create_data("crash_cause", 0664, NULL, &crash_cause_fops, NULL);
+	d_entry = proc_create_data("crash_cause", 0664, NULL, &crash_cause_fops,
+				   NULL);
 
 	if (!d_entry) {
 		pr_err("failed to create crash_cause node\n");

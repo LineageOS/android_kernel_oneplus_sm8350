@@ -6,9 +6,9 @@
 #include "oplus_sensor_devinfo.h"
 #include <linux/version.h>
 
-#define CLOSE_PD  1
+#define CLOSE_PD 1
 #define CLOSE_PD_CONDITION 2
-#define ALIGN4(s) ((sizeof(s) + 3)&(~0x3))
+#define ALIGN4(s) ((sizeof(s) + 3) & (~0x3))
 #define SAR_MAX_CH_NUM 5
 
 extern int oplus_press_cali_data_init(void);
@@ -22,22 +22,19 @@ struct sensor_info *g_chip = NULL;
 struct proc_dir_entry *sensor_proc_dir = NULL;
 static struct oplus_als_cali_data *gdata = NULL;
 
-static char *als_feature[] = {
-	"als-type",
-	"is-unit-device",
-	"is-als-dri",
-	"als-factor",
-	"is_als_initialed",
-	"als_buffer_length",
-	"normalization_value",
-	"use_lb_algo",
-	"para-matrix"
-};
+static char *als_feature[] = { "als-type",
+			       "is-unit-device",
+			       "is-als-dri",
+			       "als-factor",
+			       "is_als_initialed",
+			       "als_buffer_length",
+			       "normalization_value",
+			       "use_lb_algo",
+			       "para-matrix" };
 
 static char *als_rear_feature[] = {
 	"als-factor",
 };
-
 
 __attribute__((weak)) void oplus_device_dir_redirect(struct sensor_info *chip)
 {
@@ -63,18 +60,19 @@ static void is_need_close_pd(struct sensor_hw *hw, struct device_node *ch_node)
 			hw->feature.feature[2] = CLOSE_PD;
 
 		} else if (CLOSE_PD_CONDITION == value) {
-			sn_size = of_property_count_elems_of_size(ch_node, "sn_number",
-					sizeof(uint32_t));
+			sn_size = of_property_count_elems_of_size(
+				ch_node, "sn_number", sizeof(uint32_t));
 			pr_info("sn size %d\n", sn_size);
-			specific_sn = (uint32_t *)kzalloc(sizeof(uint32_t) * sn_size, GFP_KERNEL);
+			specific_sn = (uint32_t *)kzalloc(
+				sizeof(uint32_t) * sn_size, GFP_KERNEL);
 
 			if (!specific_sn) {
 				pr_err("%s kzalloc failed!\n", __func__);
 				return;
 			}
 
-			of_property_read_u32_array(ch_node, "sn_number", specific_sn, sn_size);
-
+			of_property_read_u32_array(ch_node, "sn_number",
+						   specific_sn, sn_size);
 
 			for (di = 0; di < sn_size; di++) {
 				if (specific_sn[di] == get_serialID()) {
@@ -89,7 +87,7 @@ static void is_need_close_pd(struct sensor_hw *hw, struct device_node *ch_node)
 }
 
 static void parse_physical_sensor_common_dts(struct sensor_hw *hw,
-		struct device_node *ch_node)
+					     struct device_node *ch_node)
 {
 	int rc = 0;
 	uint32_t chip_value = 0;
@@ -136,18 +134,21 @@ static void parse_magnetic_sensor_dts(struct sensor_hw *hw,
 	int value = 0;
 	int rc = 0;
 	int di = 0;
-	int soft_default_para[18] = {10000, 0, 0, 0, 0, 0, 0, 0, 10000, 0, 0, 0, 0, 0, 0, 0, 10000, 0};
+	int soft_default_para[18] = { 10000, 0, 0, 0, 0, 0, 0, 0,     10000,
+				      0,     0, 0, 0, 0, 0, 0, 10000, 0 };
 	memcpy((void *)&hw->feature.parameter[0], (void *)&soft_default_para[0],
 	       sizeof(soft_default_para));
 	rc = of_property_read_u32(ch_node, "parameter-number", &value);
 
 	if (!rc && value > 0 && value < PARAMETER_NUM) {
-		rc = of_property_read_u32_array(ch_node,
-						"soft-mag-parameter", &hw->feature.parameter[0], value);
+		rc = of_property_read_u32_array(ch_node, "soft-mag-parameter",
+						&hw->feature.parameter[0],
+						value);
 
 		for (di = 0; di < value; di++) {
-			SENSOR_DEVINFO_DEBUG("soft magnetic parameter[%d] : %d\n", di,
-					     hw->feature.parameter[di]);
+			SENSOR_DEVINFO_DEBUG(
+				"soft magnetic parameter[%d] : %d\n", di,
+				hw->feature.parameter[di]);
 		}
 
 		return;
@@ -158,30 +159,45 @@ static void parse_magnetic_sensor_dts(struct sensor_hw *hw,
 		struct device_node *node = ch_node;
 		struct device_node *ch_node_mag = NULL;
 		prj_id = get_project();
-		for_each_child_of_node(node, ch_node_mag) {
+		for_each_child_of_node (node, ch_node_mag) {
 			if (ch_node_mag == NULL) {
-				SENSOR_DEVINFO_DEBUG(" the mag_para use default parametyers");
+				SENSOR_DEVINFO_DEBUG(
+					" the mag_para use default parametyers");
 				return;
 			}
 
-			rc = of_property_read_u32(ch_node_mag, "projects-num", &value);
+			rc = of_property_read_u32(ch_node_mag, "projects-num",
+						  &value);
 			SENSOR_DEVINFO_DEBUG("get that project is %d", prj_id);
 			rc = of_property_read_u32_array(ch_node_mag,
-							"match-projects", &prj_dir[0], value);
+							"match-projects",
+							&prj_dir[0], value);
 
 			for (di = 0; di < value; di++) {
-				SENSOR_DEVINFO_DEBUG(" which get there are %d projects", prj_dir[di]);
+				SENSOR_DEVINFO_DEBUG(
+					" which get there are %d projects",
+					prj_dir[di]);
 
 				if (prj_dir[di] == prj_id) {
-					rc = of_property_read_u32(ch_node_mag, "parameter-number", &value);
+					rc = of_property_read_u32(
+						ch_node_mag, "parameter-number",
+						&value);
 
-					if (!rc && value > 0 && value < PARAMETER_NUM) {
-						rc = of_property_read_u32_array(ch_node_mag,
-										"soft-mag-parameter", &hw->feature.parameter[0], value);
+					if (!rc && value > 0 &&
+					    value < PARAMETER_NUM) {
+						rc = of_property_read_u32_array(
+							ch_node_mag,
+							"soft-mag-parameter",
+							&hw->feature
+								 .parameter[0],
+							value);
 
 						for (di = 0; di < value; di++) {
-							SENSOR_DEVINFO_DEBUG("soft magnetic parameter[%d] : %d\n", di,
-									     hw->feature.parameter[di]);
+							SENSOR_DEVINFO_DEBUG(
+								"soft magnetic parameter[%d] : %d\n",
+								di,
+								hw->feature.parameter
+									[di]);
 						}
 
 						return;
@@ -208,29 +224,14 @@ static void parse_proximity_sensor_dts(struct sensor_hw *hw,
 	int rc = 0;
 	int di = 0;
 	char *param[] = {
-		"low_step",
-		"high_step",
-		"low_limit",
-		"high_limit",
-		"dirty_low_step",
-		"dirty_high_step",
-		"ps_dirty_limit",
-		"ps_ir_limit",
-		"ps_adjust_min",
-		"ps_adjust_max",
-		"sampling_count",
-		"step_max",
-		"step_min",
-		"step_div",
-		"anti_shake_delta",
-		"dynamic_cali_max",
-		"raw2offset_radio",
-		"offset_max",
-		"offset_range_min",
-		"offset_range_max",
-		"force_cali_limit",
-		"cali_jitter_limit",
-		"cal_offset_margin",
+		"low_step",	     "high_step",	  "low_limit",
+		"high_limit",	     "dirty_low_step",	  "dirty_high_step",
+		"ps_dirty_limit",    "ps_ir_limit",	  "ps_adjust_min",
+		"ps_adjust_max",     "sampling_count",	  "step_max",
+		"step_min",	     "step_div",	  "anti_shake_delta",
+		"dynamic_cali_max",  "raw2offset_radio",  "offset_max",
+		"offset_range_min",  "offset_range_max",  "force_cali_limit",
+		"cali_jitter_limit", "cal_offset_margin",
 	};
 	rc = of_property_read_u32(ch_node, "ps-type", &value);
 
@@ -258,18 +259,20 @@ static void parse_proximity_sensor_dts(struct sensor_hw *hw,
 			hw->feature.parameter[di] = value;
 		}
 
-		SENSOR_DEVINFO_DEBUG("parameter[%d] : %d\n", di, hw->feature.parameter[di]);
+		SENSOR_DEVINFO_DEBUG("parameter[%d] : %d\n", di,
+				     hw->feature.parameter[di]);
 	}
 
 	rc = of_property_read_u32(ch_node, "parameter-number", &value);
 
 	if (!rc && value > 0 && value < REG_NUM - 1) {
 		hw->feature.reg[0] = value;
-		rc = of_property_read_u32_array(ch_node,
-						"sensor-reg", &hw->feature.reg[1], value);
+		rc = of_property_read_u32_array(ch_node, "sensor-reg",
+						&hw->feature.reg[1], value);
 
 		for (di = 0; di < value / 2; di++) {
-			SENSOR_DEVINFO_DEBUG("sensor reg 0x%x = 0x%x\n", hw->feature.reg[di * 2 + 1],
+			SENSOR_DEVINFO_DEBUG("sensor reg 0x%x = 0x%x\n",
+					     hw->feature.reg[di * 2 + 1],
 					     hw->feature.reg[2 * di + 2]);
 		}
 
@@ -277,8 +280,10 @@ static void parse_proximity_sensor_dts(struct sensor_hw *hw,
 		pr_info("parse alsps sensor reg failed\n");
 	}
 
-	SENSOR_DEVINFO_DEBUG("ps-type:%d ps_saturation:%d is_need_close_pd:%d\n",
-			     hw->feature.feature[0], hw->feature.feature[1], hw->feature.feature[2]);
+	SENSOR_DEVINFO_DEBUG(
+		"ps-type:%d ps_saturation:%d is_need_close_pd:%d\n",
+		hw->feature.feature[0], hw->feature.feature[1],
+		hw->feature.feature[2]);
 }
 
 static void parse_light_sensor_dts(struct sensor_hw *hw,
@@ -301,7 +306,8 @@ static void parse_light_sensor_dts(struct sensor_hw *hw,
 			pr_info("parse %s failed!", als_feature[di]);
 		}
 
-		SENSOR_DEVINFO_DEBUG("feature[%d] : %d\n", di, hw->feature.feature[di]);
+		SENSOR_DEVINFO_DEBUG("feature[%d] : %d\n", di,
+				     hw->feature.feature[di]);
 	}
 }
 
@@ -313,7 +319,8 @@ static void parse_light_rear_sensor_dts(struct sensor_hw *hw,
 	int di = 0;
 
 	for (di = 0; di < ARRAY_SIZE(als_rear_feature); di++) {
-		rc = of_property_read_u32(ch_node, als_rear_feature[di], &value);
+		rc = of_property_read_u32(ch_node, als_rear_feature[di],
+					  &value);
 
 		if (!rc) {
 			hw->feature.feature[di] = value;
@@ -322,8 +329,9 @@ static void parse_light_rear_sensor_dts(struct sensor_hw *hw,
 			pr_info("parse %s failed!", als_rear_feature[di]);
 		}
 
-		SENSOR_DEVINFO_DEBUG("parse_light_rear_sensor_dts-feature[%d] : %d\n", di,
-				     hw->feature.feature[di]);
+		SENSOR_DEVINFO_DEBUG(
+			"parse_light_rear_sensor_dts-feature[%d] : %d\n", di,
+			hw->feature.feature[di]);
 	}
 }
 
@@ -333,15 +341,19 @@ static void parse_sar_sensor_dts(struct sensor_hw *hw,
 	int di = 0;
 	int rc = 0;
 	int value = 0;
-	int dc_offset_default[SAR_MAX_CH_NUM * 2] = {0, 0, 0, 0, 0, 30000, 30000, 30000, 30000, 30000};
+	int dc_offset_default[SAR_MAX_CH_NUM * 2] = {
+		0, 0, 0, 0, 0, 30000, 30000, 30000, 30000, 30000
+	};
 	rc = of_property_read_u32(ch_node, "parameter-number", &value);
 
 	if (!rc && value > 0 && value < PARAMETER_NUM) {
-		rc = of_property_read_u32_array(ch_node,
-						"sensor-reg", &hw->feature.parameter[0], value);
+		rc = of_property_read_u32_array(ch_node, "sensor-reg",
+						&hw->feature.parameter[0],
+						value);
 
 		for (di = 0; di < value / 2; di++) {
-			SENSOR_DEVINFO_DEBUG("sensor reg 0x%x = 0x%x\n", hw->feature.parameter[di * 2],
+			SENSOR_DEVINFO_DEBUG("sensor reg 0x%x = 0x%x\n",
+					     hw->feature.parameter[di * 2],
 					     hw->feature.parameter[2 * di + 1]);
 		}
 
@@ -357,33 +369,38 @@ static void parse_sar_sensor_dts(struct sensor_hw *hw,
 		SENSOR_DEVINFO_DEBUG("sar channel-num: %d\n", value);
 
 	} else {
-		pr_info("parse sar sensor channel-num failed, rc %d, value %d", rc, value);
+		pr_info("parse sar sensor channel-num failed, rc %d, value %d",
+			rc, value);
 	}
 
 	/*reg->dc_offset*/
 	rc = of_property_read_u32(ch_node, "is-dc-offset", &value);
 
 	if (!rc && value == 1) {
-		memcpy((void *)&hw->feature.reg[0], (void *)&dc_offset_default[0],
-		       SAR_MAX_CH_NUM * 2);
+		memcpy((void *)&hw->feature.reg[0],
+		       (void *)&dc_offset_default[0], SAR_MAX_CH_NUM * 2);
 
 		for (di = 0; di < SAR_MAX_CH_NUM; di++) {
-			SENSOR_DEVINFO_DEBUG("sar dc_offset_l[%d] = %d, dc_offset_H[%d] = %d",
-					     di, hw->feature.reg[di], di + SAR_MAX_CH_NUM,
-					     hw->feature.reg[di + SAR_MAX_CH_NUM]);
+			SENSOR_DEVINFO_DEBUG(
+				"sar dc_offset_l[%d] = %d, dc_offset_H[%d] = %d",
+				di, hw->feature.reg[di], di + SAR_MAX_CH_NUM,
+				hw->feature.reg[di + SAR_MAX_CH_NUM]);
 		}
 
-		rc = of_property_read_u32_array(ch_node, "dc-offset", &hw->feature.reg[0],
+		rc = of_property_read_u32_array(ch_node, "dc-offset",
+						&hw->feature.reg[0],
 						SAR_MAX_CH_NUM * 2);
 
 		for (di = 0; di < SAR_MAX_CH_NUM; di++) {
-			SENSOR_DEVINFO_DEBUG("sar dc_offset_l[%d] = %d, dc_offset_H[%d] = %d",
-					     di, hw->feature.reg[di], di + SAR_MAX_CH_NUM,
-					     hw->feature.reg[di + SAR_MAX_CH_NUM]);
+			SENSOR_DEVINFO_DEBUG(
+				"sar dc_offset_l[%d] = %d, dc_offset_H[%d] = %d",
+				di, hw->feature.reg[di], di + SAR_MAX_CH_NUM,
+				hw->feature.reg[di + SAR_MAX_CH_NUM]);
 		}
 
 	} else {
-		pr_info("parse sar sensor dc_offset failed, rc %d, value %d", rc, value);
+		pr_info("parse sar sensor dc_offset failed, rc %d, value %d",
+			rc, value);
 	}
 }
 
@@ -396,11 +413,13 @@ static void parse_down_sar_sensor_dts(struct sensor_hw *hw,
 	rc = of_property_read_u32(ch_node, "parameter-number", &value);
 
 	if (!rc && value > 0 && value < PARAMETER_NUM) {
-		rc = of_property_read_u32_array(ch_node,
-						"sensor-reg", &hw->feature.parameter[0], value);
+		rc = of_property_read_u32_array(ch_node, "sensor-reg",
+						&hw->feature.parameter[0],
+						value);
 
 		for (di = 0; di < value / 2; di++) {
-			SENSOR_DEVINFO_DEBUG("sensor reg 0x%x = 0x%x\n", hw->feature.parameter[di * 2],
+			SENSOR_DEVINFO_DEBUG("sensor reg 0x%x = 0x%x\n",
+					     hw->feature.parameter[di * 2],
 					     hw->feature.parameter[2 * di + 1]);
 		}
 
@@ -415,26 +434,14 @@ static void parse_cct_sensor_dts(struct sensor_hw *hw,
 	int value = 0;
 	int rc = 0;
 	int di = 0;
-	char *feature[] = {
-		"decoupled-driver",
-		"publish-sensors",
-		"is-ch-dri",
-		"timer-size",
-		"fac-cali-sensor"
-	};
+	char *feature[] = { "decoupled-driver", "publish-sensors", "is-ch-dri",
+			    "timer-size", "fac-cali-sensor" };
 
-	char *para[] = {
-		"para-matrix",
-		"atime",
-		"first-atime",
-		"fac-cali-atime",
-		"first-again",
-		"fac-cali-again",
-		"fd-time",
-		"fac-cali-fd-time",
-		"first-fd-gain",
-		"fac-cali-fd-gain"
-	};
+	char *para[] = { "para-matrix",	  "atime",
+			 "first-atime",	  "fac-cali-atime",
+			 "first-again",	  "fac-cali-again",
+			 "fd-time",	  "fac-cali-fd-time",
+			 "first-fd-gain", "fac-cali-fd-gain" };
 
 	hw->feature.feature[0] = 1;
 
@@ -445,7 +452,8 @@ static void parse_cct_sensor_dts(struct sensor_hw *hw,
 			hw->feature.feature[di] = value;
 		}
 
-		SENSOR_DEVINFO_DEBUG("cct_feature[%d] : %d\n", di, hw->feature.feature[di]);
+		SENSOR_DEVINFO_DEBUG("cct_feature[%d] : %d\n", di,
+				     hw->feature.feature[di]);
 	}
 
 	for (di = 0; di < ARRAY_SIZE(para); di++) {
@@ -455,7 +463,8 @@ static void parse_cct_sensor_dts(struct sensor_hw *hw,
 			hw->feature.parameter[di] = value;
 		}
 
-		SENSOR_DEVINFO_DEBUG("cct_parameter[%d] : %d\n", di, hw->feature.parameter[di]);
+		SENSOR_DEVINFO_DEBUG("cct_parameter[%d] : %d\n", di,
+				     hw->feature.parameter[di]);
 	}
 }
 
@@ -465,26 +474,14 @@ static void parse_cct_rear_sensor_dts(struct sensor_hw *hw,
 	int value = 0;
 	int rc = 0;
 	int di = 0;
-	char *feature[] = {
-		"decoupled-driver",
-		"publish-sensors",
-		"is-ch-dri",
-		"timer-size",
-		"fac-cali-sensor"
-	};
+	char *feature[] = { "decoupled-driver", "publish-sensors", "is-ch-dri",
+			    "timer-size", "fac-cali-sensor" };
 
-	char *para[] = {
-		"para-matrix",
-		"atime",
-		"first-atime",
-		"fac-cali-atime",
-		"first-again",
-		"fac-cali-again",
-		"fd-time",
-		"fac-cali-fd-time",
-		"first-fd-gain",
-		"fac-cali-fd-gain"
-	};
+	char *para[] = { "para-matrix",	  "atime",
+			 "first-atime",	  "fac-cali-atime",
+			 "first-again",	  "fac-cali-again",
+			 "fd-time",	  "fac-cali-fd-time",
+			 "first-fd-gain", "fac-cali-fd-gain" };
 
 	hw->feature.feature[0] = 1;
 
@@ -495,7 +492,8 @@ static void parse_cct_rear_sensor_dts(struct sensor_hw *hw,
 			hw->feature.feature[di] = value;
 		}
 
-		SENSOR_DEVINFO_DEBUG("cct_feature[%d] : %d\n", di, hw->feature.feature[di]);
+		SENSOR_DEVINFO_DEBUG("cct_feature[%d] : %d\n", di,
+				     hw->feature.feature[di]);
 	}
 
 	for (di = 0; di < ARRAY_SIZE(para); di++) {
@@ -505,19 +503,18 @@ static void parse_cct_rear_sensor_dts(struct sensor_hw *hw,
 			hw->feature.parameter[di] = value;
 		}
 
-		SENSOR_DEVINFO_DEBUG("cct_parameter[%d] : %d\n", di, hw->feature.parameter[di]);
+		SENSOR_DEVINFO_DEBUG("cct_parameter[%d] : %d\n", di,
+				     hw->feature.parameter[di]);
 	}
 }
 
 static void parse_accelerometer_sensor_dts(struct sensor_hw *hw,
-		struct device_node *ch_node)
+					   struct device_node *ch_node)
 {
 	int value = 0;
 	int rc = 0;
 	int di = 0;
-	char *feature[] = {
-		"use-sois"
-	};
+	char *feature[] = { "use-sois" };
 
 	hw->feature.feature[0] = 0;
 
@@ -528,12 +525,13 @@ static void parse_accelerometer_sensor_dts(struct sensor_hw *hw,
 			hw->feature.feature[di] = value;
 		}
 
-		SENSOR_DEVINFO_DEBUG("gsensor_feature[%d] : %d\n", di, hw->feature.feature[di]);
+		SENSOR_DEVINFO_DEBUG("gsensor_feature[%d] : %d\n", di,
+				     hw->feature.feature[di]);
 	}
 }
 
 static void parse_each_physical_sensor_dts(struct sensor_hw *hw,
-		struct device_node *ch_node)
+					   struct device_node *ch_node)
 {
 	if (0 == strncmp(ch_node->name, "msensor", 7)) {
 		parse_magnetic_sensor_dts(hw, ch_node);
@@ -611,7 +609,8 @@ static void parse_lux_aod_sensor_dts(struct sensor_algorithm *algo,
 	}
 
 	SENSOR_DEVINFO_DEBUG("thrd-low: %d, thrd-high: %d, als-type: %d\n",
-			     algo->parameter[0], algo->parameter[1], algo->parameter[2]);
+			     algo->parameter[0], algo->parameter[1],
+			     algo->parameter[2]);
 }
 
 static void parse_fp_display_sensor_dts(struct sensor_algorithm *algo,
@@ -644,7 +643,7 @@ static void parse_mag_fusion_sensor_dts(struct sensor_algorithm *algo,
 }
 
 static void parse_each_virtual_sensor_dts(struct sensor_algorithm *algo,
-		struct device_node *ch_node)
+					  struct device_node *ch_node)
 {
 	if (0 == strncmp(ch_node->name, "pickup", 6)) {
 		parse_pickup_sensor_dts(algo, ch_node);
@@ -676,7 +675,7 @@ static void oplus_sensor_parse_dts(struct platform_device *pdev)
 	struct sensor_algorithm *algo = NULL;
 	pr_info("start \n");
 
-	for_each_child_of_node(node, ch_node) {
+	for_each_child_of_node (node, ch_node) {
 		is_virtual_sensor = false;
 
 		if (of_property_read_bool(ch_node, "is-virtual-sensor")) {
@@ -685,8 +684,8 @@ static void oplus_sensor_parse_dts(struct platform_device *pdev)
 
 		rc = of_property_read_u32(ch_node, "sensor-type", &value);
 
-		if (rc || (is_virtual_sensor && value >= SENSOR_ALGO_NUM)
-				|| value >= SENSORS_NUM) {
+		if (rc || (is_virtual_sensor && value >= SENSOR_ALGO_NUM) ||
+		    value >= SENSORS_NUM) {
 			pr_info("parse sensor type failed!\n");
 			continue;
 
@@ -696,7 +695,8 @@ static void oplus_sensor_parse_dts(struct platform_device *pdev)
 
 		if (!is_virtual_sensor) {
 			chip->s_vector[sensor_type].sensor_id = sensor_type;
-			rc = of_property_read_u32(ch_node, "sensor-index", &value);
+			rc = of_property_read_u32(ch_node, "sensor-index",
+						  &value);
 
 			if (rc || value >= SOURCE_NUM) {
 				pr_info("parse sensor index failed!\n");
@@ -708,20 +708,32 @@ static void oplus_sensor_parse_dts(struct platform_device *pdev)
 
 			hw = &chip->s_vector[sensor_type].hw[sensor_index];
 			parse_physical_sensor_common_dts(hw, ch_node);
-			SENSOR_DEVINFO_DEBUG("chip->s_vector[%d].hw[%d] : sensor-name %d, \
+			SENSOR_DEVINFO_DEBUG(
+				"chip->s_vector[%d].hw[%d] : sensor-name %d, \
 					bus-number %d, sensor-direction %d, \
 					irq-number %d\n",
-					     sensor_type, sensor_index,
-					     chip->s_vector[sensor_type].hw[sensor_index].sensor_name,
-					     chip->s_vector[sensor_type].hw[sensor_index].bus_number,
-					     chip->s_vector[sensor_type].hw[sensor_index].direction,
-					     chip->s_vector[sensor_type].hw[sensor_index].irq_number);
+				sensor_type, sensor_index,
+				chip->s_vector[sensor_type]
+					.hw[sensor_index]
+					.sensor_name,
+				chip->s_vector[sensor_type]
+					.hw[sensor_index]
+					.bus_number,
+				chip->s_vector[sensor_type]
+					.hw[sensor_index]
+					.direction,
+				chip->s_vector[sensor_type]
+					.hw[sensor_index]
+					.irq_number);
 			parse_each_physical_sensor_dts(hw, ch_node);
 
 		} else {
 			chip->a_vector[sensor_type].sensor_id = sensor_type;
-			SENSOR_DEVINFO_DEBUG("chip->a_vector[%d].sensor_id : sensor_type %d",
-					     sensor_type, chip->a_vector[sensor_type].sensor_id, sensor_type);
+			SENSOR_DEVINFO_DEBUG(
+				"chip->a_vector[%d].sensor_id : sensor_type %d",
+				sensor_type,
+				chip->a_vector[sensor_type].sensor_id,
+				sensor_type);
 			algo = &chip->a_vector[sensor_type];
 			parse_each_virtual_sensor_dts(algo, ch_node);
 		}
@@ -742,7 +754,7 @@ static void oplus_sensor_parse_dts(struct platform_device *pdev)
 static ssize_t als_type_read_proc(struct file *file, char __user *buf,
 				  size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!g_chip) {
@@ -770,7 +782,7 @@ static ssize_t als_type_read_proc(struct file *file, char __user *buf,
 static ssize_t red_max_lux_read_proc(struct file *file, char __user *buf,
 				     size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -797,13 +809,12 @@ static ssize_t red_max_lux_write_proc(struct file *file, const char __user *buf,
 				      size_t count, loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	unsigned int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -837,7 +848,7 @@ static ssize_t red_max_lux_write_proc(struct file *file, const char __user *buf,
 static ssize_t white_max_lux_read_proc(struct file *file, char __user *buf,
 				       size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -861,17 +872,16 @@ static ssize_t white_max_lux_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t white_max_lux_write_proc(struct file *file,
-					const char __user *buf,
-					size_t count, loff_t *off)
+					const char __user *buf, size_t count,
+					loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	unsigned int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -905,7 +915,7 @@ static ssize_t white_max_lux_write_proc(struct file *file,
 static ssize_t blue_max_lux_read_proc(struct file *file, char __user *buf,
 				      size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -929,17 +939,16 @@ static ssize_t blue_max_lux_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t blue_max_lux_write_proc(struct file *file,
-				       const char __user *buf,
-				       size_t count, loff_t *off)
+				       const char __user *buf, size_t count,
+				       loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	unsigned int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -973,7 +982,7 @@ static ssize_t blue_max_lux_write_proc(struct file *file,
 static ssize_t green_max_lux_read_proc(struct file *file, char __user *buf,
 				       size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -997,17 +1006,16 @@ static ssize_t green_max_lux_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t green_max_lux_write_proc(struct file *file,
-					const char __user *buf,
-					size_t count, loff_t *off)
+					const char __user *buf, size_t count,
+					loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	unsigned int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -1041,7 +1049,7 @@ static ssize_t green_max_lux_write_proc(struct file *file,
 static ssize_t cali_coe_read_proc(struct file *file, char __user *buf,
 				  size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -1069,13 +1077,12 @@ static ssize_t cali_coe_write_proc(struct file *file, const char __user *buf,
 				   size_t count, loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	unsigned int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -1109,7 +1116,7 @@ static ssize_t cali_coe_write_proc(struct file *file, const char __user *buf,
 static ssize_t row_coe_read_proc(struct file *file, char __user *buf,
 				 size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -1137,13 +1144,12 @@ static ssize_t row_coe_write_proc(struct file *file, const char __user *buf,
 				  size_t count, loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	unsigned int input = 0;
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -1256,7 +1262,7 @@ static int oplus_als_cali_data_init()
 		return 0;
 	}
 
-	gdata->proc_oplus_als =  proc_mkdir("als_cali", sensor_proc_dir);
+	gdata->proc_oplus_als = proc_mkdir("als_cali", sensor_proc_dir);
 
 	if (!gdata->proc_oplus_als) {
 		pr_err("can't create proc_oplus_als proc\n");
@@ -1352,12 +1358,11 @@ static int oplus_devinfo_probe(struct platform_device *pdev)
 
 	smem_size = 0;
 #endif
-	smem_addr = qcom_smem_get(QCOM_SMEM_HOST_ANY,
-				  SMEM_SENSOR,
-				  &smem_size);
+	smem_addr = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_SENSOR, &smem_size);
 
 	if (IS_ERR(smem_addr)) {
-		pr_err("unable to acquire smem SMEM_SENSOR entry, smem_addr %p\n", smem_addr);
+		pr_err("unable to acquire smem SMEM_SENSOR entry, smem_addr %p\n",
+		       smem_addr);
 		return -EPROBE_DEFER; /*return -EPROBE_DEFER if smem not ready*/
 	}
 
@@ -1420,7 +1425,7 @@ static int oplus_devinfo_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id of_drv_match[] = {
-	{ .compatible = "oplus,sensor-devinfo"},
+	{ .compatible = "oplus,sensor-devinfo" },
 	{},
 };
 MODULE_DEVICE_TABLE(of, of_drv_match);
@@ -1446,4 +1451,3 @@ arch_initcall(oplus_devinfo_init);
 
 MODULE_DESCRIPTION("sensor devinfo");
 MODULE_LICENSE("GPL");
-

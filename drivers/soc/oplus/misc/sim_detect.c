@@ -15,15 +15,16 @@
 #define SIM_DETECT_NAME "sim_detect"
 
 /**for sim_detect log**/
-#define SIMDETECT_ERR(a, arg...)  pr_err("[sim_detect]:" a, ##arg)
+#define SIMDETECT_ERR(a, arg...) pr_err("[sim_detect]:" a, ##arg)
 
 /**sim_detect log end**/
-
 
 #define MODEM_DETECT_CMD 55
 
 static struct of_device_id sim_detect_id[] = {
-	{.compatible = "oplus, sim_detect", },
+	{
+		.compatible = "oplus, sim_detect",
+	},
 	{},
 };
 
@@ -43,11 +44,11 @@ static int oem_qmi_common_req(u32 cmd_type, const char *req_data, u32 req_len,
 }
 #endif
 
-static ssize_t proc_sim_detect_read(struct file *file,
-				    char __user *user_buf, size_t count, loff_t *ppos)
+static ssize_t proc_sim_detect_read(struct file *file, char __user *user_buf,
+				    size_t count, loff_t *ppos)
 {
 	int ret = 0;
-	char page[25] = {0};
+	char page[25] = { 0 };
 	int sim_detect_value = -1;
 	struct sim_detect_data *sim_detect_data = PDE_DATA(file_inode(file));
 
@@ -58,7 +59,7 @@ static ssize_t proc_sim_detect_read(struct file *file,
 		sim_detect_value = gpio_get_value(sim_detect_data->sim_detect);
 
 	else {
-		char resp_data[8] = {0};
+		char resp_data[8] = { 0 };
 
 		if (oem_qmi_common_req(MODEM_DETECT_CMD, NULL, 0, resp_data, 8))
 			SIMDETECT_ERR("failed to read status from modem\n");
@@ -70,15 +71,15 @@ static ssize_t proc_sim_detect_read(struct file *file,
 	SIMDETECT_ERR("sim_detect_value:%d\n", sim_detect_value);
 
 	ret = snprintf(page, sizeof(page) - 1, "%d\n", sim_detect_value);
-	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+	ret = simple_read_from_buffer(user_buf, count, ppos, page,
+				      strlen(page));
 
 	return ret;
 }
 
-
 static const struct file_operations sim_detect_ops = {
-	.read  = proc_sim_detect_read,
-	.open  = simple_open,
+	.read = proc_sim_detect_read,
+	.open = simple_open,
 	.owner = THIS_MODULE,
 };
 
@@ -95,8 +96,8 @@ static int sim_card_detect_init(struct sim_detect_data *sim_detect_data)
 		const char *out_string;
 		SIMDETECT_ERR("sim detect gpio not specified\n");
 
-		if (of_property_read_string(np, "Hw,sim_det", &out_string)
-				|| strcmp(out_string, "modem_det")) {
+		if (of_property_read_string(np, "Hw,sim_det", &out_string) ||
+		    strcmp(out_string, "modem_det")) {
 			SIMDETECT_ERR("modem det not specified\n");
 			ret = -1;
 			goto err;
@@ -122,8 +123,8 @@ static int sim_detect_probe(struct platform_device *pdev)
 	struct sim_detect_data *sim_detect_data = NULL;
 
 	SIMDETECT_ERR("sim_detect_probe enter\n");
-	sim_detect_data = devm_kzalloc(&pdev->dev, sizeof(struct sim_detect_data),
-				       GFP_KERNEL);
+	sim_detect_data = devm_kzalloc(
+		&pdev->dev, sizeof(struct sim_detect_data), GFP_KERNEL);
 
 	if (IS_ERR_OR_NULL(sim_detect_data)) {
 		SIMDETECT_ERR("sim_detect_data kzalloc failed\n");

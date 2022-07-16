@@ -28,11 +28,11 @@
 #include <linux/notifier.h>
 #endif
 
-#define THREAD_WAKEUP  0
-#define THREAD_SLEEP   1
+#define THREAD_WAKEUP 0
+#define THREAD_SLEEP 1
 
-#undef	SUBSYS_COUNTS
-#define	SUBSYS_COUNTS	(3)
+#undef SUBSYS_COUNTS
+#define SUBSYS_COUNTS (3)
 
 struct sensor_fb_conf {
 	uint16_t event_id;
@@ -126,7 +126,6 @@ enum sensor_fb_event_id {
 	HAL_SENSOR_TIMESTAMP_ERROR = 10002,
 };
 
-
 struct subsystem_desc {
 	u64 subsys_sleep_time_s;
 	u64 subsys_sleep_time_p;
@@ -153,25 +152,14 @@ struct sns_fb_event {
 	};
 };
 
-
 #define EVNET_NUM_MAX 109
 struct fb_event_smem {
 	struct sns_fb_event event[EVNET_NUM_MAX];
 };
 
+enum { WAKE_UP, NO_WAKEUP };
 
-enum {
-	WAKE_UP,
-	NO_WAKEUP
-};
-
-enum {
-	SSC,
-	APSS,
-	ADSP,
-	MDSP,
-	CDSP
-};
+enum { SSC, APSS, ADSP, MDSP, CDSP };
 
 struct delivery_type {
 	char *name;
@@ -183,11 +171,10 @@ struct proc_type {
 	int type;
 };
 
-
 struct sensor_fb_cxt {
 	/*struct miscdevice sensor_fb_dev;*/
 	struct platform_device *sensor_fb_dev;
-	spinlock_t   rw_lock;
+	spinlock_t rw_lock;
 	wait_queue_head_t wq;
 	struct notifier_block fb_notif;
 	struct subsystem_desc subsystem_desc[SUBSYS_COUNTS];
@@ -197,10 +184,8 @@ struct sensor_fb_cxt {
 	uint16_t node_type;
 	unsigned long wakeup_flag;
 	uint32_t sensor_list[2];
-	struct proc_dir_entry  *proc_sns;
+	struct proc_dir_entry *proc_sns;
 };
 #endif /*__SENSOR_FEEDBACK_H__*/
 
 void send_uevent_to_fb(int monitor_info);
-
-

@@ -20,8 +20,6 @@
 #include <linux/param.h>
 #include <linux/notifier.h>
 
-
-
 enum {
 	NONE_TYPE = 0,
 	LCM_DC_MODE_TYPE,
@@ -29,12 +27,7 @@ enum {
 	MAX_INFO_TYPE,
 };
 
-
-enum {
-	LCM_DC_OFF    = 0,
-	LCM_DC_ON    = 1
-};
-
+enum { LCM_DC_OFF = 0, LCM_DC_ON = 1 };
 
 struct als_info {
 	uint16_t brightness;
@@ -56,15 +49,14 @@ struct dvb_coef {
 };
 
 struct ssc_interactive {
-	struct als_info   a_info;
+	struct als_info a_info;
 	struct miscdevice mdev;
 	DECLARE_KFIFO_PTR(fifo, struct fifo_frame);
-	spinlock_t   fifo_lock;
-	spinlock_t   rw_lock;
+	spinlock_t fifo_lock;
+	spinlock_t rw_lock;
 	wait_queue_head_t wq;
 	struct notifier_block nb;
-	struct dvb_coef  m_dvb_coef;
+	struct dvb_coef m_dvb_coef;
 };
-
 
 #endif /*__OPLUS_SSC_INTERACTIVE_H__*/
