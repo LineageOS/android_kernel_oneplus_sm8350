@@ -25,7 +25,6 @@
 #include <linux/proc_fs.h>
 #include <soc/oplus/system/param_rw.h>
 
-
 #define PARAM_PARTITION "/dev/block/bootdevice/by-name/param"
 #define READ_CHUNK_MAX_SIZE (1024)
 #define WRITE_CHUNK_MAX_SIZE (1024)
@@ -43,13 +42,13 @@ static bool param_init_done = 0;
 static param_ram_zone_t param_ram_zone;
 
 static int write_param_partition(const char *buf, unsigned long count,
-			loff_t offset)
+				 loff_t offset)
 {
 	struct file *filp;
 	mm_segment_t fs;
 	int ret = 0;
 
-	filp = filp_open(PARAM_PARTITION, O_RDWR|O_SYNC, 0);
+	filp = filp_open(PARAM_PARTITION, O_RDWR | O_SYNC, 0);
 	if (IS_ERR(filp)) {
 		ret = PTR_ERR(filp);
 		pr_err("open file %s failed.(%d)\n", PARAM_PARTITION, ret);
@@ -73,23 +72,23 @@ out:
 	return ret;
 }
 
-int get_param_by_index_and_offset(uint32 sid_index,
-			uint32 offset, void * buf, int length)
+int get_param_by_index_and_offset(uint32 sid_index, uint32 offset, void *buf,
+				  int length)
 {
 	int ret = length;
 	uint32 file_offset;
 	mutex_lock(&param_ram_zone.mutex);
 	pr_info("%s[%d]  sid_index = %d offset = %d buf = %p length = %d\n",
-			__func__, __LINE__, sid_index, offset, buf, length);
+		__func__, __LINE__, sid_index, offset, buf, length);
 
-	file_offset = PARAM_SID_LENGTH*sid_index+ offset;
+	file_offset = PARAM_SID_LENGTH * sid_index + offset;
 
 	if (buf && ((offset + length) <= PARAM_SID_LENGTH) &&
-			(file_offset + length) <=  param_ram_zone.size)
+	    (file_offset + length) <= param_ram_zone.size)
 		memcpy(buf, (param_ram_zone.buffer + file_offset), length);
 	else {
 		pr_info("%s:invaild argument, sid_index=%d offset=%d buf=%p length=%d\n",
-				__func__, sid_index, offset, buf, length);
+			__func__, sid_index, offset, buf, length);
 		ret = -EINVAL;
 	}
 
@@ -98,29 +97,29 @@ int get_param_by_index_and_offset(uint32 sid_index,
 }
 EXPORT_SYMBOL(get_param_by_index_and_offset);
 
-int set_param_by_index_and_offset(uint32 sid_index,
-		uint32 offset, void * buf, int length)
+int set_param_by_index_and_offset(uint32 sid_index, uint32 offset, void *buf,
+				  int length)
 {
 	int ret;
 	uint32 file_offset;
 	mutex_lock(&param_ram_zone.mutex);
 	pr_info("%s[%d]sid_index = %d offset = %d buf = %p length = %d\n",
-			__func__, __LINE__, sid_index, offset, buf, length);
+		__func__, __LINE__, sid_index, offset, buf, length);
 
-	file_offset = PARAM_SID_LENGTH*sid_index + offset;
+	file_offset = PARAM_SID_LENGTH * sid_index + offset;
 
 	if (buf && ((offset + length) <= PARAM_SID_LENGTH) &&
-			(file_offset + length) <=  param_ram_zone.size)
-		memcpy((param_ram_zone.buffer+file_offset), buf, length);
+	    (file_offset + length) <= param_ram_zone.size)
+		memcpy((param_ram_zone.buffer + file_offset), buf, length);
 	else {
 		pr_info("%s:invaild argument,sid_index=%d offset=%d buf=%p length=%d\n",
-			  __func__, sid_index, offset, buf, length);
+			__func__, sid_index, offset, buf, length);
 		ret = -EINVAL;
 		goto out;
 	}
 
-	ret = write_param_partition((param_ram_zone.buffer+file_offset),
-					length, file_offset);
+	ret = write_param_partition((param_ram_zone.buffer + file_offset),
+				    length, file_offset);
 	if (ret < 0) {
 		pr_info("Error write param partition.(%d)\n", ret);
 	}
@@ -148,7 +147,7 @@ static void *persistent_ram_vmap(phys_addr_t start, size_t size)
 	pages = kmalloc(sizeof(struct page *) * page_count, GFP_KERNEL);
 	if (!pages) {
 		pr_err("%s: Failed to allocate array for %u pages\n", __func__,
-				page_count);
+		       page_count);
 		return NULL;
 	}
 
@@ -162,7 +161,7 @@ static void *persistent_ram_vmap(phys_addr_t start, size_t size)
 }
 
 static int param_ram_buffer_map(phys_addr_t start, phys_addr_t size,
-		param_ram_zone_t *prz)
+				param_ram_zone_t *prz)
 {
 	prz->paddr = start;
 	prz->size = size;
@@ -170,7 +169,7 @@ static int param_ram_buffer_map(phys_addr_t start, phys_addr_t size,
 
 	if (!prz->vaddr) {
 		pr_err("%s: Failed to map 0x%llx pages at 0x%llx\n", __func__,
-				(unsigned long long)size, (unsigned long long)start);
+		       (unsigned long long)size, (unsigned long long)start);
 		return -ENOMEM;
 	}
 
@@ -178,10 +177,10 @@ static int param_ram_buffer_map(phys_addr_t start, phys_addr_t size,
 	return 0;
 }
 
-static ssize_t param_read(struct file *file, char __user *buff,
-			size_t count, loff_t *pos)
+static ssize_t param_read(struct file *file, char __user *buff, size_t count,
+			  loff_t *pos)
 {
-	void * temp_buffer;
+	void *temp_buffer;
 	int chunk_sz;
 	int copied;
 	int left;
@@ -200,10 +199,11 @@ static ssize_t param_read(struct file *file, char __user *buff,
 	copied = 0;
 
 	while (left) {
-		chunk_sz = (left <= READ_CHUNK_MAX_SIZE) ?
-			left : READ_CHUNK_MAX_SIZE;
-		ret = get_param_by_index_and_offset(*pos/PARAM_SID_LENGTH,
-				*pos%PARAM_SID_LENGTH, temp_buffer, chunk_sz);
+		chunk_sz = (left <= READ_CHUNK_MAX_SIZE) ? left :
+							   READ_CHUNK_MAX_SIZE;
+		ret = get_param_by_index_and_offset(*pos / PARAM_SID_LENGTH,
+						    *pos % PARAM_SID_LENGTH,
+						    temp_buffer, chunk_sz);
 
 		if (ret < 0) {
 			pr_err("get_param_by_index_and_offset fail %d\n", ret);
@@ -211,7 +211,7 @@ static ssize_t param_read(struct file *file, char __user *buff,
 		}
 
 		if (copy_to_user(buff + copied, temp_buffer, chunk_sz)) {
-			ret =  -EFAULT;
+			ret = -EFAULT;
 			pr_info("copy_to_user failure\n");
 			goto out;
 		}
@@ -228,9 +228,9 @@ out:
 }
 
 static ssize_t param_write(struct file *file, const char __user *buff,
-		size_t count, loff_t *pos)
+			   size_t count, loff_t *pos)
 {
-	void * temp_buffer;
+	void *temp_buffer;
 	int chunk_sz;
 	int written;
 	int left;
@@ -249,7 +249,8 @@ static ssize_t param_write(struct file *file, const char __user *buff,
 
 	while (left > 0) {
 		chunk_sz = (left <= WRITE_CHUNK_MAX_SIZE) ?
-					left : WRITE_CHUNK_MAX_SIZE;
+				   left :
+				   WRITE_CHUNK_MAX_SIZE;
 		ret = copy_from_user(temp_buffer, buff + written, chunk_sz);
 		if (ret < 0) {
 			pr_info("copy_from_user failure %d\n", ret);
@@ -257,11 +258,12 @@ static ssize_t param_write(struct file *file, const char __user *buff,
 		}
 
 		ret = set_param_by_index_and_offset(*pos / PARAM_SID_LENGTH,
-				*pos % PARAM_SID_LENGTH, temp_buffer, chunk_sz);
+						    *pos % PARAM_SID_LENGTH,
+						    temp_buffer, chunk_sz);
 
 		if (ret < 0) {
 			pr_err("set_param_by_index_and_offset failure %d\n",
-					ret);
+			       ret);
 			goto out;
 		}
 
@@ -276,10 +278,10 @@ out:
 }
 
 static const struct file_operations param_fops = {
-	.owner		  = THIS_MODULE,
-	.read		   = param_read,
-	.write		  = param_write,
-	.llseek		= default_llseek,
+	.owner = THIS_MODULE,
+	.read = param_read,
+	.write = param_write,
+	.llseek = default_llseek,
 };
 
 struct miscdevice param_misc = {
@@ -291,7 +293,8 @@ struct miscdevice param_misc = {
 static int __init param_core_init(void)
 {
 	if (param_ram_buffer_map((phys_addr_t)param_ram_zone.paddr,
-			param_ram_zone.size, (param_ram_zone_t *)&param_ram_zone)) {
+				 param_ram_zone.size,
+				 (param_ram_zone_t *)&param_ram_zone)) {
 		pr_err("param_ram_buffer_map failred\n");
 		return -1;
 	}
@@ -331,13 +334,13 @@ int add_restart_08_count(void)
 {
 	int ret;
 
-	ret = get_param_by_index_and_offset(9, 0x15c,
-		&restart_08_count, sizeof(restart_08_count));
+	ret = get_param_by_index_and_offset(9, 0x15c, &restart_08_count,
+					    sizeof(restart_08_count));
 
 	restart_08_count = restart_08_count + 1;
 
-	ret = set_param_by_index_and_offset(9, 0x15c,
-		&restart_08_count, sizeof(restart_08_count));
+	ret = set_param_by_index_and_offset(9, 0x15c, &restart_08_count,
+					    sizeof(restart_08_count));
 
 	if (ret < 0)
 		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
@@ -351,8 +354,8 @@ static int param_get_restart_08_count(char *val, const struct kernel_param *kp)
 	int cnt = 0;
 	int ret;
 
-	ret = get_param_by_index_and_offset(9, 0x15c,
-		&restart_08_count, sizeof(restart_08_count));
+	ret = get_param_by_index_and_offset(9, 0x15c, &restart_08_count,
+					    sizeof(restart_08_count));
 
 	if (ret < 0)
 		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
@@ -361,20 +364,21 @@ static int param_get_restart_08_count(char *val, const struct kernel_param *kp)
 
 	return cnt;
 }
-module_param_call(restart_08_count, NULL, param_get_restart_08_count, &restart_08_count, 0644);
+module_param_call(restart_08_count, NULL, param_get_restart_08_count,
+		  &restart_08_count, 0644);
 
 int restart_other_count = 0;
 int add_restart_other_count(void)
 {
 	int ret;
 
-	ret = get_param_by_index_and_offset(9, 0x160,
-		&restart_other_count, sizeof(restart_other_count));
+	ret = get_param_by_index_and_offset(9, 0x160, &restart_other_count,
+					    sizeof(restart_other_count));
 
 	restart_other_count = restart_other_count + 1;
 
-	ret = set_param_by_index_and_offset(9, 0x160,
-		&restart_other_count, sizeof(restart_other_count));
+	ret = set_param_by_index_and_offset(9, 0x160, &restart_other_count,
+					    sizeof(restart_other_count));
 
 	if (ret < 0)
 		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
@@ -382,13 +386,14 @@ int add_restart_other_count(void)
 	return ret;
 }
 EXPORT_SYMBOL(add_restart_other_count);
-static int param_get_restart_other_count(char *val, const struct kernel_param *kp)
+static int param_get_restart_other_count(char *val,
+					 const struct kernel_param *kp)
 {
 	int cnt = 0;
 	int ret;
 
-	ret = get_param_by_index_and_offset(9, 0x160,
-		&restart_other_count, sizeof(restart_other_count));
+	ret = get_param_by_index_and_offset(9, 0x160, &restart_other_count,
+					    sizeof(restart_other_count));
 
 	if (ret < 0)
 		pr_info("%s[%d]  failed!\n", __func__, __LINE__);
@@ -397,5 +402,6 @@ static int param_get_restart_other_count(char *val, const struct kernel_param *k
 
 	return cnt;
 }
-module_param_call(restart_other_count, NULL, param_get_restart_other_count, &restart_other_count, 0644);
+module_param_call(restart_other_count, NULL, param_get_restart_other_count,
+		  &restart_other_count, 0644);
 /*end*/

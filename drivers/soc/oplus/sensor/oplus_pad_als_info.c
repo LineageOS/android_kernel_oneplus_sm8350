@@ -28,14 +28,14 @@ struct oplus_pad_als_data {
 	char cali_coe[PAD_ALS_NODE_LEN];
 	char row_coe[PAD_ALS_NODE_LEN];
 
-	struct proc_dir_entry       *proc_pad_als;
+	struct proc_dir_entry *proc_pad_als;
 };
 static struct oplus_pad_als_data *gdata = NULL;
 
 static ssize_t red_max_lux_read_proc(struct file *file, char __user *buf,
 				     size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -62,12 +62,11 @@ static ssize_t red_max_lux_write_proc(struct file *file, const char __user *buf,
 				      size_t count, loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -94,7 +93,7 @@ static ssize_t red_max_lux_write_proc(struct file *file, const char __user *buf,
 static ssize_t white_max_lux_read_proc(struct file *file, char __user *buf,
 				       size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -118,16 +117,15 @@ static ssize_t white_max_lux_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t white_max_lux_write_proc(struct file *file,
-					const char __user *buf,
-					size_t count, loff_t *off)
+					const char __user *buf, size_t count,
+					loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -154,7 +152,7 @@ static ssize_t white_max_lux_write_proc(struct file *file,
 static ssize_t blue_max_lux_read_proc(struct file *file, char __user *buf,
 				      size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -178,16 +176,15 @@ static ssize_t blue_max_lux_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t blue_max_lux_write_proc(struct file *file,
-				       const char __user *buf,
-				       size_t count, loff_t *off)
+				       const char __user *buf, size_t count,
+				       loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -214,7 +211,7 @@ static ssize_t blue_max_lux_write_proc(struct file *file,
 static ssize_t green_max_lux_read_proc(struct file *file, char __user *buf,
 				       size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -238,16 +235,15 @@ static ssize_t green_max_lux_read_proc(struct file *file, char __user *buf,
 	return (len < count ? len : count);
 }
 static ssize_t green_max_lux_write_proc(struct file *file,
-					const char __user *buf,
-					size_t count, loff_t *off)
+					const char __user *buf, size_t count,
+					loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -274,7 +270,7 @@ static ssize_t green_max_lux_write_proc(struct file *file,
 static ssize_t cali_coe_read_proc(struct file *file, char __user *buf,
 				  size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -301,12 +297,11 @@ static ssize_t cali_coe_write_proc(struct file *file, const char __user *buf,
 				   size_t count, loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -333,7 +328,7 @@ static ssize_t cali_coe_write_proc(struct file *file, const char __user *buf,
 static ssize_t row_coe_read_proc(struct file *file, char __user *buf,
 				 size_t count, loff_t *off)
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 	int len = 0;
 
 	if (!gdata) {
@@ -360,12 +355,11 @@ static ssize_t row_coe_write_proc(struct file *file, const char __user *buf,
 				  size_t count, loff_t *off)
 
 {
-	char page[256] = {0};
+	char page[256] = { 0 };
 
 	if (!gdata) {
 		return -ENOMEM;
 	}
-
 
 	if (count > 256) {
 		count = 256;
@@ -480,7 +474,7 @@ int pad_als_data_init(void)
 		return 0;
 	}
 
-	gdata->proc_pad_als =  proc_mkdir("pad_als", sensor_proc_dir);
+	gdata->proc_pad_als = proc_mkdir("pad_als", sensor_proc_dir);
 
 	if (!gdata->proc_pad_als) {
 		pr_err("can't create proc_oplus_press proc\n");
