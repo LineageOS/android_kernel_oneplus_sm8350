@@ -38,7 +38,6 @@ static ssize_t press_offset_read_proc(struct file *file, char __user *buf,
 
 	if (len > *off) {
 		len -= *off;
-
 	} else {
 		len = 0;
 	}
@@ -68,7 +67,6 @@ static ssize_t press_offset_write_proc(struct file *file,
 
 	if (count > *off) {
 		count -= *off;
-
 	} else {
 		count = 0;
 	}
@@ -110,7 +108,6 @@ int oplus_press_cali_data_init(void)
 	struct oplus_press_cali_data *data = NULL;
 
 	pr_info("%s call\n", __func__);
-
 	if (gdata) {
 		printk("%s:just can be call one time\n", __func__);
 		return 0;
@@ -139,7 +136,6 @@ int oplus_press_cali_data_init(void)
 		rc = -EFAULT;
 		goto exit;
 	}
-
 	pentry = proc_create("offset", 0666, gdata->proc_oplus_press,
 			     &press_offset_fops);
 
@@ -150,7 +146,6 @@ int oplus_press_cali_data_init(void)
 	}
 
 exit:
-
 	if (rc < 0) {
 		kfree(gdata);
 		gdata = NULL;
@@ -167,5 +162,9 @@ void oplus_press_cali_data_clean(void)
 	}
 }
 
+//call init api in oplus_sensor_devinfo.c
+//due to kernel module only permit one module_init entrance in one .ko
+//module_init(oplus_press_cali_data_init);
+//module_exit(oplus_press_cali_data_clean);
 MODULE_DESCRIPTION("custom version");
 MODULE_LICENSE("GPL v2");

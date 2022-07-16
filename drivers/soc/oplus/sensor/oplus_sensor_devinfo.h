@@ -2,8 +2,6 @@
 /*
  * Copyright (C) 2018-2020 Oplus. All rights reserved.
  */
-#ifndef __OPLUS_SENSOR_DEVINFO__
-#define __OPLUS_SENSOR_DEVINFO__
 
 #include <linux/module.h>
 #include <linux/kernel.h>
@@ -20,14 +18,15 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <soc/oplus/system/oplus_project.h>
-#define SENSOR_DEVINFO_SYNC_TIME 10000
+#define SENSOR_DEVINFO_SYNC_TIME 10000 //10s
 
+//SMEM_SENSOR = SMEM_VERSION_FIRST + 23,
 #define SMEM_SENSOR 130
 
 #define REG_NUM 10
 #define PARAMETER_NUM 25
 #define FEATURE_NUM 10
-#define SOURCE_NUM 2
+#define SOURCE_NUM 3
 #define ALGO_PARAMETER_NUM 15
 #define ALGO_FEATURE_NUM 5
 #define DEFAULT_CONFIG 0xff
@@ -64,6 +63,7 @@ enum sensor_algo_id {
 	OPLUS_FREE_FALL,
 	OPLUS_CAMERA_PROTECT,
 	OPLUS_MAG_FUSION,
+	OPLUS_MEASUREMENT,
 	SENSOR_ALGO_NUM
 };
 
@@ -72,6 +72,7 @@ enum {
 	TCS3701 = 0x02,
 	TCS3408 = 0x04,
 	STK3A6X = 0x08,
+	STK3329 = 0x10,
 };
 
 enum {
@@ -81,6 +82,10 @@ enum {
 	BMI260 = 0x08,
 	LSM6DSO = 0x10,
 	ICM4X6XX = 0x20,
+	ICM4X607 = 0x40,
+	BMI3X0 = 0x80,
+	LIS2HH12 = 0x81,
+	BMA420 = 0x82,
 };
 
 enum {
@@ -152,4 +157,3 @@ typedef enum {
 	SOFTWARE_CAIL = 0x01,
 	HARDWARE_CAIL = 0x02,
 } ps_calibration_type;
-#endif /*__OPLUS_SENSOR_DEVINFO__*/

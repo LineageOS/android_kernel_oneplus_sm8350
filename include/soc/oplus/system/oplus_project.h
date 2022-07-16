@@ -7,7 +7,7 @@
 #include "oplus_project_data_ocdt.h"
 #include "oplus_project_oldcdt.h"
 
-#define ALIGN4(s) ((sizeof(s) + 3)&(~0x3))
+#define ALIGN4(s) ((sizeof(s) + 3) & (~0x3))
 
 #define FEATURE1_OPEARTOR_OPEN_MASK 0000
 #define FEATURE1_FOREIGN_MASK 0001
@@ -15,7 +15,6 @@
 #define FEATURE1_OPEARTOR_CT_MASK 0011
 #define FEATURE1_OPEARTOR_CU_MASK 0100
 #define FEATURE1_OPEARTOR_MAX_MASK 1111
-
 
 enum F_INDEX {
 	IDX_1 = 1,
@@ -43,7 +42,7 @@ unsigned int get_serialID(void);
 void get_serialID(char *serialno);
 #endif
 
-/*cdt interface for Q or R*/
+//cdt interface for Q or R
 unsigned int get_project(void);
 unsigned int get_prj(void);
 unsigned int is_project(int project);
@@ -53,12 +52,12 @@ unsigned int get_audio(void);
 unsigned int get_dtsiNo(void);
 uint32_t get_oplus_feature(enum F_INDEX index);
 
-/*cdt interface for P->R*/
+//cdt interface for P->R
 int32_t get_Modem_Version(void);
 int32_t get_Operator_Version(void);
 
-/*eng cdt data for P or Q or R*/
+//eng cdt data for P or Q or R
 bool is_confidential(void);
 bool oplus_daily_build(void);
 
-#endif /* _OPLUS_PROJECT_H_ */
+#endif

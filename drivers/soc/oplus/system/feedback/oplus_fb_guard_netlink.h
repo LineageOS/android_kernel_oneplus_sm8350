@@ -59,4 +59,4 @@ struct msg_test_upload {
 
 int oplus_fb_guard_test_netlink(int cmd, unsigned int val);
 
-#endif /* _OPLUS_FB_GUARD_NETLINK_H */
+#endif

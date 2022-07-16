@@ -52,6 +52,7 @@ struct ssc_interactive {
 	struct als_info a_info;
 	struct miscdevice mdev;
 	DECLARE_KFIFO_PTR(fifo, struct fifo_frame);
+	//struct kfifo fifo;
 	spinlock_t fifo_lock;
 	spinlock_t rw_lock;
 	wait_queue_head_t wq;
@@ -59,4 +60,4 @@ struct ssc_interactive {
 	struct dvb_coef m_dvb_coef;
 };
 
-#endif /*__OPLUS_SSC_INTERACTIVE_H__*/
+#endif
