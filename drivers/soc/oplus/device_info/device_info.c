@@ -1,16 +1,11 @@
-/**
- * Copyright 2008-2013 OPLUS Mobile Comm Corp., Ltd, All rights reserved.
- * FileName:devinfo.c
- * ModuleName:devinfo
- * Create Date: 2013-10-23
- * Description:add interface to get device information.
- * History:
-   <version >  <time>  <author>  <desc>
-*/
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (C) 2018-2020 Oplus. All rights reserved.
+ */
 
 #include <linux/module.h>
 #include <linux/proc_fs.h>
-#include <soc/oplus/device_info.h>
+#include "device_info.h"
 #include <soc/oplus/system/oplus_project.h>
 #include <linux/slab.h>
 #include <linux/seq_file.h>
@@ -221,7 +216,6 @@ int register_device_proc_for_ufsplus(char *name, int *hpb_status,
 
 	return 0;
 }
-
 EXPORT_SYMBOL(register_device_proc_for_ufsplus);
 
 int register_device_proc(char *name, char *version, char *vendor)
@@ -262,6 +256,31 @@ EXPORT_SYMBOL(register_device_proc);
 
 static int parse_gpio_dts(struct device *dev, struct device_info *dev_info)
 {
+#ifdef CONFIG_MTK_PLATFORM
+	int i;
+	char tmp[INFO_LEN] = { 0 };
+	dev_info->p_ctrl = devm_pinctrl_get(dev);
+	for (i = 0; i < BOARD_GPIO_SUPPORT; i++) {
+		if (!IS_ERR_OR_NULL(dev_info->p_ctrl)) {
+			snprintf(tmp, INFO_LEN, "aboard_gpio%d_active", i);
+			dev_info->active[i] =
+				pinctrl_lookup_state(dev_info->p_ctrl, tmp);
+			if (IS_ERR_OR_NULL(dev_info->active[i])) {
+				dev_msg("Failed to get active[%d], check dts\n",
+					i);
+				continue;
+			}
+			snprintf(tmp, INFO_LEN, "aboard_gpio%d_sleep", i);
+			dev_info->sleep[i] =
+				pinctrl_lookup_state(dev_info->p_ctrl, tmp);
+			if (IS_ERR_OR_NULL(dev_info->sleep[i])) {
+				dev_msg("Failed to get sleep[%d], check dts\n",
+					i);
+				continue;
+			}
+		}
+	}
+#else
 	dev_info->p_ctrl = devm_pinctrl_get(dev);
 	if (!IS_ERR_OR_NULL(dev_info->p_ctrl)) {
 		dev_info->active[0] =
@@ -269,18 +288,22 @@ static int parse_gpio_dts(struct device *dev, struct device_info *dev_info)
 		dev_info->sleep[0] =
 			pinctrl_lookup_state(dev_info->p_ctrl, "sleep");
 	}
+#endif
 	return 0;
 }
 
 static void set_gpios_active(struct device_info *dev_info)
 {
 	int i = 0;
-
+	int ret = 0;
 	for (i = 0; i < BOARD_GPIO_SUPPORT; i++) {
 		if (!IS_ERR_OR_NULL(dev_info->p_ctrl) &&
 		    !IS_ERR_OR_NULL(dev_info->active[i])) {
-			pinctrl_select_state(dev_info->p_ctrl,
-					     dev_info->active[i]);
+			ret = pinctrl_select_state(dev_info->p_ctrl,
+						   dev_info->active[i]);
+			dev_msg("set gpio active ret[%d - %d]\n", i, ret);
+		} else {
+			dev_msg("pinctrl active is Null[%d]\n", i);
 		}
 	}
 }
@@ -288,12 +311,15 @@ static void set_gpios_active(struct device_info *dev_info)
 static void set_gpios_sleep(struct device_info *dev_info)
 {
 	int i = 0;
-
+	int ret = 0;
 	for (i = 0; i < BOARD_GPIO_SUPPORT; i++) {
 		if (!IS_ERR_OR_NULL(dev_info->p_ctrl) &&
 		    !IS_ERR_OR_NULL(dev_info->sleep[i])) {
-			pinctrl_select_state(dev_info->p_ctrl,
-					     dev_info->sleep[i]);
+			ret = pinctrl_select_state(dev_info->p_ctrl,
+						   dev_info->sleep[i]);
+			dev_msg("set gpio sleep ret[%d - %d]\n", i, ret);
+		} else {
+			dev_msg("pinctrl sleep is Null[%d]\n", i);
 		}
 	}
 }
@@ -380,28 +406,30 @@ static int gpio_get_submask(struct device_node *np)
 {
 	int i = 0, ret = 0;
 	int gpio, id = 0;
+	int count = 0;
 	char tmp[INFO_LEN] = { 0 };
 
 	for (i = 0; i < BOARD_GPIO_SUPPORT; i++) {
 		snprintf(tmp, INFO_LEN, "aboard-gpio%d", i);
 		gpio = of_get_named_gpio(np, tmp, 0);
 		if (gpio < 0) {
+			dev_msg("failed to get named gpio [%s] gpio[%d]\n", tmp,
+				gpio);
 			continue;
 		}
 		ret = gpio_request(gpio, tmp);
 		if (ret) {
-			dev_msg("failed to request %d\n", gpio);
+			dev_msg("failed to request gpio%d\n", gpio);
 			ret = -EINVAL;
 			goto gpio_request_failed;
 		}
-
 		id = gpio_get_value(gpio);
-		id |= (((uint8_t)id & 0x01) << i);
-
+		dev_msg("gpio%d= %d\n", gpio, id);
+		count |= (((uint8_t)id & 0x01) << i);
 		gpio_free(gpio);
 	}
-
-	return id;
+	dev_msg("count= %d\n", count);
+	return count;
 
 gpio_request_failed:
 
@@ -415,6 +443,12 @@ static int pmic_get_submask(struct device_node *np, struct device *dev)
 	uint32_t *adc_ranges = NULL;
 	int i = 0;
 	struct iio_channel *ADC_channel = NULL;
+	bool is_mtk_use_adc = false;
+
+	if (of_property_read_bool(np, "is_mtk_use_adc")) {
+		dev_msg("is_mtk_use_adc value is true\n");
+		is_mtk_use_adc = true;
+	}
 
 	size = of_property_count_elems_of_size(np, "adc_ranges",
 					       sizeof(uint32_t));
@@ -441,8 +475,12 @@ static int pmic_get_submask(struct device_node *np, struct device *dev)
 		goto end;
 	}
 	iio_channel_release(ADC_channel);
-
-	adc_value /= 1000;
+	if (is_mtk_use_adc) {
+		dev_msg("adc value raw = %d\n", adc_value);
+		adc_value = adc_value * 1500 / 4096;
+	} else {
+		adc_value /= 1000;
+	}
 	dev_msg("adc value %d\n", adc_value);
 
 	if (adc_value > 1750) {
@@ -471,7 +509,7 @@ static int pmic_get_submask(struct device_node *np, struct device *dev)
 			ret = -ENODEV;
 			goto end;
 		}
-		if (low < adc_value && adc_value < high) {
+		if (low <= adc_value && adc_value <= high) {
 			break;
 		}
 	}
@@ -489,20 +527,6 @@ end:
 	return ret;
 }
 
-static int init_oplus_aboard_type(void)
-{
-	struct manufacture_info *info = NULL;
-
-	info = (struct manufacture_info *)kzalloc(sizeof(*info), GFP_KERNEL);
-	if (!info) {
-		return -ENOMEM;
-	}
-
-	dev_msg("init_oplus_aboard_type()\n");
-	info->version = "old";
-	return register_devinfo("oplus_board_type", info);
-}
-
 static int init_aboard_info(struct device_info *dev_info)
 {
 	struct manufacture_info *info = NULL;
@@ -515,14 +539,76 @@ static int init_aboard_info(struct device_info *dev_info)
 	return register_devinfo("audio_mainboard", info);
 }
 
+static int reinit_aboard_id_for_brandon(struct device *dev,
+					struct device_info *dev_info)
+{
+	int adc_value = 0;
+	int operate = 0;
+	struct iio_channel *ADC_channel = NULL;
+	int ret = 0;
+
+	dev_msg("sub mainboard verification for brandon\n");
+	set_gpios_active(dev_info);
+	ADC_channel = iio_channel_get(dev, "sub_adc_gpio3");
+	if (IS_ERR(ADC_channel)) {
+		dev_msg("failed to get adc channel\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	if (iio_read_channel_processed(ADC_channel, &adc_value) < 0) {
+		dev_msg("failed to read channel\n");
+		ret = -EINVAL;
+		return ret;
+	}
+	iio_channel_release(ADC_channel);
+	set_gpios_sleep(dev_info);
+
+	adc_value /= 1000;
+	dev_msg("adc value %d\n", adc_value);
+
+	operate = get_Operator_Version();
+	if ((2 == operate) || (8 == operate)) {
+		if ((adc_value >= 250) && (adc_value <= 400)) {
+			ret = 0;
+		} else {
+			ret = -EINVAL;
+		}
+	} else if ((12 == operate) || (13 == operate)) {
+		if (((adc_value >= 570) && (adc_value <= 690)) ||
+		    ((adc_value >= 410) && (adc_value <= 520))) {
+			ret = 0;
+		} else {
+			ret = -EINVAL;
+		}
+	} else if (14 == operate) {
+		if ((adc_value >= 410) && (adc_value <= 520)) {
+			ret = 0;
+		} else {
+			ret = -EINVAL;
+		}
+	} else if (15 == operate) {
+		if ((adc_value >= 700) && (adc_value <= 810)) {
+			ret = 0;
+		} else {
+			ret = -EINVAL;
+		}
+	} else {
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static int reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 {
 	struct device_node *np;
 	int32_t hw_mask = 0;
 	int i = 0, ret = 0;
-	int id_size = 0;
-	uint32_t *main_val = NULL, *sub_val = NULL, *rf_val = NULL;
+	int id_size = 0, ignore_size = 0;
+	uint32_t *main_val = NULL, *sub_val = NULL, *rf_val = NULL,
+		 *ignore_list = NULL;
 	struct device_info *dev_info = g_dev_info;
+	int active_val = 0, sleep_val = 0;
 	bool match = false;
 
 	if (!dev) {
@@ -533,14 +619,47 @@ static int reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 		return -ENODEV;
 	}
 
+	if (of_property_read_bool(dev->of_node, "sub_brandon_support")) {
+		ret = reinit_aboard_id_for_brandon(dev, dev_info);
+		goto seccess;
+	}
+
 	np = of_find_compatible_node(dev->of_node, NULL, "hw-match, main-sub");
 	if (!np) {
 		dev_msg("failed to find node\n");
 		return -ENODEV;
 	}
 
+	/*#ifdef OPLUS_TP_FEATURE_BASIC*/
+	ignore_size = of_property_count_elems_of_size(
+		np, "devinfo-match-ignore-list", sizeof(uint32_t));
+	if (ignore_size > 0) {
+		ignore_list = (uint32_t *)kzalloc(
+			sizeof(uint32_t) * ignore_size, GFP_KERNEL);
+		if (!ignore_list) {
+			dev_msg("ignore_list alloc err\n");
+			return -ENOMEM;
+		}
+
+		of_property_read_u32_array(np, "devinfo-match-ignore-list",
+					   ignore_list, ignore_size);
+		for (i = 0; i < ignore_size; i++) {
+			/*dev_msg("ignore list doing match %d %d %d\n", i, *(ignore_list + i), get_project());*/
+			if (*(ignore_list + i) == get_project()) {
+				dev_msg("found in ignore list %d going to return success\n",
+					get_project());
+				ret = 0;
+				goto ignore_match_success;
+			}
+		}
+	}
+	dev_msg("not in ignore list, continue other match process %d\n",
+		get_project());
+	/*#endif OPLUS_TP_FEATURE_BASIC*/
+
 	id_size = of_property_count_elems_of_size(np, "aboard-patterns",
 						  sizeof(uint32_t));
+	dev_msg("id_size = %x\n", id_size);
 	if (id_size > MAIN_BOARD_SUPPORT) {
 		return -ENODEV;
 	} else if (id_size == -EINVAL) {
@@ -584,7 +703,30 @@ static int reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 			ret = -EINVAL;
 			goto read_failed;
 		}
+	} else if (of_property_read_bool(np, "use_tristate_gpio")) {
+		dev_msg("tristate gpio judgement\n");
+		set_gpios_active(dev_info);
+		active_val = gpio_get_submask(np);
+		set_gpios_sleep(dev_info);
+		sleep_val = gpio_get_submask(np);
+		if (active_val == 1 && sleep_val == 0) { /*high-resistance*/
+			hw_mask = 0;
+		} else if (active_val == 1 &&
+			   sleep_val == 1) { /*external pull-up*/
+			hw_mask = 2;
+		} else if (active_val == 0 &&
+			   sleep_val == 0) { /*external pull-down*/
+			hw_mask = 1;
+		}
+		dev_msg("active_val[%d] sleep_val[%d] hw_mask[%d]\n",
+			active_val, sleep_val, hw_mask);
+		if (hw_mask < 0) {
+			ret = -EINVAL;
+			goto read_failed;
+		}
+		/*end*/
 	} else {
+		dev_msg("normal gpio judgement\n");
 		set_gpios_active(dev_info);
 		hw_mask = gpio_get_submask(np);
 		set_gpios_sleep(dev_info);
@@ -594,7 +736,7 @@ static int reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 		}
 	}
 
-	dev_msg("aboard mask 0x%x\n", hw_mask);
+	dev_msg("hw mask 0x%x\n", hw_mask);
 
 	for (i = 0; i < id_size; i++) {
 		if (*(main_val + i) != get_project()) {
@@ -609,7 +751,8 @@ static int reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 				if (*(rf_val + i) == get_Modem_Version()) {
 					match = true;
 				} else {
-					match = false;
+					dev_msg("no need check rftype\n");
+					match = true;
 				}
 			}
 		}
@@ -628,23 +771,35 @@ static int reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 
 read_failed:
 	kfree(sub_val);
+	sub_val = NULL;
 	kfree(main_val);
+	main_val = NULL;
 	if (rf_val) {
 		kfree(rf_val);
+		rf_val = NULL;
 	}
+
+ignore_match_success:
+	kfree(ignore_list);
+	ignore_list = NULL;
 
 seccess:
 	if (!ret) {
 		info->manufacture = "rf-match";
-		info->version = "Qcom";
 	} else {
 		info->manufacture = "rf-notmatch";
-		info->version = "Qcom";
 	}
+
+#ifdef CONFIG_MTK_PLATFORM
+	info->version = "MTK";
+#else
+	info->version = "QCOM";
+#endif
 
 	return ret;
 }
 
+#ifndef CONFIG_MTK_PLATFORM
 static int __attribute__((__unused__))
 init_ddr_type(struct device_info *dev_info)
 {
@@ -669,6 +824,7 @@ init_ddr_type(struct device_info *dev_info)
 
 	return register_devinfo("ddr_type", info);
 }
+#endif
 
 static int devinfo_probe(struct platform_device *pdev)
 {
@@ -696,8 +852,10 @@ static int devinfo_probe(struct platform_device *pdev)
 	set_gpios_active(dev_info);
 	init_other_hw_ids(pdev);
 	set_gpios_sleep(dev_info);
+#ifndef CONFIG_MTK_PLATFORM
 	/*register oplus special node*/
 	init_ddr_type(dev_info);
+#endif
 
 	return 0;
 }
@@ -734,13 +892,10 @@ static int __init device_info_init(void)
 	if (!g_parent) {
 		return -ENODEV;
 	}
-	init_oplus_aboard_type();
 
 	return platform_driver_register(&devinfo_platform_driver);
 }
 
 device_initcall(device_info_init);
 
-MODULE_DESCRIPTION("OPLUS device info");
 MODULE_LICENSE("GPL v2");
-MODULE_AUTHOR("Klus <Klus@oplus.com>");

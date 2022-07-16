@@ -191,9 +191,9 @@ static int dual_sim_det_show(struct seq_file *m, void *v)
 
 		/* uim2 switch to real sim */
 		esim_status = dual_sim_det_uim2_to_real_sim();
-
-		if (esim_status == 1)
+		if (esim_status == 1) {
 			msleep(5);
+		}
 
 		/* det gpio pull up */
 		pinctrl_select_state(det_info->pinctrl,
@@ -365,8 +365,9 @@ static long oplus_gpio_ioctl(struct file *filp, unsigned int cmd,
 
 	gpio_info = filp->private_data;
 
-	if (gpio_info == NULL)
+	if (gpio_info == NULL) {
 		return -EFAULT;
+	}
 
 	mutex_lock(&gpio_info->gpio_lock);
 
@@ -379,18 +380,18 @@ static long oplus_gpio_ioctl(struct file *filp, unsigned int cmd,
 	case OPLUS_GPIO_GET_OUTPUT_VALUE:
 		gpio_status = gpio_info->gpio_status;
 
-		if (copy_to_user(arg, &gpio_status, sizeof(gpio_status)))
+		if (copy_to_user(arg, &gpio_status, sizeof(gpio_status))) {
 			retval = -EFAULT;
-
+		}
 		break;
 
 	case OPLUS_GPIO_GET_INPUT_VALUE:
 		gpio_status = gpio_get_value(gpio_info->gpio);
 		gpio_info->gpio_status = gpio_status;
 
-		if (copy_to_user(arg, &gpio_status, sizeof(gpio_status)))
+		if (copy_to_user(arg, &gpio_status, sizeof(gpio_status))) {
 			retval = -EFAULT;
-
+		}
 		break;
 
 	case OPLUS_GPIO_SET_OUTPUT_VALUE_HIGH:
@@ -417,9 +418,9 @@ static long oplus_gpio_ioctl(struct file *filp, unsigned int cmd,
 
 	case OPLUS_GPIO_GET_GPIO_MODE:
 		if (copy_to_user(arg, &gpio_info->gpio_mode,
-				 sizeof(gpio_info->gpio_mode)))
+				 sizeof(gpio_info->gpio_mode))) {
 			retval = -EFAULT;
-
+		}
 		break;
 
 	default:
@@ -469,15 +470,17 @@ static ssize_t oplus_gpio_read(struct file *filp, char __user *buf, size_t siz,
 
 	gpio_info = filp->private_data;
 
-	if (*ppos > 0)
+	if (*ppos > 0) {
 		return 0;
+	}
 
 	mutex_lock(&gpio_info->gpio_lock);
 
 	len = sizeof(buff) / sizeof(buff[0]);
 
-	if (gpio_info->gpio_mode == 0)
+	if (gpio_info->gpio_mode == 0) {
 		gpio_info->gpio_status = gpio_get_value(gpio_info->gpio);
+	}
 
 	len = snprintf(buff, len,
 		       "gpio = %d, gpio mode = %d, gpio status = %d\n",
@@ -516,12 +519,10 @@ static void init_esim_status()
 	if (strstr(saved_command_line, "esim.status=1")) {
 		oplus_gpio_info_table[GPIO_TYPE_ESIM].gpio_status = 1;
 		oplus_gpio_info_table[GPIO_TYPE_ESIM_PRESENT].gpio_status = 0;
-
 	} else {
 		oplus_gpio_info_table[GPIO_TYPE_ESIM].gpio_status = 0;
 		oplus_gpio_info_table[GPIO_TYPE_ESIM_PRESENT].gpio_status = 1;
 	}
-
 	OPLUS_GPIO_MSG(" %d",
 		       oplus_gpio_info_table[GPIO_TYPE_ESIM].gpio_status);
 }
@@ -577,8 +578,9 @@ static int oplus_gpio_probe(struct platform_device *pdev)
 		dev_t devt = MKDEV(MAJOR(gpio_data->devt),
 				   gpio_data->base_minor + i);
 
-		if (!gpio_data->gpio_info[i].dts_desc)
+		if (!gpio_data->gpio_info[i].dts_desc) {
 			continue;
+		}
 
 		gpio_data->gpio_info[i].gpio = of_get_named_gpio(
 			pdev->dev.of_node, gpio_data->gpio_info[i].dts_desc, 0);
@@ -695,9 +697,10 @@ static int oplus_gpio_remove(struct platform_device *pdev)
 						gpio_data->oplus_gpio_class,
 						devt);
 
-					if (gpio_data->gpio_info[i].proc_data)
+					if (gpio_data->gpio_info[i].proc_data) {
 						kfree(gpio_data->gpio_info[i]
 							      .proc_data);
+					}
 				}
 			}
 		}

@@ -322,6 +322,7 @@ typedef struct {
 	struct dentry *de_power;
 
 	struct mutex lock;
+
 } oem_qmi_controller;
 
 static oem_qmi_controller *g_ctrl_ptr = NULL;
@@ -335,13 +336,15 @@ int uim_qmi_power_up_req(u8 slot_id)
 	int ret = 0;
 
 	if (!g_ctrl_ptr ||
-	    (slot_id != UIM_SLOT_1_V01 && slot_id != UIM_SLOT_2_V01))
+	    (slot_id != UIM_SLOT_1_V01 && slot_id != UIM_SLOT_2_V01)) {
 		return -EINVAL;
+	}
 
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 
-	if (!req)
+	if (!req) {
 		return -ENOMEM;
+	}
 
 	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
 
@@ -359,8 +362,9 @@ int uim_qmi_power_up_req(u8 slot_id)
 	ret = qmi_txn_init(&g_ctrl_ptr->uim_qmi, &txn,
 			   uim_power_up_resp_msg_v01_ei, resp);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	ret = qmi_send_request(&g_ctrl_ptr->uim_qmi, NULL, &txn,
 			       QMI_UIM_POWER_UP_REQ_V01,
@@ -374,8 +378,9 @@ int uim_qmi_power_up_req(u8 slot_id)
 
 	ret = qmi_txn_wait(&txn, 5 * HZ);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	OEM_QMI_MSG("resp result: %d, error: %d\n", resp->resp.result,
 		    resp->resp.error);
@@ -396,13 +401,15 @@ int uim_qmi_power_down_req(u8 slot_id)
 	int ret = 0;
 
 	if (!g_ctrl_ptr ||
-	    (slot_id != UIM_SLOT_1_V01 && slot_id != UIM_SLOT_2_V01))
+	    (slot_id != UIM_SLOT_1_V01 && slot_id != UIM_SLOT_2_V01)) {
 		return -EINVAL;
+	}
 
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 
-	if (!req)
+	if (!req) {
 		return -ENOMEM;
+	}
 
 	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
 
@@ -420,8 +427,9 @@ int uim_qmi_power_down_req(u8 slot_id)
 	ret = qmi_txn_init(&g_ctrl_ptr->uim_qmi, &txn,
 			   uim_power_down_resp_msg_v01_ei, resp);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	ret = qmi_send_request(&g_ctrl_ptr->uim_qmi, NULL, &txn,
 			       QMI_UIM_POWER_DOWN_REQ_V01,
@@ -435,8 +443,9 @@ int uim_qmi_power_down_req(u8 slot_id)
 
 	ret = qmi_txn_wait(&txn, 5 * HZ);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	OEM_QMI_MSG("resp result: %d, error: %d\n", resp->resp.result,
 		    resp->resp.error);
@@ -460,13 +469,15 @@ int oem_qmi_common_req(u32 cmd_type, const char *req_data, u32 req_len,
 	struct qmi_txn txn;
 	int ret = -1;
 
-	if (!g_ctrl_ptr || !resp_data || !resp_len)
+	if (!g_ctrl_ptr || !resp_data || !resp_len) {
 		return -EINVAL;
+	}
 
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 
-	if (!req)
+	if (!req) {
 		return -ENOMEM;
+	}
 
 	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
 
@@ -488,8 +499,9 @@ int oem_qmi_common_req(u32 cmd_type, const char *req_data, u32 req_len,
 	ret = qmi_txn_init(&g_ctrl_ptr->oem_qmi, &txn,
 			   qmi_oem_update_common_resp_msg_v01_ei, resp);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	ret = qmi_send_request(&g_ctrl_ptr->oem_qmi, NULL, &txn,
 			       QMI_OEM_COMMON_REQ_V01, OEM_REQ_MAX_MSG_LEN_V01,
@@ -502,8 +514,9 @@ int oem_qmi_common_req(u32 cmd_type, const char *req_data, u32 req_len,
 
 	ret = qmi_txn_wait(&txn, 5 * HZ);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	OEM_QMI_MSG("resp result: %d, error: %d\n", resp->resp.result,
 		    resp->resp.error);
@@ -546,11 +559,12 @@ static ssize_t uim_qmi_power_up_debug(struct file *file,
 
 	OEM_QMI_MSG("slot: %d, power_up: %d\n", slot, power_up);
 
-	if (power_up == 0)
+	if (power_up == 0) {
 		uim_qmi_power_down_req(slot);
 
-	else if (power_up == 1)
+	} else if (power_up == 1) {
 		uim_qmi_power_up_req(slot);
+	}
 
 	ret = count;
 
@@ -570,8 +584,9 @@ static ssize_t oem_qmi_common_debug(struct file *file,
 
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 
-	if (!req)
+	if (!req) {
 		return -ENOMEM;
+	}
 
 	resp = kzalloc(sizeof(*resp), GFP_KERNEL);
 
@@ -596,8 +611,9 @@ static ssize_t oem_qmi_common_debug(struct file *file,
 	ret = qmi_txn_init(&ctrl_ptr->oem_qmi, &txn,
 			   qmi_oem_update_common_resp_msg_v01_ei, resp);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	ret = qmi_send_request(&ctrl_ptr->oem_qmi, NULL, &txn,
 			       QMI_OEM_COMMON_REQ_V01, OEM_REQ_MAX_MSG_LEN_V01,
@@ -610,14 +626,16 @@ static ssize_t oem_qmi_common_debug(struct file *file,
 
 	ret = qmi_txn_wait(&txn, 5 * HZ);
 
-	if (ret < 0)
+	if (ret < 0) {
 		goto out;
+	}
 
 	OEM_QMI_MSG("resp result: %d, error: %d\n", resp->resp.result,
 		    resp->resp.error);
 
-	if (resp->oem_common_req_resp_valid)
+	if (resp->oem_common_req_resp_valid) {
 		OEM_QMI_ERR("resp data : %s\n", resp->oem_common_req_resp.data);
+	}
 
 	ret = count;
 
@@ -677,7 +695,6 @@ static int uim_qmi_new_server(struct qmi_handle *qmi,
 			return ret;
 		}
 	}
-
 	service->priv = ctrl_ptr;
 
 	OEM_QMI_MSG("leave\n");
@@ -689,10 +706,8 @@ static void uim_qmi_del_server(struct qmi_handle *qmi,
 			       struct qmi_service *service)
 {
 	oem_qmi_controller *ctrl_ptr = service->priv;
-
 	if (ctrl_ptr->de_power)
 		debugfs_remove(ctrl_ptr->de_power);
-
 	if (ctrl_ptr->de_uim_dir)
 		debugfs_remove(ctrl_ptr->de_uim_dir);
 }
@@ -736,7 +751,6 @@ static int oem_qmi_new_server(struct qmi_handle *qmi,
 			return ret;
 		}
 	}
-
 	service->priv = ctrl_ptr;
 
 	OEM_QMI_MSG("leave\n");
@@ -748,10 +762,8 @@ static void oem_qmi_del_server(struct qmi_handle *qmi,
 			       struct qmi_service *service)
 {
 	oem_qmi_controller *ctrl_ptr = service->priv;
-
 	if (ctrl_ptr->de_common)
 		debugfs_remove(ctrl_ptr->de_common);
-
 	if (ctrl_ptr->de_oem_dir)
 		debugfs_remove(ctrl_ptr->de_oem_dir);
 }
@@ -770,14 +782,16 @@ static int oem_register_uim_service(oem_qmi_controller *ctrl_ptr)
 {
 	int ret;
 
-	if (!ctrl_ptr)
+	if (!ctrl_ptr) {
 		return -1;
+	}
 
 	ret = qmi_handle_init(&ctrl_ptr->uim_qmi, UIM_MAX_MSG_LEN_V01,
 			      &uim_lookup_ops, NULL);
 
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	ret = qmi_add_lookup(&ctrl_ptr->uim_qmi, UIM_QMI_SERVICE_ID,
 			     UIM_QMI_SERVICE_VERSION, 0);
@@ -789,14 +803,16 @@ static int oem_register_oem_service(oem_qmi_controller *ctrl_ptr)
 {
 	int ret;
 
-	if (!ctrl_ptr)
+	if (!ctrl_ptr) {
 		return -1;
+	}
 
 	ret = qmi_handle_init(&ctrl_ptr->oem_qmi, OEM_MAX_MSG_LEN_V01,
 			      &oem_lookup_ops, NULL);
 
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 
 	ret = qmi_add_lookup(&ctrl_ptr->oem_qmi, OEM_QMI_SERVICE_ID,
 			     OEM_QMI_SERVICE_VERSION, 0);
@@ -810,8 +826,9 @@ static int oem_qmi_probe(struct platform_device *pdev)
 
 	OEM_QMI_MSG("enter\n");
 
-	if (!ctrl_ptr)
+	if (!ctrl_ptr) {
 		return -1;
+	}
 
 	oem_register_uim_service(ctrl_ptr);
 	oem_register_oem_service(ctrl_ptr);
@@ -856,13 +873,13 @@ static int oem_qmi_init(void)
 		OEM_QMI_ERR("failed to create oem_qmi dir\n");
 		return PTR_ERR(qmi_debug_dir);
 	}
-
 #endif /* CONFIG_DEBUG_FS */
 
 	ret = platform_driver_register(&oem_qmi_driver);
 
-	if (ret)
+	if (ret) {
 		goto err_remove_debug_dir;
+	}
 
 	ctrl_ptr = kzalloc(sizeof(oem_qmi_controller), GFP_KERNEL);
 
@@ -888,8 +905,9 @@ static int oem_qmi_init(void)
 
 	ret = platform_device_add(pdev);
 
-	if (ret)
+	if (ret) {
 		goto err_put_device;
+	}
 
 	OEM_QMI_MSG("leave\n");
 
@@ -905,7 +923,6 @@ err_unregister_driver:
 	platform_driver_unregister(&oem_qmi_driver);
 
 err_remove_debug_dir:
-
 	if (qmi_debug_dir)
 		debugfs_remove(qmi_debug_dir);
 
@@ -923,7 +940,6 @@ static void oem_qmi_exit(void)
 	}
 
 	platform_driver_unregister(&oem_qmi_driver);
-
 	if (qmi_debug_dir)
 		debugfs_remove(qmi_debug_dir);
 }

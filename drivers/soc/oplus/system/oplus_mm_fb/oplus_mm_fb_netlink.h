@@ -47,4 +47,4 @@ struct msg_from_kernel {
 	char buf[OPLUS_MM_MSG_FROM_KERNEL_BUF_LEN];
 };
 
-#endif /* _OPLUS_MM_NETLINK_H */
+#endif //_OPLUS_MM_NETLINK_H

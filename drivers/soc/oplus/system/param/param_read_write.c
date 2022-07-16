@@ -5,7 +5,6 @@
 /*
  * drivers/param_read_write/param_read_write.c
  *
- * hefaxi@filesystems,2015/04/30
  *
  * This program is used to read/write param partition in kernel
  */
@@ -63,7 +62,7 @@ static int write_param_partition(const char *buf, unsigned long count,
 		pr_err("%s: llseek failed.(%d)\n", __func__, ret);
 		goto out;
 	}
-	/*ret = filp->f_op->write(filp,(char __user *)buf,count,&filp->f_pos);*/
+	//ret = filp->f_op->write(filp,(char __user *)buf,count,&filp->f_pos);
 	ret = vfs_write(filp, (char __user *)buf, count, &filp->f_pos);
 
 out:
@@ -404,4 +403,4 @@ static int param_get_restart_other_count(char *val,
 }
 module_param_call(restart_other_count, NULL, param_get_restart_other_count,
 		  &restart_other_count, 0644);
-/*end*/
+//end
