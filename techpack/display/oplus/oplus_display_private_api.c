@@ -1732,6 +1732,10 @@ int oplus_panel_process_dimming_v2(struct dsi_panel *panel, int bl_lvl,
 			bl_lvl > 1 && bl_lvl < oplus_dimlayer_bl_alpha_v2) {
 		if (!oplus_seed_backlight) {
 			pr_err("Enter DC backlight v2\n");
+#ifdef CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY
+			oplus_seed_backlight = 1;
+			lcdinfo_notify(LCM_DC_MODE_TYPE, &oplus_seed_backlight);
+#endif /* CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY */
 
 			if (!oplus_skip_datadimming_sync &&
 					oplus_last_backlight != 0 &&
@@ -1754,6 +1758,9 @@ int oplus_panel_process_dimming_v2(struct dsi_panel *panel, int bl_lvl,
 		oplus_dc2_alpha = 0;
 		oplus_datadimming_v2_need_flush = true;
 		oplus_datadimming_v2_need_sync = true;
+#ifdef CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY
+		lcdinfo_notify(LCM_DC_MODE_TYPE, &oplus_seed_backlight);
+#endif /* CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY */
 	}
 
 	if (oplus_datadimming_v2_need_flush) {
@@ -2547,6 +2554,10 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 #endif
 
 	pr_info("[%s] <%s> power_mode : %d\n", __func__, display->panel->oplus_priv.vendor_name, power_mode);
+#ifdef CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY
+	/* MM.Display.LCD, 2021/10/19, add lcm power mode notify */
+	lcdinfo_notify(LCM_POWER_MODE, &power_mode);
+#endif /* CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY */
 
 	if (power_mode == SDE_MODE_DPMS_OFF)
 		atomic_set(&display->panel->esd_pending, 1);
