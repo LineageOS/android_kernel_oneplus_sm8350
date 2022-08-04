@@ -1632,7 +1632,7 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = chip->batt_fcc * 1000;
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL:
-		pval->intval = chip->batt_fcc;
+		pval->intval = chip->batt_fcc * 1000;
 		break;
 	case OPLUS_CHG_PROP_TIME_TO_FULL_AVG:
 		pval->intval = 5000;
