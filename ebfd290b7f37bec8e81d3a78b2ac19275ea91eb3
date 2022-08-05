@@ -39,6 +39,30 @@
       },
       "revId": "ebfd290b7f37bec8e81d3a78b2ac19275ea91eb3",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "a7952a86_8c7efd16",
+        "filename": "drivers/power/oplus_chg/oplus_chg_intf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1635,
+      "author": {
+        "id": 18745
+      },
+      "writtenOn": "2022-08-05T20:14:57Z",
+      "side": 1,
+      "message": "Oppo\u0027s sm7325 source has \u0027* 1000\u0027 in both, so I will go with that too",
+      "parentUuid": "8c2d3a2e_5298b1b9",
+      "range": {
+        "startLine": 1635,
+        "startChar": 23,
+        "endLine": 1635,
+        "endChar": 31
+      },
+      "revId": "ebfd290b7f37bec8e81d3a78b2ac19275ea91eb3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
