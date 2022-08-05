@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "7bc52c8a_d39ecb15",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 18745
+      },
+      "writtenOn": "2022-08-05T20:14:33Z",
+      "side": 1,
+      "message": "Breaks NFC due to lack of NQ NFC driver.",
+      "revId": "1636159c1329f4a0141cd6945c6b718feb026adc",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
