@@ -16,6 +16,29 @@
       "message": "Commit message needs more work.",
       "revId": "ebfd290b7f37bec8e81d3a78b2ac19275ea91eb3",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "8c2d3a2e_5298b1b9",
+        "filename": "drivers/power/oplus_chg/oplus_chg_intf.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 1635,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2022-08-05T11:57:19Z",
+      "side": 1,
+      "message": "it\u0027s likely more correct to add `* 1000` here.",
+      "range": {
+        "startLine": 1635,
+        "startChar": 23,
+        "endLine": 1635,
+        "endChar": 31
+      },
+      "revId": "ebfd290b7f37bec8e81d3a78b2ac19275ea91eb3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
