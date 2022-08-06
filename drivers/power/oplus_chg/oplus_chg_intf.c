@@ -1539,7 +1539,8 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = POWER_SUPPLY_TECHNOLOGY_LION;
 		break;
 	case OPLUS_CHG_PROP_CYCLE_COUNT:
-		pval->intval = 0;
+		pval->intval = oplus_gauge_get_batt_cc();
+		//pval->intval = 0;
 		break;
 	case OPLUS_CHG_PROP_VOLTAGE_OCV:
 		pval->intval = 4000000;
