@@ -3246,6 +3246,14 @@ static void sde_encoder_underrun_callback(struct drm_encoder *drm_enc,
 	SDE_DBG_CTRL("panic_underrun");
 
 	SDE_ATRACE_END("encoder_underrun_callback");
+#ifdef OPLUS_BUG_STABILITY
+	SDE_MM_ERROR("DisplayDriverID@@422$$sde encoder underrun callback! Count=%d",
+			atomic_read(&phy_enc->underrun_cnt));
+
+	if (get_eng_version() == AGING) {
+		SDE_DBG_DUMP("all", "dbg_bus", "vbif_dbg_bus", "panic");
+	}
+#endif /* OPLUS_BUG_STABILITY */
 }
 
 void sde_encoder_register_vblank_callback(struct drm_encoder *drm_enc,
@@ -4205,7 +4213,7 @@ u32 g_oplus_save_pcc = 0;
 
 extern int backlight_smooth_enable;
 
-static int get_current_display_framerate(struct drm_connector *connector)
+static int get_current_vsync_period(struct drm_connector *connector)
 {
 	struct sde_connector *c_conn = to_sde_connector(connector);
 	struct dsi_display *dsi_display = NULL;
@@ -4213,16 +4221,33 @@ static int get_current_display_framerate(struct drm_connector *connector)
 
 	dsi_display = c_conn->display;
 
-	if (!dsi_display || !dsi_display->panel || !dsi_display->panel->cur_mode) {
+	if (!dsi_display || !dsi_display->panel || !dsi_display->panel->cur_mode
+		|| !dsi_display->panel->cur_mode->priv_info) {
 		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
 			dsi_display,
 			((dsi_display) ? dsi_display->panel : NULL));
 		return -EINVAL;
 	}
 
-	framerate = dsi_display->panel->cur_mode->timing.refresh_rate;
+	return dsi_display->panel->cur_mode->priv_info->vsync_period;
+}
 
-	return framerate;
+static int get_current_vsync_width(struct drm_connector *connector)
+{
+	struct sde_connector *c_conn = to_sde_connector(connector);
+	struct dsi_display *dsi_display = NULL;
+
+	dsi_display = c_conn->display;
+
+	if (!dsi_display || !dsi_display->panel || !dsi_display->panel->cur_mode
+		|| !dsi_display->panel->cur_mode->priv_info) {
+		SDE_ERROR("Invalid params(s) dsi_display %pK, panel %pK\n",
+			dsi_display,
+			((dsi_display) ? dsi_display->panel : NULL));
+		return -EINVAL;
+	}
+
+	return dsi_display->panel->cur_mode->priv_info->vsync_width;
 }
 
 static int get_current_display_brightness(struct drm_connector *connector)
@@ -4275,7 +4300,14 @@ bool is_spread_backlight(struct dsi_display *display, int level)
 	if ((display != NULL) && (display->panel != NULL)
 		&& (level <= display->panel->oplus_priv.sync_brightness_level) && (level >= 2)) {
 		return true;
-	} else {
+	}
+	else if (((display != NULL) && (display->panel != NULL)
+		&& (display->panel->oplus_priv.dc_apollo_sync_enable)
+		&& (((level <= display->panel->oplus_priv.sync_brightness_level) && (level >= 2))
+		|| (level == display->panel->oplus_priv.dc_apollo_sync_brightness_level)))) {
+		return true;
+	}
+	else {
 		return false;
 	}
 }
@@ -4294,7 +4326,7 @@ void update_pending_backlight(struct dsi_display *display, int level) {
 	}
 }
 
-static int oplus_backlight_wait_vsync(struct drm_encoder *drm_enc)
+int oplus_backlight_wait_vsync(struct drm_encoder *drm_enc)
 {
 	SDE_ATRACE_BEGIN("wait_vsync");
 
@@ -4355,6 +4387,8 @@ static int oplus_setbacklight_by_display_type(struct drm_encoder *drm_enc) {
 #define to_sde_encoder_phys_cmd(x) \
 	container_of(x, struct sde_encoder_phys_cmd, base)
 
+#define DEBOUNCE_TIME 1200
+
 int oplus_sync_panel_brightness(enum oplus_sync_method method, struct drm_encoder *drm_enc)
 {
 	struct sde_encoder_virt *sde_enc = NULL;
@@ -4365,6 +4399,7 @@ int oplus_sync_panel_brightness(enum oplus_sync_method method, struct drm_encode
 	struct sde_encoder_phys_cmd *cmd_enc = NULL;
 	struct sde_encoder_phys_cmd_te_timestamp *te_timestamp;
 	s64 us_per_frame;
+	u32 vsync_width;
 	ktime_t last_te_timestamp;
 	s64 delay;
 
@@ -4392,7 +4427,8 @@ int oplus_sync_panel_brightness(enum oplus_sync_method method, struct drm_encode
 		return -EFAULT;
 	}
 
-	us_per_frame = 1000000 / get_current_display_framerate(sde_enc->cur_master->connector);
+	us_per_frame = get_current_vsync_period(sde_enc->cur_master->connector);
+	vsync_width = get_current_vsync_width(sde_enc->cur_master->connector);
 	te_timestamp = list_last_entry(&cmd_enc->te_timestamp_list, struct sde_encoder_phys_cmd_te_timestamp, list);
 	last_te_timestamp = te_timestamp->timestamp;
 
@@ -4403,14 +4439,15 @@ int oplus_sync_panel_brightness(enum oplus_sync_method method, struct drm_encode
 			is_spread_backlight(display, apollo_bk.g_sec_bk_level) &&
 			(apollo_bk.g_sec_bk_level != get_current_display_brightness(sde_enc->cur_master->connector)))) {
 		SDE_ATRACE_BEGIN("sync_panel_brightness");
-		delay = (us_per_frame >> 1) - (ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)) % us_per_frame);
+		delay = vsync_width - (ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)) % us_per_frame);
 		if (delay > 0) {
+			SDE_EVT32(us_per_frame, last_te_timestamp, delay);
 			usleep_range(delay, delay + 100);
 		}
-		pr_debug("us_per_frame = %lld, delta = %lld, delay = %lld",	\
-				us_per_frame, ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)), delay);
-		if ((ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)) % us_per_frame) > (us_per_frame - 500)) {
-			usleep_range(500, 1000);
+
+		if ((ktime_to_us(ktime_sub(ktime_get(), last_te_timestamp)) % us_per_frame) > (us_per_frame - DEBOUNCE_TIME)) {
+			SDE_EVT32(us_per_frame, last_te_timestamp);
+			usleep_range(DEBOUNCE_TIME + vsync_width, DEBOUNCE_TIME + 100 + vsync_width);
 		}
 		if (method == OPLUS_PREPARE_KICKOFF_METHOD) {
 			rc = oplus_setbacklight_by_display_type(drm_enc);
@@ -4427,6 +4464,19 @@ int oplus_sync_panel_brightness(enum oplus_sync_method method, struct drm_encode
 	}
 
 	return rc;
+}
+
+int dc_apollo_sync_hbmon(struct dsi_display *display)
+{
+	if (display == NULL)
+		return 0;
+	if (display->panel == NULL)
+		return 0;
+
+	if (display->panel->oplus_priv.dc_apollo_sync_enable && display->panel->is_hbm_enabled)
+		return 1;
+	else
+		return 0;
 }
 #endif /* OPLUS_BUG_STABILITY */
 
@@ -4473,7 +4523,7 @@ int sde_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc,
 			} else {
 				display = c_conn->display;
 				if(display && display->panel && display->panel->oplus_priv.vendor_name) {
-					if (strcmp(display->panel->oplus_priv.vendor_name, "AMB655X") && strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01")) {
+					if (strcmp(display->panel->oplus_priv.vendor_name, "AMB655X") && strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01") && strcmp(display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
 						sde_connector_update_hbm(sde_enc->cur_master->connector);
 					}
 				}
@@ -4696,7 +4746,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool is_error,
 #ifdef OPLUS_BUG_STABILITY
 /* Add for backlight smooths */
 	if (sde_enc && sde_enc->cur_master && sde_enc->cur_master->connector) {
-		if ((is_support_apollo_bk(sde_enc->cur_master->connector) == true) && backlight_smooth_enable) {
+		if ((is_support_apollo_bk(sde_enc->cur_master->connector) == true) && backlight_smooth_enable && !dc_apollo_sync_hbmon(get_main_display())) {
 			if (sde_enc->num_phys_encs > 0 ) {
 				oplus_sync_panel_brightness(OPLUS_POST_KICKOFF_METHOD, drm_enc);
 			}

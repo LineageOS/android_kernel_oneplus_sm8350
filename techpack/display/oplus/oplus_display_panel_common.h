@@ -3,11 +3,6 @@
 ** File : oplus_display_panel_common.c
 ** Description : oplus display panel common feature
 ** Version : 1.0
-** Date : 2020/06/13
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**  Li.Sheng       2020/06/13        1.0           Build this moudle
 ******************************************************************/
 #ifndef _OPLUS_DISPLAY_PANEL_COMMON_H_
 #define _OPLUS_DISPLAY_PANEL_COMMON_H_
@@ -53,6 +48,9 @@ enum {
 	NONE_TYPE = 0,
 	LCM_DC_MODE_TYPE,
 	LCM_BRIGHTNESS_TYPE,
+	LCM_BRIGHTNESS_TYPE_SEC,
+	LCM_POWER_MODE,
+	LCM_POWER_MODE_SEC,
 	MAX_INFO_TYPE,
 };
 
@@ -85,6 +83,8 @@ int oplus_display_panel_set_reg(void *data);
 int oplus_display_panel_notify_blank(void *data);
 int oplus_display_panel_set_spr(void *data);
 int oplus_display_panel_get_spr(void *data);
+int oplus_display_panel_set_dither(void *data);
+int oplus_display_panel_get_dither(void *data);
 int oplus_display_panel_get_roundcorner(void *data);
 int oplus_display_panel_set_dynamic_osc_clock(void *data);
 int oplus_display_panel_get_dynamic_osc_clock(void *data);
@@ -95,9 +95,12 @@ int oplus_display_get_dither_status(void *buf);
 int oplus_display_panel_get_oplus_max_brightness(void *buf);
 void oplus_display_panel_enable(void);
 int oplus_display_get_dp_support(void *buf);
+int oplus_display_get_panel_round_corner(void *data);
+int oplus_display_set_panel_round_corner(void *data);
 int oplus_display_set_cabc_status(void *buf);
 int oplus_display_get_cabc_status(void *buf);
 int oplus_display_set_dre_status(void *buf);
 int oplus_display_get_dre_status(void *buf);
+int oplus_display_set_shutdown_flag(void *buf);
 #endif /*_OPLUS_DISPLAY_PANEL_COMMON_H_*/
 

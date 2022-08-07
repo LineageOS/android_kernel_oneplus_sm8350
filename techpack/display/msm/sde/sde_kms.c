@@ -1162,7 +1162,7 @@ static void sde_kms_prepare_commit(struct msm_kms *kms,
 	if (rc < 0) {
 		SDE_ERROR("failed to enable power resources %d\n", rc);
 #ifdef OPLUS_BUG_STABILITY
-		SDE_MM_ERROR("[sde error]failed to enable power resources %d\n", rc);
+		SDE_MM_ERROR("DisplayDriverID@@407$$failed to enable power resources %d\n", rc);
 #endif /* OPLUS_BUG_STABILITY */
 		SDE_EVT32(rc, SDE_EVTLOG_ERROR);
 		goto end;
@@ -1478,6 +1478,8 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 	struct drm_connector_state *old_conn_state;
 	struct msm_display_conn_params params;
 	struct sde_vm_ops *vm_ops;
+	struct drm_encoder *drm_enc;
+	bool update_perf = true;
 	int i, rc = 0;
 
 	if (!kms || !old_state)
@@ -1496,7 +1498,14 @@ static void sde_kms_complete_commit(struct msm_kms *kms,
 	SDE_ATRACE_BEGIN("sde_kms_complete_commit");
 
 	for_each_old_crtc_in_state(old_state, crtc, old_crtc_state, i) {
-		sde_crtc_complete_commit(crtc, old_crtc_state);
+		drm_for_each_encoder_mask(drm_enc, crtc->dev, old_crtc_state->encoder_mask) {
+			if (sde_encoder_in_clone_mode(drm_enc))
+				continue;
+
+			sde_encoder_update_complete_commit(drm_enc, old_crtc_state, &update_perf);
+		}
+
+		sde_crtc_complete_commit(crtc, old_crtc_state, update_perf);
 
 		/* complete secure transitions if any */
 		if (sde_kms->smmu_state.transition_type == POST_COMMIT)
@@ -1619,7 +1628,7 @@ static void sde_kms_wait_for_commit_done(struct msm_kms *kms,
 
 	sde_crtc_static_cache_read_kickoff(crtc);
 
-	SDE_ATRACE_END("sde_ksm_wait_for_commit_done");
+	SDE_ATRACE_END("sde_kms_wait_for_commit_done");
 }
 
 static void sde_kms_prepare_fence(struct msm_kms *kms,
@@ -3096,6 +3105,11 @@ static int sde_kms_atomic_check(struct msm_kms *kms,
 
 	sde_kms = to_sde_kms(kms);
 	dev = sde_kms->dev;
+
+	if (!dev) {
+		SDE_ERROR("invalid device\n");
+		return -EINVAL;
+	}
 
 	SDE_ATRACE_BEGIN("atomic_check");
 	if (sde_kms_is_suspend_blocked(dev)) {

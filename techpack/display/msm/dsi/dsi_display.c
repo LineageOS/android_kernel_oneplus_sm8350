@@ -75,6 +75,7 @@ extern bool oplus_ffl_trigger_finish;
 #ifdef OPLUS_BUG_STABILITY
 static struct dsi_display *primary_display;
 static struct dsi_display *secondary_display;
+static struct dsi_display *current_display;
 #endif /* OPLUS_BUG_STABILITY */
 
 #ifdef OPLUS_BUG_STABILITY
@@ -251,6 +252,7 @@ void dsi_rect_intersect(const struct dsi_rect *r1,
 
 #ifdef OPLUS_BUG_STABILITY
 extern int oplus_display_panel_get_id2(void);
+extern int dsi_update_dynamic_osc_clock(void);
 static int readcount = 0;
 #endif
 
@@ -276,6 +278,11 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		panel->panel_id2 = oplus_display_panel_get_id2();
 		pr_err("dsi_cmd oplus_display_panel_get_id2 %d\n",panel->panel_id2);
 		readcount = 1;
+
+		/* add for ffc */
+		if (!strcmp(panel->oplus_priv.vendor_name, "S6E3XA1") && (panel->panel_id2 > 6)) {
+			dsi_update_dynamic_osc_clock();
+		}
 	}
 #endif
 
@@ -921,6 +928,8 @@ static bool dsi_display_validate_reg_read(struct dsi_panel *panel)
 	if (rc <= 0) {
 		char payload[150] = "";
 		int cnt = 0;
+
+		cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
 		cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
 		for (i = 0; i < len; ++i)
 			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "[%02x] ", config->return_buf[i]);
@@ -3772,12 +3781,14 @@ static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
 
 		rc = dsi_ctrl_cmd_transfer(display->ctrl[ctrl_idx].ctrl, msg,
 				&cmd_flags);
+
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)
 		if (iris_is_chip_supported()) {
 			if (rc > 0)
 				rc = 0;
 		}
 #endif
+
 		if (rc < 0) {
 			DSI_ERR("[%s] cmd transfer failed, rc=%d\n",
 			       display->name, rc);
@@ -6407,6 +6418,11 @@ static int dsi_display_init(struct dsi_display *display)
 					display->panel->name, rc);
 			return rc;
 		}
+#ifdef OPLUS_BUG_STABILITY
+		if (display->panel->oplus_priv.cabc_enabled) {
+			display->panel->oplus_priv.cabc_status = OPLUS_DISPLAY_CABC_UI;
+		}
+#endif /* OPLUS_BUG_STABILITY */
 	}
 
 	rc = component_add(&pdev->dev, &dsi_display_comp_ops);
@@ -6588,6 +6604,7 @@ int dsi_display_dev_probe(struct platform_device *pdev)
 		primary_display = display;
 	else
 		secondary_display = display;
+	current_display = primary_display;
 #endif /* OPLUS_BUG_STABILITY */
 
 	/* initialize display in firmware callback */
@@ -7303,6 +7320,7 @@ int dsi_display_get_info(struct drm_connector *connector,
 
 	info->dsc_count = display->panel->dsc_count;
 	info->lm_count = display->panel->lm_count;
+	info->switch_vsync_delay = display->panel->switch_vsync_delay;
 error:
 	mutex_unlock(&display->display_lock);
 	return rc;
@@ -7906,9 +7924,17 @@ int dsi_display_validate_mode_change(struct dsi_display *display,
 					rc = -ENOTSUPP;
 					goto error;
 				}
-
+#ifdef OPLUS_BUG_STABILITY
+				/* PSW.MM.Display.LCD,2021/8/20, dfps and dyn clk concurrent,skip dyn clk*/
+				if (cur_mode->timing.refresh_rate != adj_mode->timing.refresh_rate) {
+					pr_err("dfps and dyn clk concurrent, skip dyn clk!\n");
+				} else {
+					adj_mode->dsi_mode_flags |= DSI_MODE_FLAG_DYN_CLK;
+				}
+#else
 				adj_mode->dsi_mode_flags |=
 						DSI_MODE_FLAG_DYN_CLK;
+#endif /* OPLUS_BUG_STABILITY */
 				SDE_EVT32(SDE_EVTLOG_FUNC_CASE2,
 					cur_mode->pixel_clk_khz,
 					adj_mode->pixel_clk_khz);
@@ -8749,7 +8775,8 @@ static int dsi_display_set_roi(struct dsi_display *display,
 
 int dsi_display_pre_kickoff(struct drm_connector *connector,
 		struct dsi_display *display,
-		struct msm_display_kickoff_params *params)
+		struct msm_display_kickoff_params *params,
+		bool force_update_dsi_clocks)
 {
 	int rc = 0, ret = 0;
 	int i;
@@ -8759,7 +8786,7 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		_dsi_display_setup_misr(display);
 
 	/* dynamic DSI clock setting */
-	if (atomic_read(&display->clkrate_change_pending)) {
+	if (atomic_read(&display->clkrate_change_pending) && force_update_dsi_clocks) {
 		mutex_lock(&display->display_lock);
 		/*
 		 * acquire panel_lock to make sure no commands are in progress
@@ -8785,6 +8812,7 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		 * Don't check the return value so as not to impact DRM commit
 		 * when error occurs.
 		 */
+		SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
 		(void)dsi_display_force_update_dsi_clk(display);
 wait_failure:
 		/* release panel_lock */
@@ -9026,6 +9054,15 @@ int dsi_display_enable(struct dsi_display *display)
 			DSI_ERR("[%s] failed to enable DSI panel, rc=%d\n",
 			       display->name, rc);
 			goto error;
+		}
+		/* add for set current display */
+#if defined(OPLUS_FEATURE_PXLW_IRIS5)
+		if (iris_is_dual_supported() && display->panel->is_secondary) {
+			DSI_WARN("[%s] Don't add secondary display to current_display\n", display->name);
+		}else
+#endif
+		{
+			set_current_display(display);
 		}
 	}
 	dsi_display_panel_id_notification(display);
@@ -9295,7 +9332,7 @@ int dsi_display_disable(struct dsi_display *display)
 	}
 
 #ifdef OPLUS_BUG_STABILITY
-	/* if qsync mode is on, force qsync window to be closed to avoid tearing issue */
+    /* if qsync mode is on, force qsync window to be closed to avoid tearing issue */
     if (oplus_adfr_is_support()) {
         if (display->current_qsync_mode) {
             display->force_qsync_mode_off = true;
@@ -9474,6 +9511,16 @@ struct dsi_display *get_sec_display(void) {
 		return secondary_display;
 }
 EXPORT_SYMBOL(get_sec_display);
+
+void set_current_display(struct dsi_display *display) {
+		current_display = display;
+}
+EXPORT_SYMBOL(set_current_display);
+struct dsi_display *get_current_display(void) {
+		return current_display;
+}
+EXPORT_SYMBOL(get_current_display);
+
 #endif
 
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)

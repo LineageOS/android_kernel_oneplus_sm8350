@@ -3,11 +3,6 @@
 ** File : oplus_display_panel_seed.c
 ** Description : oplus display panel seed feature
 ** Version : 1.0
-** Date : 2020/06/13
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**  Li.Sheng       2020/06/13        1.0           Build this moudle
 ******************************************************************/
 #include "oplus_display_panel_seed.h"
 #include "oplus_dsi_support.h"
@@ -51,9 +46,11 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 		return -EINVAL;
 	}
 
+	if (!strcmp(panel->name, "samsung ams662zs01 fhd cmd mode dsc dsi panel"))
+		mode = mode-100;
 	switch (mode) {
 	case 0:
-				if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
+		if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
 			if (oplus_seed_backlight != oplus_seed_last_backlight) {
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_DC_MODE0);
 				oplus_seed_last_backlight = oplus_seed_backlight;
@@ -71,7 +68,7 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 		break;
 
 	case 1:
-				if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
+		if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
 			if (oplus_seed_backlight != oplus_seed_last_backlight) {
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_DC_MODE1);
 				oplus_seed_last_backlight = oplus_seed_backlight;
@@ -89,7 +86,7 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 		break;
 
 	case 2:
-				if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
+		if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
 			if (oplus_seed_backlight != oplus_seed_last_backlight) {
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_DC_MODE2);
 				oplus_seed_last_backlight = oplus_seed_backlight;
@@ -126,6 +123,16 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 
 		break;
 
+	case 8:
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE8);
+
+		if (rc) {
+			pr_err("[%s] failed to send DSI_CMD_SEED_MODE8 cmds, rc=%d\n",
+			       panel->name, rc);
+		}
+
+		break;
+
 	default:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_OFF);
 
@@ -155,7 +162,7 @@ int dsi_panel_loading_effect_mode_unlock(struct dsi_panel *panel, int mode)
 
 	switch (mode) {
 	case PANEL_LOADING_EFFECT_MODE1:
-				if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && ((panel->panel_id2 <= 0x06) || (panel->panel_id2 == 0x15))) {
+		if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && ((panel->panel_id2 <= 0x06) || (panel->panel_id2 == 0x15))) {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE1_ID6);
 			if (rc) {
 				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE1_ID6 cmds, rc=%d\n",
@@ -241,6 +248,10 @@ int dsi_panel_seed_mode(struct dsi_panel *panel, int mode)
 		mode = mode - PANEL_LOADING_EFFECT_FLAG;
 		rc = dsi_panel_seed_mode_unlock(panel, mode);
 		seed_mode = mode;
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01") && (mode >= PANEL_LOADING_EFFECT_FLAG)) {
+		mode = mode - PANEL_LOADING_EFFECT_FLAG;
+		rc = dsi_panel_seed_mode_unlock(panel, mode);
+		seed_mode = mode;
 	} else if(!strcmp(panel->oplus_priv.vendor_name, "AMB655X") && (mode >= PANEL_LOADING_EFFECT_FLAG)){
 		rc = dsi_panel_loading_effect_mode_unlock(panel, mode);
 	} else if(!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && (mode >= PANEL_LOADING_EFFECT_FLAG)){
@@ -274,7 +285,7 @@ int dsi_display_seed_mode(struct dsi_display *display, int mode)
 				     DSI_CORE_CLK, DSI_CLK_ON);
 	}
 
-		if ((!strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01")) ||
+	if ((!strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01")) ||
 		(!strcmp(display->panel->oplus_priv.vendor_name, "AMB655X")) ||
 		(!strcmp(display->panel->oplus_priv.vendor_name, "S6E3XA1")) ||
 		(!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")) ||
@@ -351,7 +362,7 @@ int oplus_display_panel_set_seed(void *data)
 		printk(KERN_INFO "oplus_display_set_seed and main display is null");
 		return -EINVAL;
 	}
-		if ((get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) && (display->panel->power_mode != SDE_MODE_DPMS_ON)) {
+	if ((get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) && (display->panel->power_mode != SDE_MODE_DPMS_ON)) {
 		printk(KERN_ERR
 			"<%s> %s oplus_display_set_seed = %d, but now display panel power_mode is not on\n",
 			display->panel->oplus_priv.vendor_name, __func__, seed_mode);

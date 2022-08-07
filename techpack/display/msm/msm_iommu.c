@@ -35,7 +35,7 @@ static int msm_fault_handler(struct iommu_domain *domain, struct device *dev,
 		return iommu->base.handler(iommu->base.arg, iova, flags);
 	pr_warn_ratelimited("*** fault: iova=%08lx, flags=%d\n", iova, flags);
 #ifdef OPLUS_BUG_STABILITY
-	mm_fb_display_kevent("SMMU msm fault", MM_FB_KEY_RATELIMIT_1H, "iova=%08lx flags=%d", iova, flags);
+	mm_fb_display_kevent("DisplayDriverID@@404$$", MM_FB_KEY_RATELIMIT_1H, "SMMU msm fault iova=%08lx flags=%d", iova, flags);
 #endif /*OPLUS_BUG_STABILITY*/
 	return 0;
 }

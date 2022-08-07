@@ -3,12 +3,6 @@
 ** File : oplus_aod.h
 ** Description : oplus aod feature
 ** Version : 1.0
-** Date : 2020/04/23
-** Author : Qianxu@MM.Display.LCD Driver
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   Qianxu         2020/04/23        1.0           Build this moudle
 ******************************************************************/
 #ifndef _OPLUS_AOD_H_
 #define _OPLUS_AOD_H_

@@ -868,6 +868,10 @@ static int msm_drm_component_init(struct device *dev)
 
 	mutex_init(&priv->vm_client_lock);
 
+#ifdef OPLUS_BUG_STABILITY
+	mutex_init(&priv->dspp_lock);
+#endif /* OPLUS_BUG_STABILITY */
+
 	/* Bind all our sub-components: */
 	ret = msm_component_bind_all(dev, ddev);
 	if (ret)

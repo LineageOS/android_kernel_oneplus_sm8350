@@ -3,12 +3,6 @@
 ** File : oplus_bl.h
 ** Description : oplus display backlight
 ** Version : 1.0
-** Date : 2020/10/23
-** Author : LiPing-M@PSW.MM.Display.Stability
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   LiPing-M          2020/10/23        1.0           Build this moudle
 ******************************************************************/
 
 #ifndef __OPLUS_BL_H__

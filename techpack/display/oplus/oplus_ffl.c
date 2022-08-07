@@ -3,11 +3,6 @@
 ** File : oplus_ffl.c
 ** Description : oplus ffl feature
 ** Version : 1.0
-** Date : 2020/04/23
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   Qianxu         2020/04/23        1.0           Build this moudle
 ******************************************************************/
 
 #include <linux/mutex.h>
@@ -55,7 +50,7 @@ void oplus_ffl_set(int enable)
 	mutex_unlock(&oplus_ffl_lock);
 
 	if ((is_ffl_enable == FFL_TRIGGLE_CONTROL) && ffl_work_running) {
-			/*scnprintf(payload, sizeof(payload), "NULL$$EventID@@%d$$fflset@@%d",
+		/*scnprintf(payload, sizeof(payload), "NULL$$EventID@@%d$$fflset@@%d",
 			  OPLUS_MM_DIRVER_FB_EVENT_ID_FFLSET, enable);
 		upload_mm_kevent_fb_data(OPLUS_MM_DIRVER_FB_EVENT_MODULE_DISPLAY, payload);*/
 	}

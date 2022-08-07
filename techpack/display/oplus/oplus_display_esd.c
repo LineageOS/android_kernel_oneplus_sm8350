@@ -3,11 +3,6 @@
 ** File : oplus_display_esd.c
 ** Description : oplus esd feature
 ** Version : 1.0
-** Date : 2021/01/14
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   XXXXX         2021/01/14        1.0           Build this moudle
 ******************************************************************/
 
 #include "oplus_display_private_api.h"
@@ -22,12 +17,14 @@
 
 static int esd_black_count = 0;
 static int esd_greenish_count = 0;
+int no_clear_slave_dma = 0;
 
 static int oplus_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 			     struct dsi_panel *panel, u8 cmd, void *rbuf,  size_t len)
 {
 	int rc = 0;
 	struct dsi_cmd_desc cmdsreq;
+	struct drm_panel_esd_config *config;
 	u32 flags = 0;
 
 	if (!panel || !ctrl || !ctrl->ctrl) {
@@ -53,6 +50,9 @@ static int oplus_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ |
 		  DSI_CTRL_CMD_CUSTOM_DMA_SCHED |
 		  DSI_CTRL_CMD_LAST_COMMAND);
+	config = &(panel->esd_config);
+	if (config->status_cmd.state == DSI_CMD_SET_STATE_LP)
+		cmdsreq.msg.flags |= MIPI_DSI_MSG_USE_LPM;
 
 	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmdsreq.msg, &flags);
 
@@ -102,6 +102,56 @@ done:
 	return rc;
 }
 
+static int oplus_mdss_dsi_eva_panel_check_esd_status(struct dsi_display *display)
+{
+	int rc = 0;
+	unsigned char register1[32] = {0};
+	unsigned char register2[32] = {0};
+	unsigned char register3[32] = {0};
+	unsigned char register4[32] = {0};
+
+	no_clear_slave_dma = 1;
+
+	rc = oplus_display_read_panel_reg(display, 0x0A, register1, 1);
+	if (rc < 0)
+		return 0;
+
+	rc = oplus_display_read_panel_reg(display, 0x05, register2, 5);
+	if (rc < 0)
+		return 0;
+
+	rc = oplus_display_read_panel_reg(display, 0x03, register3, 1);
+	if (rc < 0)
+		return 0;
+
+	rc = oplus_display_read_panel_reg(display, 0x0E, register4, 1);
+	if (rc < 0)
+		return 0;
+
+	no_clear_slave_dma = 0;
+
+	if ((register1[0] != 0x9f) || (register2[0] != 0x00)
+		|| (register3[0] != 0x01) || (register4[0] != 0x80)) {
+		DSI_ERR("0x0A = %02x, 0x05 = %02x, 0x03 = %02x, 0x0E = %02x\n",
+			register1[0], register2[0], register3[0], register4[0]);
+		rc = -1;
+#ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+		if (rc <= 0) {
+			char payload[240] = "";
+			int cnt = 0;
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "0x0A = %02x, 0x05 = %02x, 0x03 = %02x, 0x0E = %02x",
+				register1[0], register2[0], register3[0], register4[0]);
+			DSI_MM_ERR("ESD check failed: %s\n", payload);
+		}
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
+	} else {
+		rc = 1;
+	}
+	return rc;
+}
+
 static int oplus_mdss_dsi_samsung_amb655x_dsc_panel_check_esd_status(struct dsi_display *display)
 {
 	int rc = 0;
@@ -137,6 +187,8 @@ static int oplus_mdss_dsi_samsung_amb655x_dsc_panel_check_esd_status(struct dsi_
 		if (rc <= 0) {
 			char payload[200] = "";
 			int cnt = 0;
+
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
 			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
 			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "0x0A = %02x, 0xB6 = %02x, 0xA2 = %02x, %02x, %02x, %02x, %02x",
 				register1[0], register2[0], register3[0], register3[1], register3[2], register3[3], register3[4]);
@@ -187,9 +239,10 @@ static int oplus_mdss_dsi_boe_nt37701_dsc_panel_check_esd_status(struct dsi_disp
 		DSI_ERR("ESD check failed : 0x0A = %02x, 0xAB = %02x, 0xFA = %02x\n", register1[0], register2[0], register3[0]);
 		rc = -1;
 #ifdef OPLUS_BUG_STABILITY
-				if (rc <= 0) {
+		if (rc <= 0) {
 			char payload[200] = "";
 			int cnt = 0;
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
 			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
 			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "0x0A = %02x, 0xFA = %02x, 0xAB = %02x,",
 				register1[0], register2[0], register3[0]);
@@ -261,6 +314,8 @@ static int oplus_mdss_dsi_samsung_amb670yf01_dsc_panel_check_esd_status(struct d
 			if (rc <= 0) {
 				char payload[200] = "";
 				int cnt = 0;
+
+				cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
 				cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
 				cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "0x0A = %02x, 0xA2 = %02x, %02x, %02x, %02x, %02x",
 					register1[0], register2[0], register2[1], register2[2], register2[3], register2[4]);
@@ -290,6 +345,84 @@ static int oplus_mdss_dsi_samsung_amb670yf01_dsc_panel_check_esd_status(struct d
 		DSI_ERR("0x0A = %02x, 0xA2 = %02x, %02x, %02x, %02x, %02x\n", register1[0],
 			  register2[0], register2[1], register2[2], register2[3], register2[4]);
 		rc = -1;
+	} else {
+		rc = 1;
+	}
+	return rc;
+}
+
+static int oplus_mdss_dsi_samsung_s6e3xa1_dsc_panel_check_esd_status(struct dsi_display *display)
+{
+	int rc = 0;
+	unsigned char register1[5] = {0};
+	no_clear_slave_dma = 1;
+	rc = oplus_display_read_panel_reg(display, 0xEE, register1, 1);
+	no_clear_slave_dma = 0;
+	if (rc < 0)
+		return 0;
+	DSI_DEBUG("ESD check value: 0xEE[0] = %02x, 0xEE[1] = %02x\n", register1[0], register1[1]);
+	if ((register1[1] == 0x01) || (register1[1] == 0x40)) {
+		esd_black_count++;
+		DSI_ERR("0xEE[0] = %02x, 0xEE[1] = %02x\n", register1[0], register1[1]);
+		DSI_ERR("black_count=%d\n", esd_black_count);
+		rc = -1;
+#ifdef OPLUS_BUG_STABILITY
+		if (rc <= 0) {
+			char payload[200] = "";
+			int cnt = 0;
+
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "0xEE[0] = %02x, 0xEE[1] = %02x",
+				register1[0], register1[1]);
+			DSI_MM_ERR("ESD check failed: %s\n", payload);
+			mm_fb_display_kevent(payload, MM_FB_KEY_RATELIMIT_1H, "ESD check failed");
+		}
+#endif /* OPLUS_BUG_STABILITY */
+	} else {
+		rc = 1;
+	}
+	return rc;
+}
+
+static int oplus_mdss_dsi_samsung_ams643ye01_dsc_panel_check_esd_status(struct dsi_display *display)
+{
+	int rc = 0;
+	unsigned char register1[10] = {0};
+	unsigned char register2[10] = {0};
+	unsigned char register3[10] = {0};
+
+	rc = oplus_display_read_panel_reg(display, 0x0A, register1, 1);
+	if (rc < 0)
+	  return 0;
+
+	rc = oplus_display_read_panel_reg(display, 0x0E, register2, 1);
+	if (rc < 0)
+	  return 0;
+
+	rc = oplus_display_read_panel_reg(display, 0x05, register3, 1);
+	if (rc < 0)
+	  return 0;
+
+	if ((register1[0] != 0x9F) || (register2[0] != 0x80) || (register3[0] != 0x00)) {
+			esd_black_count++;
+		DSI_ERR("0x0A = %02x, 0x0E = %02x, 0x05 = %02x\n", register1[0], register2[0],
+				register3[0]);
+		DSI_ERR("black_count=%d\n", esd_black_count);
+		rc = -1;
+#ifdef OPLUS_BUG_STABILITY
+		if (rc <= 0) {
+			char payload[200] = "";
+			int cnt = 0;
+
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "DisplayDriverID@@408$$");
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "ESD:");
+			cnt += scnprintf(payload + cnt, sizeof(payload) - cnt, "0x0A = %02x, 0x0E = %02x, 0x05 = %02x",
+				register1[0], register2[0], register3[0]);
+			DSI_MM_ERR("ESD check failed: %s\n", payload);
+			mm_fb_display_kevent(payload, MM_FB_KEY_RATELIMIT_1H, "ESD check failed");
+		}
+#endif  /*OPLUS_BUG_STABILITY*/
 	} else {
 		rc = 1;
 	}
@@ -337,6 +470,12 @@ int oplus_display_status_reg_read(struct dsi_display *display)
 		panel_esd_status = oplus_mdss_dsi_samsung_amb670yf01_dsc_panel_check_esd_status(display);
 	} else if (!strcmp(panel->oplus_priv.vendor_name, "NT37701")) {
 		panel_esd_status = oplus_mdss_dsi_boe_nt37701_dsc_panel_check_esd_status(display);
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01")) {
+		panel_esd_status = oplus_mdss_dsi_samsung_ams643ye01_dsc_panel_check_esd_status(display);
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "S6E3XA1")) {
+		panel_esd_status = oplus_mdss_dsi_samsung_s6e3xa1_dsc_panel_check_esd_status(display);
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+		panel_esd_status = oplus_mdss_dsi_eva_panel_check_esd_status(display);
 	}
 
 	count = mode->priv_info->cmd_sets[DSI_CMD_READ_SAMSUNG_PANEL_REGISTER_OFF].count;

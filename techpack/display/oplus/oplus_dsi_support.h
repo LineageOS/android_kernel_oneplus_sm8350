@@ -3,12 +3,6 @@
 ** File : oplus_dsi_support.h
 ** Description : display driver private management
 ** Version : 1.0
-** Date : 2018/03/17
-** Author : Jie.Hu@PSW.MM.Display.Stability
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   Hu.Jie          2018/03/17        1.0           Build this moudle
 ******************************************************************/
 #ifndef _OPLUS_DSI_SUPPORT_H_
 #define _OPLUS_DSI_SUPPORT_H_
@@ -64,6 +58,8 @@ enum oplus_display_cabc_status {
 	OPLUS_DISPLAY_CABC_UI,
 	OPLUS_DISPLAY_CABC_IMAGE,
 	OPLUS_DISPLAY_CABC_VIDEO,
+	OPLUS_DISPLAY_CABC_UNLOCK = 8,
+	OPLUS_DISPLAY_CABC_LOCK = 9,
 	OPLUS_DISPLAY_CABC_UNKNOW,
 };
 

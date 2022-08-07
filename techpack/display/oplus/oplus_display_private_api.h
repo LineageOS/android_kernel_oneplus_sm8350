@@ -3,12 +3,6 @@
 ** File : oplus_display_private_api.h
 ** Description : oplus display private api implement
 ** Version : 1.0
-** Date : 2018/03/20
-** Author : Jie.Hu@PSW.MM.Display.Stability
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   Hu.Jie          2018/03/20        1.0           Build this moudle
 ******************************************************************/
 #ifndef _OPLUS_DISPLAY_PRIVATE_API_H_
 #define _OPLUS_DISPLAY_PRIVATE_API_H_
@@ -16,7 +10,6 @@
 #include <linux/err.h>
 #include <linux/list.h>
 #include <linux/of.h>
-#include <linux/err.h>
 #include "msm_drv.h"
 #include "sde_connector.h"
 #include "sde_crtc.h"
@@ -39,6 +32,11 @@
 #include <drm/drm_mipi_dsi.h>
 #include "oplus_dsi_support.h"
 
+enum oplus_debug_log {
+	OPLUS_DEBUG_LOG_DISABLED = 0,
+	OPLUS_DEBUG_LOG_CMD = BIT(0),
+	OPLUS_DEBUG_LOG_BACKLIGHT = BIT(1),
+};
 
 int oplus_panel_update_backlight_unlock(struct dsi_panel *panel);
 
@@ -62,6 +60,10 @@ int interpolate(int x, int xa, int xb, int ya, int yb);
 
 int dsi_display_oplus_set_power(struct drm_connector *connector, int power_mode,
 				void *disp);
+int dsi_display_round_corner_mode(struct dsi_display *display, int mode);
 
 void lcdinfo_notify(unsigned long val, void *v);
+
+bool is_support_panel_dither(struct dsi_panel *panel);
+
 #endif /* _OPLUS_DISPLAY_PRIVATE_API_H_ */

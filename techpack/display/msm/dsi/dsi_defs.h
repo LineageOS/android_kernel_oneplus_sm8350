@@ -311,6 +311,7 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SEED_MODE2,
 	DSI_CMD_SEED_MODE3,
 	DSI_CMD_SEED_MODE4,
+	DSI_CMD_SEED_MODE8,
 	DSI_CMD_SEED_OFF,
 	DSI_CMD_NORMAL_HBM_ON,
 	DSI_CMD_AOD_HIGH_LIGHT_MODE,
@@ -367,6 +368,8 @@ enum dsi_cmd_set_type {
 	DSI_CMD_SEED_DC_MODE0,
 	DSI_CMD_SEED_DC_MODE1,
 	DSI_CMD_SEED_DC_MODE2,
+	DSI_CMD_ROUND_CORNER_ON,
+	DSI_CMD_ROUND_CORNER_OFF,
 	DSI_CMD_CABC_OFF,
 	DSI_CMD_CABC_UI,
 	DSI_CMD_CABC_IMAGE,
@@ -736,6 +739,14 @@ struct dsi_display_mode_priv_info {
 	u32 fakeframe_config;
 	u32 deferred_fakeframe_time;
 #endif
+#ifdef OPLUS_BUG_STABILITY
+	/* Add for apollo */
+	/* width & period of vsync may not conform to refresh rate
+	 * add variable to store width & period of vsync
+	 */
+	u32 vsync_width;
+	u32 vsync_period;
+#endif /* OPLUS_BUG_STABILITY */
 };
 
 /**

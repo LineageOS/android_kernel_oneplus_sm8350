@@ -3,12 +3,6 @@
 ** File : oplus_display_panel_power.h
 ** Description : oplus display panel power control
 ** Version : 1.0
-** Date : 2020/06/13
-** Author : Li.Sheng@MULTIMEDIA.DISPLAY.LCD
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**  Li.Sheng       2020/06/13        1.0           Build this moudle
 ******************************************************************/
 #ifndef _OPLUS_DISPLAY_PANEL_POWER_H_
 #define _OPLUS_DISPLAY_PANEL_POWER_H_

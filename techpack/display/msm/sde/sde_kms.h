@@ -40,6 +40,9 @@
 #include "sde_power_handle.h"
 #include "sde_irq.h"
 #include "sde_core_perf.h"
+#ifdef OPLUS_BUG_STABILITY
+#include <soc/oplus/system/oplus_project.h>
+#endif /* OPLUS_BUG_STABILITY */
 
 #define DRMID(x) ((x) ? (x)->base.id : -1)
 

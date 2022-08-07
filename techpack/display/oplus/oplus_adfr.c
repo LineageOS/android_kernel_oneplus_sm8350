@@ -3,11 +3,6 @@
 ** File : oplus_adfr.h
 ** Description : ADFR kernel module
 ** Version : 1.0
-** Date : 2020/10/23
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**  CaiHuiyue      2020/10/23        1.0           Build this moudle
 ******************************************************************/
 #include "sde_trace.h"
 #include "msm_drv.h"
@@ -120,7 +115,7 @@ void oplus_adfr_init(struct dsi_panel *panel)
 		oplus_adfr_config = 0;
 	}
 
-		if (oplus_adfr_is_support()) {
+	if (oplus_adfr_is_support()) {
 		/* if adfr-compatibility-mode is define, should not do the vsync switch, just set to TE vsync always */
 		oplus_adfr_compatibility_mode = utils->read_bool(utils->data, "oplus,adfr-compatibility-mode");
 	}
@@ -130,16 +125,16 @@ void oplus_adfr_init(struct dsi_panel *panel)
 	pr_info("kVRR adfr config = %#X, adfr compatibility mode = %d\n", oplus_adfr_config, oplus_adfr_compatibility_mode);
 }
 
-ssize_t oplus_adfr_get_debug(struct device *dev,
-	struct device_attribute *attr, char *buf)
+ssize_t oplus_adfr_get_debug(struct kobject *obj,
+	struct kobj_attribute *attr, char *buf)
 {
 	pr_err("kVRR get adfr config %#X debug %#X \n", oplus_adfr_config, oplus_adfr_debug);
-	return scnprintf(buf, PAGE_SIZE, "debug:0x%08X config:0x%08X auto_mode:0x%08X fakeframe:0x%08X auto_minfps:0x%08X auto_counter:%llu\n",
+	return sprintf(buf, "debug:0x%08X config:0x%08X auto_mode:0x%08X fakeframe:0x%08X auto_minfps:0x%08X auto_counter:%llu\n",
 		oplus_adfr_debug, oplus_adfr_config, oplus_adfr_auto_mode, oplus_adfr_auto_fakeframe, oplus_adfr_auto_min_fps, oplus_adfr_auto_update_counter);
 }
 
-ssize_t oplus_adfr_set_debug(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
+ssize_t oplus_adfr_set_debug(struct kobject *obj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	sscanf(buf, "%u", &oplus_adfr_debug);
 	pr_err("kVRR get adfr config %#X debug %#X \n", oplus_adfr_config, oplus_adfr_debug);
@@ -478,7 +473,7 @@ int oplus_adfr_adjust_tearcheck_for_dynamic_qsync(void *sde_phys_enc)
 
 	if (sde_connector_get_qsync_mode(phys_enc->connector) == 0 ||
 		sde_connector_get_qsync_dynamic_min_fps(phys_enc->connector) == 0) {
-				phys_enc->current_sync_threshold_start = phys_enc->qsync_sync_threshold_start;
+		phys_enc->current_sync_threshold_start = phys_enc->qsync_sync_threshold_start;
 		return ret;
 	}
 
@@ -831,14 +826,14 @@ int dsi_panel_parse_adfr(void *dsi_mode, void *dsi_utils)
 	struct dsi_parser_utils *utils = dsi_utils;
 	struct dsi_display_mode_priv_info *priv_info = mode->priv_info;
 
-		if (dsi_panel_parse_qsync_min_fps(priv_info, utils)) {
+	if (dsi_panel_parse_qsync_min_fps(priv_info, utils)) {
 		DSI_DEBUG("kVRR adfr failed to parse qsyn min fps\n");
 	}
-		if (dsi_panel_parse_fakeframe(priv_info, utils)) {
+	if (dsi_panel_parse_fakeframe(priv_info, utils)) {
 		DSI_DEBUG("kVRR adfr failed to parse fakeframe\n");
 	}
 
-		if (oplus_dsi_panel_parse_panel_vsync_source(mode, utils)) {
+	if (oplus_dsi_panel_parse_panel_vsync_source(mode, utils)) {
 		DSI_DEBUG("kVRR adfr failed to parse vsync source\n");
 	}
 
@@ -943,7 +938,7 @@ static int oplus_dsi_display_vsync_switch_check_te(struct dsi_display *display, 
 		return 0;
 	}
 
-		if (display->panel->force_te_vsync == true) {
+	if (display->panel->force_te_vsync == true) {
 		DSI_INFO("kVRR force te vsync, filter other vsync switch\n");
 		return 0;
 	}
@@ -1031,8 +1026,8 @@ static int oplus_dsi_display_get_vsync_switch_gpio(struct dsi_display *display)
 
 
 /*GPIO SWITCH: 0-TP Vsync    1-TE Vsync*/
-ssize_t oplus_set_vsync_switch(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count)
+ssize_t oplus_set_vsync_switch(struct kobject *obj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	struct dsi_display *display = get_main_display();
 	int ret = 0;
@@ -1049,8 +1044,8 @@ ssize_t oplus_set_vsync_switch(struct device *dev,
 	return count;
 }
 
-ssize_t oplus_get_vsync_switch(struct device *dev,
-		struct device_attribute *attr, char *buf)
+ssize_t oplus_get_vsync_switch(struct kobject *obj,
+	struct kobj_attribute *attr, char *buf)
 {
 	struct dsi_display *display = get_main_display();
 	int vsync_switch_gpio = OPLUS_VSYNC_SWITCH_TE;
@@ -1089,7 +1084,7 @@ void oplus_dsi_display_vsync_switch(void *disp, bool force_te_vsync)
 	} else {
 		/* disable fake frame before vsync switch */
 		oplus_adfr_auto_fakeframe = OPLUS_ADFR_FAKEFRAME_OFF;
-		DSI_INFO("kVRR fakeframe %d\n", oplus_adfr_auto_fakeframe);
+		DSI_DEBUG("kVRR fakeframe %d\n", oplus_adfr_auto_fakeframe);
 		SDE_ATRACE_INT("oplus_adfr_auto_fakeframe", oplus_adfr_auto_fakeframe);
 		mutex_lock(&display->panel->panel_lock);
 		rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_ADFR_PRE_SWITCH);
@@ -1319,13 +1314,13 @@ u32 oplus_get_vsync_source(void *drm_mode) {
 
 	vsync_source_str = strstr(mode->name, "0cmd");
 	if (vsync_source_str) {
-		DSI_INFO("kVRR oplus_get_vsync_source 0, %s.\n", vsync_source_str);
+		DSI_DEBUG("kVRR oplus_get_vsync_source 0, %s.\n", vsync_source_str);
 		return 0;
 	}
 
 	vsync_source_str = strstr(mode->name, "1cmd");
 	if (vsync_source_str) {
-		DSI_INFO("kVRR oplus_get_vsync_source 1, %s.\n", vsync_source_str);
+		DSI_DEBUG("kVRR oplus_get_vsync_source 1, %s.\n", vsync_source_str);
 		return 1;
 	}
 
@@ -1396,15 +1391,15 @@ bool oplus_adfr_need_deferred_vsync_source_switch(void *encoder, void *to_mode)
 
 	to_vsync_source = oplus_get_vsync_source(adj_mode);
 
-	SDE_INFO("kVRR mode switched from hdisplay %d ", sde_enc->cur_mode_hdisplay);
-	SDE_INFO("kVRR mode switched  to  " DRM_MODE_FMT, DRM_MODE_ARG(adj_mode));
+	DSI_DEBUG("kVRR mode switched from hdisplay %d ", sde_enc->cur_mode_hdisplay);
+	DSI_DEBUG("kVRR mode switched  to  " DRM_MODE_FMT, DRM_MODE_ARG(adj_mode));
 
 	if((sde_enc->cur_mode_hdisplay != adj_mode->hdisplay) && (to_vsync_source == OPLUS_TE_SOURCE_TP)) {
 		need_deferred_vsync_source_switch = true;
 	}
 
 	sde_enc->cur_mode_hdisplay = adj_mode->hdisplay;
-	SDE_INFO("kVRR need_deferred_vsync_source_switch %d", need_deferred_vsync_source_switch);
+	DSI_DEBUG("kVRR need_deferred_vsync_source_switch %d", need_deferred_vsync_source_switch);
 
 	return need_deferred_vsync_source_switch;
 }
@@ -1423,7 +1418,7 @@ int dsi_panel_aod_need_vsync_source_switch(void *dsi_panel)
 	}
 
 	h_skew = panel->cur_mode->timing.h_skew;
-	DSI_INFO("kVRR %s h_skew = %d", __func__, h_skew);
+	DSI_DEBUG("kVRR %s h_skew = %d", __func__, h_skew);
 
 	if ((h_skew == OPLUS_ADFR) || (h_skew == OPLUS_MFR)) {
 		return 0;
@@ -1496,17 +1491,17 @@ bool oplus_adfr_has_auto_mode(u32 value)
 int oplus_adfr_handle_auto_mode(u32 propval)
 {
 	int handled = 0;
-	DSI_INFO("kVRR update auto mode %u 0x%08X \n", propval, propval);
+	DSI_DEBUG("kVRR update auto mode %u 0x%08X \n", propval, propval);
 
 	SDE_ATRACE_BEGIN("oplus_adfr_handle_auto_mode");
 
 	if (!(propval & OPLUS_ADFR_AUTO_MAGIC)) {
-		DSI_INFO("kVRR update auto mode skip, without auto magic %08X \n", propval);
+		DSI_DEBUG("kVRR update auto mode skip, without auto magic %08X \n", propval);
 		SDE_ATRACE_END("oplus_adfr_handle_auto_mode");
 		return handled;
 	} else if (oplus_adfr_auto_on_cmd_filter_get() && (propval & OPLUS_ADFR_AUTO_MODE_MAGIC) &&
-				(OPLUS_ADFR_AUTO_MODE_VALUE(propval) == OPLUS_ADFR_AUTO_ON)) {
-		DSI_INFO("kVRR auto off and auto on cmd are sent on the same frame, filter it\n");
+		(OPLUS_ADFR_AUTO_MODE_VALUE(propval) == OPLUS_ADFR_AUTO_ON)) {
+		DSI_DEBUG("kVRR auto off and auto on cmd are sent on the same frame, filter it\n");
 		SDE_ATRACE_END("oplus_adfr_handle_auto_mode");
 		handled = 1;
 		return handled;
@@ -1514,7 +1509,7 @@ int oplus_adfr_handle_auto_mode(u32 propval)
 
 	handled = 1;
 	oplus_adfr_auto_update_counter += 1;
-	DSI_INFO("kVRR auto update counter %llu\n", oplus_adfr_auto_update_counter);
+	DSI_DEBUG("kVRR auto update counter %llu\n", oplus_adfr_auto_update_counter);
 
 	if (propval & OPLUS_ADFR_AUTO_MODE_MAGIC) {
 		if (OPLUS_ADFR_AUTO_MODE_VALUE(propval) != oplus_adfr_auto_mode) {
@@ -1553,7 +1548,7 @@ int oplus_adfr_handle_auto_mode(u32 propval)
 	SDE_ATRACE_END("oplus_adfr_handle_auto_mode");
 
 	// latest setting, but if power on/off or timing switch, the mode and min fps are not right
-	DSI_INFO("kVRR auto mode %d[%d], fakeframe %d[%d], min fps %d[%d]\n",
+	DSI_DEBUG("kVRR auto mode %d[%d], fakeframe %d[%d], min fps %d[%d]\n",
 		oplus_adfr_auto_mode, oplus_adfr_auto_mode_updated,
 		oplus_adfr_auto_fakeframe, oplus_adfr_auto_fakeframe_updated,
 		oplus_adfr_auto_min_fps, oplus_adfr_auto_min_fps_updated);
@@ -1568,7 +1563,7 @@ static int dsi_panel_send_auto_on_dcs(struct dsi_panel *panel,
 
 	/* SDC's auto, fakeframe and minfps are available only after power on */
 	if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) {
-		DSI_INFO("kVRR ignore %s when power is %d", __FUNCTION__, get_oplus_display_power_status());
+		DSI_DEBUG("kVRR ignore %s when power is %d", __FUNCTION__, get_oplus_display_power_status());
 		return 0;
 	}
 
@@ -1579,7 +1574,7 @@ static int dsi_panel_send_auto_on_dcs(struct dsi_panel *panel,
 
 	mutex_lock(&panel->panel_lock);
 
-	DSI_INFO("kVRR ctrl:%d auto on\n", ctrl_idx);
+	SDE_DEBUG("kVRR ctrl:%d auto on\n", ctrl_idx);
 	SDE_ATRACE_INT("oplus_adfr_auto_mode_cmd", OPLUS_ADFR_AUTO_ON);
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_QSYNC_ON);
 	if (rc)
@@ -1597,7 +1592,7 @@ static int dsi_panel_send_auto_off_dcs(struct dsi_panel *panel,
 
 	/* SDC's auto, fakeframe and minfps are available only after power on */
 	if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) {
-		DSI_INFO("kVRR ignore %s when power is %d", __FUNCTION__, get_oplus_display_power_status());
+		DSI_DEBUG("kVRR ignore %s when power is %d", __FUNCTION__, get_oplus_display_power_status());
 		return 0;
 	}
 
@@ -1608,7 +1603,7 @@ static int dsi_panel_send_auto_off_dcs(struct dsi_panel *panel,
 
 	mutex_lock(&panel->panel_lock);
 
-	DSI_INFO("kVRR ctrl:%d auto off\n", ctrl_idx);
+	DSI_DEBUG("kVRR ctrl:%d auto off\n", ctrl_idx);
 	SDE_ATRACE_INT("oplus_adfr_auto_mode_cmd", OPLUS_ADFR_AUTO_OFF);
 	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_QSYNC_OFF);
 	if (rc) {
@@ -1704,7 +1699,7 @@ static int dsi_panel_send_auto_minfps_dcs(struct dsi_panel *panel,
 
 	/* SDC's auto, fakeframe and minfps are available only after power on */
 	if (get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) {
-		DSI_INFO("kVRR ignore %s %u when power is %d", __FUNCTION__, extend_frame, get_oplus_display_power_status());
+		DSI_DEBUG("kVRR ignore %s %u when power is %d", __FUNCTION__, extend_frame, get_oplus_display_power_status());
 		return 0;
 	}
 
@@ -1772,7 +1767,7 @@ static int dsi_panel_send_auto_minfps_dcs(struct dsi_panel *panel,
 			tx_buf[size_1-1] = extend_frame;
 		}
 
-		DSI_INFO("kVRR send manual min fps %u .\n", extend_frame);
+		DSI_DEBUG("kVRR send manual min fps %u .\n", extend_frame);
 		for (k = 0; k < tx_len; k++) {
 			DSI_DEBUG("kVRR manual min fps %02x", tx_buf[k]);
 		}
@@ -1818,7 +1813,7 @@ static int dsi_panel_send_auto_minfps_dcs(struct dsi_panel *panel,
 
 		tx_buf[size_0-1] = extend_frame;
 
-		DSI_INFO("kVRR send auto min fps %u .\n", extend_frame);
+		DSI_DEBUG("kVRR send auto min fps %u .\n", extend_frame);
 		for (k = 0; k < tx_len; k++) {
 			DSI_DEBUG("kVRR auto min fps %02x", tx_buf[k]);
 		}

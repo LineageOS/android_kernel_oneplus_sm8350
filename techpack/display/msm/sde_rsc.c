@@ -368,8 +368,9 @@ static u32 sde_rsc_timer_calculate(struct sde_rsc_priv *rsc,
 	rsc_time_slot_0_ns = div_u64(rsc_time_slot_0_ns, cxo_period_ns);
 	rsc->timer_config.rsc_time_slot_0_ns = (u32) rsc_time_slot_0_ns;
 
-	/* time_slot_1 for mode1 latency - 1 fps */
-	rsc_time_slot_1_ns = div_u64(TICKS_IN_NANO_SECOND, cxo_period_ns);
+	/* time_slot_1 for mode1 latency */
+	rsc_time_slot_1_ns = frame_time_ns;
+	rsc_time_slot_1_ns = div_u64(rsc_time_slot_1_ns, cxo_period_ns);
 	rsc->timer_config.rsc_time_slot_1_ns = (u32) rsc_time_slot_1_ns;
 
 	/* mode 2 is infinite */
@@ -1139,7 +1140,7 @@ end:
 }
 EXPORT_SYMBOL(sde_rsc_client_trigger_vote);
 
-#if defined(CONFIG_DEBUG_FS)
+//#if defined(CONFIG_DEBUG_FS)
 void sde_rsc_debug_dump(u32 mux_sel)
 {
 	struct sde_rsc_priv *rsc;
@@ -1153,6 +1154,7 @@ void sde_rsc_debug_dump(u32 mux_sel)
 		rsc->hw_ops.debug_dump(rsc, mux_sel);
 }
 
+#if defined(CONFIG_DEBUG_FS)
 static int _sde_debugfs_status_show(struct seq_file *s, void *data)
 {
 	struct sde_rsc_priv *rsc;
