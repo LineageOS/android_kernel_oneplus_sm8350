@@ -588,7 +588,8 @@ static int _sde_encoder_phys_cmd_handle_ppdone_timeout(
 				phys_enc->hw_ctl->idx - CTL_0,
 				pending_kickoff_cnt);
 #ifdef OPLUS_BUG_STABILITY
-				mm_fb_display_kevent("ppdone timeout failed", MM_FB_KEY_RATELIMIT_NONE, "pp:%d kickoff timeout", phys_enc->hw_pp->idx - PINGPONG_0);
+		mm_fb_display_kevent("DisplayDriverID@@403$$", MM_FB_KEY_RATELIMIT_NONE,
+				"ppdone timeout failed pp:%d kickoff timeout", phys_enc->hw_pp->idx - PINGPONG_0);
 #endif /* OPLUS_BUG_STABILITY */
 
 		SDE_EVT32(DRMID(phys_enc->parent), SDE_EVTLOG_FATAL);
@@ -1041,24 +1042,6 @@ static int _get_tearcheck_threshold(struct sde_encoder_phys *phys_enc)
 		default_line_time_ns = default_time_ns / yres;
 
 		threshold_lines = extra_time_ns / default_line_time_ns;
-
-#ifdef OPLUS_BUG_STABILITY
-		if (oplus_adfr_is_support()) {
-			if (qsync_min_fps == 51) {
-				if (yres > 3216) {
-					threshold_lines = threshold_lines - 39 - 47 - 58;
-				} else {
-					threshold_lines = threshold_lines - 29 - 35 - 43;
-				}
-			} else {
-				if (yres > 3216) {
-					threshold_lines = threshold_lines - 47 - 58;
-				} else {
-					threshold_lines = threshold_lines - 35 - 43;
-				}
-			}
-		}
-#endif
 
 		/* round down to nearest multiple of 4 to compensate for rounding in DDIC */
 		threshold_lines &= ~(4 - 1);
@@ -1761,7 +1744,8 @@ static int _sde_encoder_phys_cmd_handle_wr_ptr_timeout(
 			"wr_ptr_irq wait failed, switch_te:%d\n", switch_te);
 		SDE_EVT32(DRMID(phys_enc->parent), switch_te, SDE_EVTLOG_ERROR);
 #ifdef OPLUS_BUG_STABILITY
-		mm_fb_display_kevent("wr_ptr_irq timeout failed", MM_FB_KEY_RATELIMIT_30MIN, "switch_te:%d", switch_te);
+		mm_fb_display_kevent("DisplayDriverID@@418$$", MM_FB_KEY_RATELIMIT_30MIN,
+				"wr_ptr_irq timeout failed switch_te:%d", switch_te);
 #endif
 
 		if (sde_encoder_phys_cmd_is_master(phys_enc) &&

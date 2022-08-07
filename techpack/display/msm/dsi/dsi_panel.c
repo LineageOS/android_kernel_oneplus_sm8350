@@ -19,7 +19,7 @@
 #include "sde_vdc_helper.h"
 
 #ifdef OPLUS_BUG_STABILITY
-#include <soc/oplus/boot_mode.h>
+#include <soc/oppo/boot_mode.h>
 #include "oplus_display_private_api.h"
 #include "oplus_dc_diming.h"
 #include "oplus_onscreenfingerprint.h"
@@ -35,7 +35,13 @@
 #ifdef OPLUS_BUG_STABILITY
 #include "oplus_adfr.h"
 #include "sde_trace.h"
+
+int nolp_state = 0;
 #endif
+
+//#ifdef OPLUS_FEATURE_TP_BASIC
+#include <linux/msm_drm_notify.h>
+//#endif /*OPLUS_FEATURE_TP_BASIC*/
 
 /**
  * topology is currently defined by a set of following 3 values:
@@ -55,6 +61,31 @@
 #define DEFAULT_PANEL_PREFILL_LINES	25
 #define HIGH_REFRESH_RATE_THRESHOLD_TIME_US	500
 #define MIN_PREFILL_LINES      40
+
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+extern int msm_drm_notifier_call_chain(unsigned long val, void *v);
+extern int (*tp_gesture_enable_notifier)(unsigned int tp_index);
+extern int shutdown_flag;
+bool is_pd_with_guesture = false;
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+#endif
+
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+static atomic_t esd_check_happened = ATOMIC_INIT(0);
+
+int get_esd_check_happened(void)
+{
+	return atomic_read(&esd_check_happened);
+}
+
+void set_esd_check_happened(int val)
+{
+	atomic_set(&esd_check_happened, val);
+	DSI_ERR("%s, esd_check_happened = %d\n", __func__, get_esd_check_happened());
+}
+EXPORT_SYMBOL_GPL(set_esd_check_happened);
+#endif
 
 static void dsi_dce_prepare_pps_header(char *buf, u32 pps_delay_ms)
 {
@@ -434,8 +465,20 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
 
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	int mode = 0;
+	int blank;
+	struct msm_drm_notifier notifier_data;
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+#endif
+
 #ifdef OPLUS_BUG_STABILITY
     pr_err("debug for dsi_panel_power_on\n");
+
+    if (panel->oplus_priv.cabc_enabled) {
+        panel->oplus_priv.cabc_status = OPLUS_DISPLAY_CABC_UI;
+    }
 #endif
 
 #ifdef OPLUS_BUG_STABILITY
@@ -450,6 +493,12 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 	}
 #endif
 
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+	if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc")) {
+		if (!is_pd_with_guesture || get_esd_check_happened())
+			rc = dsi_pwr_enable_regulator(&panel->power_info, true);
+	} else
+#endif /* IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS) */
 	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
 	if (rc) {
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
@@ -478,13 +527,42 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 			DSI_ERR("unable to set dir for panel_vddr_aod_en_gpio rc=%d", rc);
 		gpio_set_value(panel->reset_config.panel_vddr_aod_en_gpio, 1);
 	}
+	if (gpio_is_valid(panel->reset_config.panel_ddic_en_gpio)) {
+		rc = gpio_direction_output(panel->reset_config.panel_ddic_en_gpio, 1);
+		if (rc)
+			DSI_ERR("unable to set dir for panel_vddr_aod_en_gpio rc=%d", rc);
+		gpio_set_value(panel->reset_config.panel_ddic_en_gpio, 1);
+	}
+	if (!strcmp(panel->name, "20085 boe nt37701 amoled fhd+ panel"))
+		usleep_range(12 * 1000, (12 * 1000) + 100);
 #endif
-
+#ifdef OPLUS_BUG_STABILITY
+	if (!strcmp(panel->name,"samsung ams662zs01 fhd cmd mode dsc dsi panel"))
+		mdelay(2);
+#endif
 	rc = dsi_panel_reset(panel);
 	if (rc) {
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
 		goto error_disable_gpio;
 	}
+
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	if(get_esd_check_happened())
+		set_esd_check_happened(0);
+
+	if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc")) {
+		mode = get_boot_mode();
+		pr_err("[TP] in dsi_panel_power_on, mode=%d\n", mode);
+		if ((mode != MSM_BOOT_MODE__FACTORY) && (mode != MSM_BOOT_MODE__RF) && (mode != MSM_BOOT_MODE__WLAN)) {
+			blank = 0x10;
+			notifier_data.data = &blank;
+			notifier_data.id = 0;
+			msm_drm_notifier_call_chain(MSM_DRM_EVENT_FOR_TOUCH, &notifier_data);
+		}
+	}
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+#endif
 
 	goto exit;
 
@@ -513,8 +591,62 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		return rc;
 	}
 
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	int mode = 0;
+	int tp_irq = 0;
+	int esd_check = 0;
+/*#endif OPLUS_FEATURE_TP_BASIC*/
+#endif
+
 #ifdef OPLUS_BUG_STABILITY
 	pr_err("debug for dsi_panel_power_off\n");
+	nolp_state = 0;
+
+	if (panel->oplus_priv.pre_bl_delay_enabled) {
+		panel->oplus_priv.first_bl_on = true;
+	}
+
+	if (panel->oplus_priv.cabc_enabled) {
+		panel->oplus_priv.cabc_status = OPLUS_DISPLAY_CABC_OFF;
+	}
+#endif
+
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+/*#ifdef OPLUS_FEATURE_TP_BASIC*/
+	esd_check = get_esd_check_happened();
+
+	if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc")) {
+		mode = get_boot_mode();
+		pr_err("[TP] in dsi_panel_power_off, mode=%d\n", mode);
+		if ((mode != MSM_BOOT_MODE__FACTORY) && (mode != MSM_BOOT_MODE__RF) && (mode != MSM_BOOT_MODE__WLAN)) {
+			if (tp_gesture_enable_notifier && tp_gesture_enable_notifier(0)) {
+				is_pd_with_guesture = true;
+				pr_err("[TP] shutdown_flag status is %d\n", shutdown_flag);
+				pr_err("[ESD] ESD check status is %d\n", esd_check);
+				if (shutdown_flag == 0 && esd_check == 0){
+					pr_err("[TP] TP gesture is enable, Display not to power off\n");
+					return rc;
+				} else if (shutdown_flag == 1) {
+					if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc")) {
+						tp_irq = gpio_to_irq(417);
+						pr_err("[TP] TP gesture is enable, but will shutdown. Need to disable tp-irq and goto power off, tp_irq:%d\n", tp_irq);
+						gpio_set_value(441, 0);
+						pr_err("[TP] TP reset-441 need low, now is %d\n", gpio_get_value(441));
+						disable_irq_nosync(tp_irq);
+					}
+				}
+			} else {
+				is_pd_with_guesture = false;
+				pr_err("[TP] TP gesture is disable, Display goto power off, And TP reset will low\n");
+				if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc") && gpio_is_valid(441)) {
+					gpio_set_value(441, 0);
+					pr_err("[TP] TP reset-441 need low, now is %d\n", gpio_get_value(441));
+				}
+			}
+		}
+	}
+//#endif /*OPLUS_FEATURE_TP_BASIC*/
 #endif
 
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
@@ -536,6 +668,8 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		gpio_set_value(panel->reset_config.panel_vout_gpio, 0);
 	if (gpio_is_valid(panel->reset_config.panel_vddr_aod_en_gpio))
 		gpio_set_value(panel->reset_config.panel_vddr_aod_en_gpio, 0);
+	if (gpio_is_valid(panel->reset_config.panel_ddic_en_gpio))
+		gpio_set_value(panel->reset_config.panel_ddic_en_gpio, 0);
 #endif
 
 	if (gpio_is_valid(panel->panel_test_gpio)) {
@@ -551,10 +685,24 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		       rc);
 	}
 
+	if (!strcmp(panel->name,"samsung ams662zs01 fhd cmd mode dsc dsi panel"))
+		mdelay(2);
+
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+	if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc")) {
+		if (!is_pd_with_guesture || shutdown_flag == 1 || esd_check != 0)
+			rc = dsi_pwr_enable_regulator(&panel->power_info, false);
+	} else
+#endif /* IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS) */
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 				panel->name, rc);
+
+#ifdef OPLUS_BUG_STABILITY
+	//Add for ensure complete power down of hardware
+	usleep_range(30000, 30050);
+#endif
 
 	return rc;
 }
@@ -568,6 +716,7 @@ extern int oplus_dimlayer_bl_enabled;
 extern int oplus_dimlayer_bl_enable_real;
 extern int oplus_dimlayer_bl_alpha;
 extern int oplus_dimlayer_bl_alpha_v2;
+extern int oplus_dsi_log_type;
 #endif
 
 #ifndef OPLUS_BUG_STABILITY
@@ -954,6 +1103,15 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 		}
 		else if (!strcmp(panel->name,"samsung AMS643YE01 dsc cmd mode panel")
 					|| !strcmp(panel->name, "samsung ams662zs01 dvt dsc cmd mode panel")) {
+			if (!strcmp(panel->name, "samsung ams662zs01 dvt dsc cmd mode panel")) {
+				if (get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_DOZE
+					|| get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_DOZE_SUSPEND) {
+					if (!nolp_state) {
+						rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
+						nolp_state = 1;
+					}
+				}
+			}
 			if (bl_lvl > PANEL_MAX_NOMAL_BRIGHTNESS) {
 				if (enable_global_hbm_flags == 0) {
 					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_ENTER_SWITCH);
@@ -964,8 +1122,7 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 				if(enable_global_hbm_flags == 1) {
 					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_EXIT_SWITCH);
 					enable_global_hbm_flags = 0;
-				}
-				else {
+				} else if (!strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
 					payload[1] = 0x20;
 					memset(&msg, 0, sizeof(msg));
 					msg.channel = dsi->channel;
@@ -994,6 +1151,20 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_EXIT_SWITCH);
 				if (rc < 0)
 					pr_err("send DSI_CMD_HBM_ENTER_SWITCH fail\n");
+			}
+		}
+		else if (!strcmp(panel->name, "samsung ams662zs01 fhd cmd mode dsc dsi panel")) {
+			if (bl_lvl > PANEL_MAX_NOMAL_BRIGHTNESS) {
+				if (enable_global_hbm_flags == 0) {
+					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_ENTER_SWITCH);
+					enable_global_hbm_flags = 1;
+				}
+			}
+			else {
+				if(enable_global_hbm_flags == 1) {
+					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_EXIT_SWITCH);
+					enable_global_hbm_flags = 0;
+				}
 			}
 		} else if(!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01")) {
 				oplus_display_panel_backlight_mapping(panel, &bl_lvl);
@@ -1028,6 +1199,21 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 			bl_lvl = 400;
 		}
 	}
+
+	if (!strcmp(panel->name, "21031 samsung AMS643YE05 dsc cmd mode panel")) {
+		if (bl_lvl > panel->bl_config.bl_normal_max_level) {
+			bl_lvl = bl_lvl + panel->bl_config.bl_hbm_min_level - panel->bl_config.bl_normal_max_level - 1;
+			bl_lvl = bl_lvl < panel->bl_config.bl_max_level ? bl_lvl : panel->bl_config.bl_max_level;
+		}
+	}
+
+#ifdef CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY
+	if (!strcmp(panel->oplus_priv.vendor_name, "S6E3XA1")) {
+		lcdinfo_notify(LCM_BRIGHTNESS_TYPE_SEC, &bl_lvl);
+	} else {
+		lcdinfo_notify(LCM_BRIGHTNESS_TYPE, &bl_lvl);
+	}
+#endif /* CONFIG_DRM_LCM_BRIGHTNESS_NOTIFY */
 #endif /* OPLUS_BUG_STABILITY */
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)
 	if (iris_is_chip_supported() && iris_is_pt_mode(panel))
@@ -1108,17 +1294,22 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 	if (panel->host_config.ext_bridge_mode)
 		return 0;
 
-	if ((!strcmp(panel->oplus_priv.vendor_name, "AMB655X")) ||
-		(!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01")) ||
-		(!strcmp(panel->oplus_priv.vendor_name, "S6E3HC3")) ||
-		(!strcmp(panel->oplus_priv.vendor_name, "NT37701")) ||
-		(!strcmp(panel->oplus_priv.vendor_name, "AMS662ZS01")) ||
-		(!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01"))) {
+	if (OPLUS_DEBUG_LOG_BACKLIGHT & oplus_dsi_log_type) {
 		DSI_INFO("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	} else {
 		DSI_DEBUG("backlight type:%d lvl:%d\n", bl->type, bl_lvl);
 	}
 
+#ifdef OPLUS_BUG_STABILITY
+	if (panel->oplus_priv.pre_bl_delay_enabled &&
+				(panel->oplus_priv.pre_bl_delay_ms > 0)) {
+		if (bl_lvl > 0 && panel->oplus_priv.first_bl_on) {
+			usleep_range(panel->oplus_priv.pre_bl_delay_ms * 1000,
+					(panel->oplus_priv.pre_bl_delay_ms * 1000) + 100);
+			panel->oplus_priv.first_bl_on = false;
+		}
+	}
+#endif /*OPLUS_BUG_STABILITY*/
 	switch (bl->type) {
 	case DSI_BACKLIGHT_WLED:
 		rc = backlight_device_set_brightness(bl->raw_bd, bl_lvl);
@@ -2265,6 +2456,7 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-seed-2-command",
 	"qcom,mdss-dsi-seed-3-command",
 	"qcom,mdss-dsi-seed-4-command",
+	"qcom,mdss-dsi-no-seed-native-command",
 	"qcom,mdss-dsi-seed-off-command",
 	"qcom,mdss-dsi-normal-hbm-on-command",
 	"qcom,mdss-dsi-aod-high-mode-command",
@@ -2317,6 +2509,8 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-seed-dc-0-command",
 	"qcom,mdss-dsi-seed-dc-1-command",
 	"qcom,mdss-dsi-seed-dc-2-command",
+	"qcom,mdss-dsi-panel-round-corner-on-command",
+	"qcom,mdss-dsi-panel-round-corner-off-command",
 	"qcom,mdss-dsi-cabc-off-command",
 	"qcom,mdss-dsi-cabc-ui-command",
 	"qcom,mdss-dsi-cabc-still-image-command",
@@ -2365,6 +2559,7 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-seed-2-command-state",
 	"qcom,mdss-dsi-seed-3-command-state",
 	"qcom,mdss-dsi-seed-4-command-state",
+	"qcom,mdss-dsi-no-seed-native-command-state",
 	"qcom,mdss-dsi-seed-off-command-state",
 	"qcom,mdss-dsi-normal-hbm-on-command-state",
 	"qcom,mdss-dsi-aod-high-mode-command-state",
@@ -2417,6 +2612,8 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-seed-dc-0-command-state",
 	"qcom,mdss-dsi-seed-dc-1-command-state",
 	"qcom,mdss-dsi-seed-dc-2-command-state",
+	"qcom,mdss-dsi-panel-round-corner-on-command-state",
+	"qcom,mdss-dsi-panel-round-corner-off-command-state",
 	"qcom,mdss-dsi-cabc-off-command-state",
 	"qcom,mdss-dsi-cabc-ui-command-state",
 	"qcom,mdss-dsi-cabc-still-image-command-state",
@@ -2729,6 +2926,9 @@ static int dsi_panel_parse_misc_features(struct dsi_panel *panel)
 	panel->te_using_watchdog_timer = utils->read_bool(utils->data,
 					"qcom,mdss-dsi-te-using-wd");
 
+	panel->switch_vsync_delay = utils->read_bool(utils->data,
+			"qcom,mdss-dsi-panel-vsync-delay");
+
 	panel->sync_broadcast_en = utils->read_bool(utils->data,
 			"qcom,cmd-sync-wait-broadcast");
 
@@ -2810,6 +3010,38 @@ static int dsi_panel_parse_jitter_config(
 
 	return 0;
 }
+
+#ifdef OPLUS_BUG_STABILITY
+/* Add for apollo */
+/* SHOULD BE CALLED AFTER dsi_panel_parse_timing() */
+static int dsi_panel_parse_vsync_config(
+				struct dsi_display_mode *mode,
+				struct dsi_parser_utils *utils)
+{
+	int rc;
+	struct dsi_display_mode_priv_info *priv_info;
+
+	priv_info = mode->priv_info;
+
+	rc = utils->read_u32(utils->data, "oplus,apollo-panel-vsync-period",
+				  &priv_info->vsync_period);
+	if (rc) {
+		DSI_DEBUG("panel prefill lines are not defined rc=%d\n", rc);
+		priv_info->vsync_period = 1000000 / mode->timing.refresh_rate;
+	}
+
+	rc = utils->read_u32(utils->data, "oplus,apollo-panel-vsync-width",
+				  &priv_info->vsync_width);
+	if (rc) {
+		DSI_DEBUG("panel vsync width not defined rc=%d\n", rc);
+		priv_info->vsync_width = priv_info->vsync_period >> 1;
+	}
+
+	DSI_INFO("vsync width = %d, vsync period = %d\n", priv_info->vsync_width, priv_info->vsync_period);
+
+	return 0;
+}
+#endif /* OPLUS_BUG_STABILITY */
 
 #ifdef OPLUS_BUG_STABILITY
 __attribute__((weak)) int dsi_panel_parse_panel_power_cfg(struct dsi_panel *panel)
@@ -2927,11 +3159,18 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 	if (!gpio_is_valid(panel->reset_config.panel_vout_gpio)) {
 		DSI_ERR("[%s] failed get panel_vout_gpio, rc=%d\n", panel->name, rc);
 	}
+
 	panel->reset_config.panel_vddr_aod_en_gpio = utils->get_named_gpio(utils->data,
 					      "qcom,platform-panel-vddr-aod-en-gpio", 0);
-
 	if (!gpio_is_valid(panel->reset_config.panel_vddr_aod_en_gpio)) {
 		DSI_ERR("[%s] failed get panel_vddr_aod_en_gpio, rc=%d\n", panel->name, rc);
+	}
+
+	panel->reset_config.panel_ddic_en_gpio = utils->get_named_gpio(utils->data,
+					      "qcom,platform-panel-ddic-en-gpio", 0);
+
+	if (!gpio_is_valid(panel->reset_config.panel_ddic_en_gpio)) {
+		DSI_ERR("[%s] failed get panel_ddic_en_gpio, rc=%d\n", panel->name, rc);
 	}
 #endif
 
@@ -3186,6 +3425,15 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 		oplus_dimlayer_bl_alpha_v2 = 260;
 	} else {
 		oplus_dimlayer_bl_alpha_v2 = val;
+	}
+
+	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-bl-hbm-min-level", &val);
+	if (rc) {
+		DSI_DEBUG("[%s] bl-hbm-min-level unspecified, defaulting to normal max level + 1\n",
+			 panel->name);
+		panel->bl_config.bl_hbm_min_level = panel->bl_config.bl_normal_max_level + 1;
+	} else {
+		panel->bl_config.bl_hbm_min_level = val;
 	}
 #endif
 
@@ -4130,7 +4378,6 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 	}
 
 	esd_config->esd_check_flag_enabled = utils->read_bool(utils->data, "oplus,esd-check-flag-enabled");
-
 	switch(get_boot_mode())
 	{
 		case MSM_BOOT_MODE__RF:
@@ -4958,6 +5205,14 @@ int dsi_panel_get_mode(struct dsi_panel *panel,
 			dsi_panel_parse_adfr(mode, utils);
 		}
 #endif
+
+#ifdef OPLUS_BUG_STABILITY
+		rc = dsi_panel_parse_vsync_config(mode, utils);
+		if (rc) {
+			DSI_ERR("failed to parse vsync params, rc=%d\n", rc);
+			goto parse_fail;
+		}
+#endif /* OPLUS_BUG_STABILITY */
 	}
 	goto done;
 
@@ -5236,7 +5491,15 @@ int dsi_panel_set_nolp(struct dsi_panel *panel)
 		(!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && (panel->panel_id2 >= 5))) {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP_PVT);
 	} else {
-		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
+		if (!strcmp(panel->name, "samsung ams662zs01 dvt dsc cmd mode panel")) {
+				if (!nolp_state) {
+					rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
+					nolp_state = 1;
+				}
+		}
+		else {
+			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_NOLP);
+		}
     }
 	if (rc)
 		DSI_ERR("[%s] failed to send DSI_CMD_SET_NOLP cmd, rc=%d\n",
@@ -5682,19 +5945,19 @@ int dsi_panel_enable(struct dsi_panel *panel)
 	else
 		panel->panel_initialized = true;
 
-#ifdef OPLUS_BUG_STABILITY
-		oplus_display_panel_enable();
-	if (oplus_adfr_is_support()) {
-		dsi_panel_adfr_status_reset(panel);
-	}
-#endif /*OPLUS_BUG_STABILITY*/
-
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)
 	if (panel->is_secondary) {
 		mutex_unlock(&panel->panel_lock);
 		return rc;
 	}
 #endif
+
+#ifdef OPLUS_BUG_STABILITY
+	oplus_display_panel_enable();
+	if (oplus_adfr_is_support()) {
+		dsi_panel_adfr_status_reset(panel);
+	}
+#endif /*OPLUS_BUG_STABILITY*/
 
 #ifdef OPLUS_BUG_STABILITY
 	panel->need_power_on_backlight = true;
@@ -5845,6 +6108,24 @@ int dsi_panel_unprepare(struct dsi_panel *panel)
 		       panel->name, rc);
 		goto error;
 	}
+
+#ifdef OPLUS_BUG_STABILITY
+	if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc") \
+		&& (!IS_ERR_OR_NULL(tp_gesture_enable_notifier))) {
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+		if ((1 != tp_gesture_enable_notifier(0)) || (shutdown_flag == 1)) {
+			if (!strcmp(panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc") && gpio_is_valid(441)) {
+				gpio_set_value(441, 0);
+				pr_err("[TP] TP reset-441 need low more early, now is %d\n", gpio_get_value(441));
+			}
+			pr_info("%s [TP]:%d tp gesture is off set reset 0", __func__, __LINE__);
+			if (gpio_is_valid(panel->reset_config.reset_gpio))
+				gpio_set_value(panel->reset_config.reset_gpio, 0);
+			usleep_range(5000, 6000);
+		}
+#endif
+	}
+#endif /*OPLUS_BUG_STABILITY*/
 
 error:
 	mutex_unlock(&panel->panel_lock);

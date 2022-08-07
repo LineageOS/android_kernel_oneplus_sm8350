@@ -756,11 +756,13 @@ int dsi_display_set_power(struct drm_connector *connector,
  * @connector: Pointer to drm connector structure
  * @display: Pointer to private display structure
  * @params: Parameters for kickoff-time programming
+ * @force_update_dsi_clocks: Bool to force clock update
  * Returns: Zero on success
  */
 int dsi_display_pre_kickoff(struct drm_connector *connector,
 		struct dsi_display *display,
-		struct msm_display_kickoff_params *params);
+		struct msm_display_kickoff_params *params,
+		bool force_update_dsi_clocks);
 
 /*
  * dsi_display_pre_commit - program pre commit features
@@ -793,6 +795,8 @@ int dsi_display_cont_splash_config(void *display);
 #ifdef OPLUS_BUG_STABILITY
 struct dsi_display *get_main_display(void);
 struct dsi_display *get_sec_display(void);
+struct dsi_display *get_current_display(void);
+void set_current_display(struct dsi_display *display);
 
 /* Add for implement panel register read */
 int dsi_host_alloc_cmd_tx_buffer(struct dsi_display *display);

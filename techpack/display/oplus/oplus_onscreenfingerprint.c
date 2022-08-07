@@ -3,11 +3,6 @@
 ** File : oplus_onscreenfingerprint.c
 ** Description : oplus onscreenfingerprint feature
 ** Version : 1.0
-** Date : 2020/04/15
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   Qianxu         2020/04/15        1.0           Build this moudle
 ******************************************************************/
 
 #include "sde_crtc.h"
@@ -243,7 +238,8 @@ static int oplus_get_panel_brightness_to_alpha(void)
 	int index = 0;
 	uint32_t brightness_panel = 0;
 
-	if (!display) {
+	if (!display || !display->panel) {
+		DSI_ERR("invalid display/panel\n");
 		return 0;
 	}
 
@@ -268,12 +264,19 @@ static int oplus_get_panel_brightness_to_alpha(void)
 	}
 
 	if (apollo_backlight_enable) {
-		index = oplus_find_index_invmaplist(display->panel->bl_config.bl_level);
-		DSI_DEBUG("[%s] index = %d, panel_level = %d, apollo_level = %d", __func__, index,
-			p_apollo_backlight->panel_bl_list[index], p_apollo_backlight->apollo_bl_list[index]);
-		if (index >= 0) {
-			brightness_panel = p_apollo_backlight->panel_bl_list[index];
-			return brightness_to_alpha(brightness_panel);
+		if (p_apollo_backlight) {
+			index = oplus_find_index_invmaplist(display->panel->bl_config.bl_level);
+			if (index >= 0) {
+				DSI_DEBUG("[%s] index = %d, panel_level = %d, apollo_level = %d",
+					__func__,
+					index,
+					p_apollo_backlight->panel_bl_list[index],
+					p_apollo_backlight->apollo_bl_list[index]);
+				brightness_panel = p_apollo_backlight->panel_bl_list[index];
+				return brightness_to_alpha(brightness_panel);
+			}
+		} else {
+			DSI_ERR("invalid p_apollo_backlight\n");
 		}
 	}
 
@@ -482,6 +485,29 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 			/* Default sync brightness level is set to 200 */
 			panel->oplus_priv.sync_brightness_level = 200;
 		}
+		panel->oplus_priv.dc_apollo_sync_enable = utils->read_bool(utils->data, "oplus,dc_apollo_sync_enable");
+		if (panel->oplus_priv.dc_apollo_sync_enable) {
+			ret = utils->read_u32(utils->data, "oplus,dc-apollo-backlight-sync-level",
+					&panel->oplus_priv.dc_apollo_sync_brightness_level);
+			if (ret) {
+				pr_info("[%s] failed to get panel parameter: oplus,dc-apollo-backlight-sync-level\n", __func__);
+				panel->oplus_priv.dc_apollo_sync_brightness_level = 1100;
+			}
+			ret = utils->read_u32(utils->data, "oplus,dc-apollo-backlight-sync-level-pcc-max",
+					&panel->oplus_priv.dc_apollo_sync_brightness_level_pcc);
+			if (ret) {
+				pr_info("[%s] failed to get panel parameter: oplus,dc-apollo-backlight-sync-level-pcc-max\n", __func__);
+				panel->oplus_priv.dc_apollo_sync_brightness_level_pcc = 30000;
+			}
+			ret = utils->read_u32(utils->data, "oplus,dc-apollo-backlight-sync-level-pcc-min",
+					&panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min);
+			if (ret) {
+				pr_info("[%s] failed to get panel parameter: oplus,dc-apollo-backlight-sync-level-pcc-min\n", __func__);
+				panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min = 29608;
+			}
+			pr_info("dc apollo sync enable(%d,%d,%d)\n", panel->oplus_priv.dc_apollo_sync_brightness_level,
+					panel->oplus_priv.dc_apollo_sync_brightness_level_pcc, panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min);
+		}
 	}
 
 	if (oplus_adfr_is_support()) {
@@ -493,6 +519,18 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 		}
 	}
 
+	panel->oplus_priv.pre_bl_delay_enabled = utils->read_bool(utils->data,
+			"oplus,mdss-dsi-pre-bl-delay-enabled");
+	DSI_INFO("oplus,mdss-dsi-pre-bl-delay-enabled: %s",
+			panel->oplus_priv.pre_bl_delay_enabled ? "true" : "false");
+	if (panel->oplus_priv.pre_bl_delay_enabled) {
+		ret = utils->read_u32(utils->data, "oplus,mdss-dsi-pre-bl-delay-ms",
+				&panel->oplus_priv.pre_bl_delay_ms);
+		if (ret) {
+			pr_err("[%s]failed get panel parameter: oplus,mdss-dsi-pre-bl-delay-ms\n", __func__);
+			panel->oplus_priv.pre_bl_delay_ms = 0;
+		}
+	}
 	panel->oplus_priv.cabc_enabled = utils->read_bool(utils->data,
 			"oplus,mdss-dsi-cabc-enabled");
 	DSI_INFO("oplus,mdss-dsi-cabc-enabled: %s", panel->oplus_priv.cabc_enabled ? "true" : "false");
@@ -776,7 +814,7 @@ int oplus_display_panel_notify_fp_press(void *data)
 
 	if_con = false;/*if_con = onscreenfp_status && (OPLUS_DISPLAY_AOD_SCENE == get_oplus_display_scene());*/
 #ifdef OPLUS_FEATURE_AOD_RAMLESS
-		if_con = if_con && !display->panel->oplus_priv.is_aod_ramless;
+	if_con = if_con && !display->panel->oplus_priv.is_aod_ramless;
 #endif /* OPLUS_FEATURE_AOD_RAMLESS */
 	if (if_con) {
 		/* enable the clk vote for CMD mode panels */
@@ -861,8 +899,10 @@ int oplus_display_panel_notify_fp_press(void *data)
 	}
 #endif /* OPLUS_FEATURE_AOD_RAMLESS */
 
-	err = drm_atomic_commit(state);
-	drm_atomic_state_put(state);
+	if (onscreenfp_status) {
+		err = drm_atomic_commit(state);
+		drm_atomic_state_put(state);
+	}
 
 #ifdef OPLUS_FEATURE_AOD_RAMLESS
 	if (display->panel->oplus_priv.is_aod_ramless && mode_changed) {

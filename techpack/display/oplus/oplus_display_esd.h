@@ -3,12 +3,6 @@
 ** File : oplus_dc_diming.h
 ** Description : oplus esd feature
 ** Version : 1.0
-** Date : 2020/04/15
-** Author : XXXXXXX@MM.Display.LCD Driver
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   XXXXXX         2021/01/14        1.0           Build this moudle
 ******************************************************************/
 #ifndef _OPLUS_ESD_H_
 #define _OPLUS_ESD_H_

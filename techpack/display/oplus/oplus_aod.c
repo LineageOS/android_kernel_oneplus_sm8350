@@ -3,12 +3,6 @@
 ** File : oplus_aod.c
 ** Description : oplus aod feature
 ** Version : 1.0
-** Date : 2020/04/23
-** Author : Qianxu@MM.Display.LCD Driver
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**   Qianxu         2020/04/23        1.0           Build this moudle
 ******************************************************************/
 
 #include "dsi_defs.h"
@@ -53,7 +47,7 @@ EXPORT_SYMBOL(oplus_update_aod_light_mode_unlock);
 
 int oplus_update_aod_light_mode(void)
 {
-	struct dsi_display *display = get_main_display();
+	struct dsi_display *display = get_current_display();
 	int ret = 0;
 
 	if (!display || !display->panel) {

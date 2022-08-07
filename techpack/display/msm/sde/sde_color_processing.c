@@ -286,6 +286,11 @@ static int set_dspp_vlut_feature(struct sde_hw_dspp *hw_dspp,
 	return ret;
 }
 
+#ifdef OPLUS_BUG_STABILITY
+extern int dc_apollo_enable;
+extern int oplus_dimlayer_hbm;
+#endif
+
 static int set_dspp_pcc_feature(struct sde_hw_dspp *hw_dspp,
 				struct sde_hw_cp_cfg *hw_cfg,
 				struct sde_crtc *hw_crtc)
@@ -294,6 +299,7 @@ static int set_dspp_pcc_feature(struct sde_hw_dspp *hw_dspp,
 #ifdef OPLUS_BUG_STABILITY
 	struct sde_crtc_state *cstate;
 	struct drm_msm_pcc *save_pcc;
+	struct dsi_display *display;
 
 	if (!hw_cfg) {
 		return -EINVAL;
@@ -307,10 +313,20 @@ static int set_dspp_pcc_feature(struct sde_hw_dspp *hw_dspp,
 		return -EINVAL;
 	}
 
-	if (OPLUS_DISPLAY_POWER_DOZE_SUSPEND == get_oplus_display_power_status() ||
-			OPLUS_DISPLAY_POWER_DOZE == get_oplus_display_power_status() ||
-			(cstate->aod_skip_pcc == true) ||
-			cstate->fingerprint_mode) {
+	display = get_main_display();
+	if (!display->panel->oplus_priv.dc_apollo_sync_enable || !dc_apollo_enable) {
+		if (OPLUS_DISPLAY_POWER_DOZE_SUSPEND == get_oplus_display_power_status() ||
+				OPLUS_DISPLAY_POWER_DOZE == get_oplus_display_power_status() ||
+				(cstate->aod_skip_pcc == true) ||
+				cstate->fingerprint_mode) {
+			hw_cfg->payload = NULL;
+		}
+	}
+
+	if (display->panel->oplus_priv.dc_apollo_sync_enable && dc_apollo_enable
+		&& ((OPLUS_DISPLAY_POWER_DOZE_SUSPEND == get_oplus_display_power_status()
+				|| OPLUS_DISPLAY_POWER_DOZE == get_oplus_display_power_status())
+			&& !oplus_dimlayer_hbm)) {
 		hw_cfg->payload = NULL;
 	}
 #endif

@@ -23,6 +23,7 @@
 #ifdef OPLUS_BUG_STABILITY
 #include "oplus_display_private_api.h"
 #include "oplus_dc_diming.h"
+#include <linux/sched.h>
 #endif
 
 #ifdef OPLUS_BUG_STABILITY
@@ -128,6 +129,11 @@ static u32 dither_matrix[DITHER_MATRIX_SZ] = {
 extern bool is_spread_backlight(struct dsi_display *display, int level);
 extern void update_pending_backlight(struct dsi_display *display, int level);
 extern int get_boot_mode(void);
+struct dc_apollo_pcc_sync dc_apollo;
+EXPORT_SYMBOL(dc_apollo);
+extern int dc_apollo_enable;
+extern int oplus_backlight_wait_vsync(struct drm_encoder *drm_enc);
+extern int dc_apollo_sync_hbmon(struct dsi_display *display);
 #endif
 
 static int sde_backlight_device_update_status(struct backlight_device *bd)
@@ -254,8 +260,41 @@ static int sde_backlight_device_update_status(struct backlight_device *bd)
 
 		if (display->panel->oplus_priv.is_apollo_support && backlight_smooth_enable) {
 			//#ifdef OPLUS_BUG_STABILITY
-			if ((MSM_BOOT_MODE_FACTORY != get_boot_mode()) && (is_spread_backlight(display, bl_lvl))) {
+			if ((MSM_BOOT_MODE_FACTORY != get_boot_mode()) && (is_spread_backlight(display, bl_lvl)) && !dc_apollo_sync_hbmon(display)) {
 			//#endif
+				if (display->panel->oplus_priv.dc_apollo_sync_enable) {
+					if ((display->panel->bl_config.bl_level >= display->panel->oplus_priv.sync_brightness_level
+						&& display->panel->bl_config.bl_level < display->panel->oplus_priv.dc_apollo_sync_brightness_level)
+						|| display->panel->bl_config.bl_level == 4) {
+						if (bl_lvl == display->panel->oplus_priv.dc_apollo_sync_brightness_level
+							/*&& dc_apollo_enable*/
+							&& dc_apollo.pcc_last >= display->panel->oplus_priv.dc_apollo_sync_brightness_level_pcc) {
+							rc = wait_event_timeout(dc_apollo.bk_wait, dc_apollo.dc_pcc_updated, msecs_to_jiffies(17));
+							if (!rc) {
+								pr_err("dc wait timeout\n");
+							}
+							else {
+								oplus_backlight_wait_vsync(c_conn->encoder);
+							}
+							dc_apollo.dc_pcc_updated = 0;
+						}
+					}
+					else if (display->panel->bl_config.bl_level < display->panel->oplus_priv.sync_brightness_level
+							&& display->panel->bl_config.bl_level > 4) {
+						if (bl_lvl == display->panel->oplus_priv.dc_apollo_sync_brightness_level
+							/*&& dc_apollo_enable*/
+							&& dc_apollo.pcc_last >= display->panel->oplus_priv.dc_apollo_sync_brightness_level_pcc_min) {
+							rc = wait_event_timeout(dc_apollo.bk_wait, dc_apollo.dc_pcc_updated, msecs_to_jiffies(17));
+							if (!rc) {
+								pr_err("dc wait timeout\n");
+							}
+							else {
+								oplus_backlight_wait_vsync(c_conn->encoder);
+							}
+							dc_apollo.dc_pcc_updated = 0;
+						}
+					}
+				}
 				spin_lock(&g_bk_lock);
 				update_pending_backlight(display, bl_lvl);
 				spin_unlock(&g_bk_lock);
@@ -351,6 +390,13 @@ static int sde_backlight_setup(struct sde_connector *c_conn,
 		return -ENODEV;
 	}
 	c_conn->thermal_max_brightness = bl_config->brightness_max_level;
+
+#ifdef OPLUS_BUG_STABILITY
+		if (display->panel->oplus_priv.dc_apollo_sync_enable) {
+			init_waitqueue_head(&dc_apollo.bk_wait);
+			mutex_init(&dc_apollo.lock);
+		}
+#endif
 
 	/**
 	 * In TVM, thermal cooling device is not enabled. Registering with dummy
@@ -1088,7 +1134,13 @@ struct sde_connector_dyn_hdr_metadata *sde_connector_get_dyn_hdr_meta(
 	return &c_state->dyn_hdr_meta;
 }
 
-int sde_connector_pre_kickoff(struct drm_connector *connector)
+int sde_connector_update_complete_commit(struct drm_connector *connector,
+		bool force_update_dsi_clocks)
+{
+	return sde_connector_pre_kickoff(connector, force_update_dsi_clocks);
+}
+
+int sde_connector_pre_kickoff(struct drm_connector *connector, bool force_update_dsi_clocks)
 {
 	struct sde_connector *c_conn;
 	struct sde_connector_state *c_state;
@@ -1125,7 +1177,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI) {
 		display = (struct dsi_display *)c_conn->display;
 		if(display && display->panel && display->panel->oplus_priv.vendor_name) {
-			if ((!strcmp(display->panel->oplus_priv.vendor_name, "AMB655X")) || (!strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01"))) {
+			if ((!strcmp(display->panel->oplus_priv.vendor_name, "AMB655X")) || (!strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01")) || (!strcmp(display->panel->oplus_priv.vendor_name, "AMS662ZS01"))) {
 				rc = sde_connector_update_hbm(connector);
 			}
 		}
@@ -1144,7 +1196,7 @@ int sde_connector_pre_kickoff(struct drm_connector *connector)
 
 	SDE_EVT32_VERBOSE(connector->base.id);
 
-	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params);
+	rc = c_conn->ops.pre_kickoff(connector, c_conn->display, &params, force_update_dsi_clocks);
 
 	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI)
 		display->queue_cmd_waits = false;
@@ -1833,7 +1885,7 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 #ifdef OPLUS_BUG_STABILITY
 	case CONNECTOR_PROP_QSYNC_MIN_FPS:
 		if (oplus_adfr_is_support()) {
-			SDE_INFO("kVRR set qsync minfps dirty with %llu[%08X]\n", val, val);
+			SDE_DEBUG("kVRR set qsync minfps dirty with %llu[%08X]\n", val, val);
 
 			/* minfps maybe disappear after state change, so handle it early */
 			if (oplus_adfr_handle_auto_mode(val)) {
@@ -2749,6 +2801,10 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 	return 0;
 }
 
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+extern void set_esd_check_happened(int val);
+#endif
+
 static void _sde_connector_report_panel_dead(struct sde_connector *conn,
 	bool skip_pre_kickoff)
 {
@@ -2764,6 +2820,10 @@ static void _sde_connector_report_panel_dead(struct sde_connector *conn,
 	 */
 	if (conn->panel_dead)
 		return;
+
+#if IS_ENABLED(CONFIG_TOUCHPANEL_OPLUS)
+        set_esd_check_happened(1);
+#endif
 
 	SDE_EVT32(SDE_EVTLOG_ERROR);
 	sde_encoder_display_failure_notification(conn->encoder,

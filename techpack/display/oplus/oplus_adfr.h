@@ -3,11 +3,6 @@
 ** File : oplus_adfr.h
 ** Description : ADFR kernel module
 ** Version : 1.0
-** Date : 2020/10/23
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**  CaiHuiyue      2020/10/23        1.0         Build this moudle
 ******************************************************************/
 
 #ifndef _OPLUS_ADFR_H_
@@ -72,14 +67,14 @@ struct oplus_te_refcount {
 /* --------------- adfr misc ---------------*/
 void oplus_adfr_init(struct dsi_panel *panel);
 inline bool oplus_adfr_is_support(void);
-ssize_t oplus_adfr_get_debug(struct device *dev,
-	struct device_attribute *attr, char *buf);
-ssize_t oplus_adfr_set_debug(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count);
-ssize_t oplus_set_vsync_switch(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t count);
-ssize_t oplus_get_vsync_switch(struct device *dev,
-		struct device_attribute *attr, char *buf);
+ssize_t oplus_adfr_get_debug(struct kobject *obj,
+    struct kobj_attribute *attr, char *buf);
+ssize_t oplus_adfr_set_debug(struct kobject *obj,
+    struct kobj_attribute *attr, const char *buf, size_t count);
+ssize_t oplus_get_vsync_switch(struct kobject *obj,
+    struct kobj_attribute *attr, char *buf);
+ssize_t oplus_set_vsync_switch(struct kobject *obj,
+    struct kobj_attribute *attr, const char *buf, size_t count);
 
 /* --------------- msm_drv ---------------*/
 int oplus_adfr_thread_create(void *msm_param,
@@ -121,7 +116,8 @@ int dsi_display_qsync_update_min_fps(void *dsi_display, void *dsi_params);
 int dsi_display_qsync_restore(void *dsi_display);
 /*
  * dsi_display_send_fakeframe - send 2C/3C dcs to Panel
-  * Returns: Zero on success
+ * @display: Pointer to private display structure
+ * Returns: Zero on success
  */
 int dsi_display_send_fakeframe(void *disp);
 void dsi_display_adfr_change_te_irq_status(void *display, bool enable);

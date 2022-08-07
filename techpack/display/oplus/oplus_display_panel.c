@@ -3,12 +3,6 @@
 ** File : oplus_display_panel.c
 ** Description : oplus display panel char dev  /dev/oplus_panel
 ** Version : 1.0
-** Date : 2020/06/13
-** Author : Li.Sheng@MULTIMEDIA.DISPLAY.LCD
-**
-** ------------------------------- Revision History: -----------
-**  <author>        <data>        <version >        <desc>
-**  Li.Sheng       2020/06/13        1.0           Build this moudle
 ******************************************************************/
 #include <linux/slab.h>
 #include <linux/uaccess.h>
@@ -80,8 +74,8 @@ static const struct panel_ioctl_desc panel_ioctls[] = {
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_SOFTIRIS_COLOR, oplus_display_get_softiris_color_status),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_OPLUS_MAXBRIGHTNESS, oplus_display_panel_get_oplus_max_brightness),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_FP_PRESS, oplus_display_panel_notify_fp_press),
-	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_DITHER_STATUS, oplus_display_set_dither_status),
-	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_DITHER_STATUS, oplus_display_get_dither_status),
+	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_DITHER_STATUS, oplus_display_panel_set_dither),
+	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_DITHER_STATUS, oplus_display_panel_get_dither),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_TE_REFCOUNT_ENABLE, oplus_enable_te_refcount),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_TE_REFCOUNT_ENABLE, oplus_get_te_fps),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_DP_SUPPORT, oplus_display_get_dp_support),
@@ -89,6 +83,9 @@ static const struct panel_ioctl_desc panel_ioctls[] = {
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_CABC_STATUS, oplus_display_get_cabc_status),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_DRE_STATUS, oplus_display_set_dre_status),
 	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_DRE_STATUS, oplus_display_get_dre_status),
+	PANEL_IOCTL_DEF(PANEL_IOCTL_GET_PANEL_ROUND_CORNER, oplus_display_get_panel_round_corner),
+	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_PANEL_ROUND_CORNER, oplus_display_set_panel_round_corner),
+	PANEL_IOCTL_DEF(PANEL_IOCTL_SET_SHUTDOWN_FLAG, oplus_display_set_shutdown_flag),
 };
 
 int oplus_display_fix_apollo_level(void)
@@ -106,8 +103,8 @@ int oplus_display_fix_apollo_level(void)
 			p_apollo_backlight->apollo_bl_list += sizeof(unsigned int)/sizeof(unsigned short);
 			p_apollo_backlight->panel_bl_list = p_apollo_backlight->apollo_bl_list + APOLLO_BL_4096;
 			p_apollo_backlight->bl_fix = true;
-		} else if(apollo_id[0] == APOLLO_BL_8192) {
-			p_apollo_backlight->bl_id_lens= APOLLO_BL_8192;
+		} else if (apollo_id[0] == APOLLO_BL_8192) {
+			p_apollo_backlight->bl_id_lens = APOLLO_BL_8192;
 			p_apollo_backlight->apollo_bl_list += sizeof(unsigned int)/sizeof(unsigned short);
 			p_apollo_backlight->panel_bl_list = p_apollo_backlight->apollo_bl_list + APOLLO_BL_8192;
 			p_apollo_backlight->bl_fix = true;
@@ -214,7 +211,7 @@ static int oplus_export_dmabuf(int buf_size)
 	int retcode = 0;
 	DEFINE_DMA_BUF_EXPORT_INFO(oplus_exp_info);
 	struct dma_buf *dmabuf = NULL;
-	unsigned long vaddr; //alloc by kzalloc for dma map
+	unsigned long vaddr;/* alloc by kzalloc for dma map */
 	char *bl_addr = NULL;
 	int page_order = 0;
 
@@ -261,7 +258,7 @@ static int oplus_export_dmabuf(int buf_size)
 	p_apollo_backlight->panel_bl_list = (unsigned short *)(vaddr)
 		+ APOLLO_BACKLIGHT_LENS/sizeof(unsigned int);
 	p_apollo_backlight->bl_index_last = -1;
-	p_apollo_backlight->bl_level_last = -125; //number for bl init level
+	p_apollo_backlight->bl_level_last = -125; /* number for bl init level */
 	pr_debug("%s buf_size = %d bytes, p_panel_backlight = %p, vaddr = %p\n",
 		__func__, p_apollo_backlight->buf_size, p_apollo_backlight->panel_bl_list,
 		p_apollo_backlight->vaddr);
@@ -278,7 +275,7 @@ err_backlightbuf:
 
 static int panel_open(struct inode *inode, struct file *filp)
 {
-	if (panel_ref > 2) {
+	if (panel_ref > 3) {
 		pr_err("%s panel has already open\n", __func__);
 		return -1;
 	}
@@ -292,11 +289,21 @@ static int panel_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+extern ssize_t oplus_sde_evtlog_dump_read(struct file *file, char __user *buff,
+		size_t count, loff_t *ppos);
+
 static ssize_t panel_read(struct file *filp, char __user *buffer,
 		size_t count, loff_t *offset)
 {
-	pr_debug("%s\n", __func__);
-	return count;
+	ssize_t lens = 0;
+
+	lens += oplus_sde_evtlog_dump_read(filp, buffer, count, offset);
+	if (lens < 0) {
+		lens = 0;
+	}
+	/*other dump add here, as for lens add*/
+
+	return lens;
 }
 
 static ssize_t panel_write(struct file *file, const char __user *buffer,

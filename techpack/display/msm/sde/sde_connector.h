@@ -190,11 +190,13 @@ struct sde_connector_ops {
 	 * @display: Pointer to private display structure
 	 * @params: Parameter bundle of connector-stored information for
 	 *	kickoff-time programming into the display
+	 * @force_update_dsi_clocks: Bool to force update dsi clocks
 	 * Returns: Zero on success
 	 */
 	int (*pre_kickoff)(struct drm_connector *connector,
 			void *display,
-			struct msm_display_kickoff_params *params);
+			struct msm_display_kickoff_params *params,
+			bool force_update_dsi_clocks);
 
 	/**
 	 * clk_ctrl - perform clk enable/disable on the connector
@@ -573,6 +575,18 @@ struct sde_connector {
 	struct edid *cached_edid;
 };
 
+#ifdef OPLUS_BUG_STABILITY
+struct dc_apollo_pcc_sync {
+	wait_queue_head_t bk_wait;
+	int dc_pcc_updated;
+	__u32 pcc;
+	__u32 pcc_last;
+	__u32 pcc_current;
+	struct mutex lock;
+	int backlight_pending;
+};
+#endif
+
 /**
  * to_sde_connector - convert drm_connector pointer to sde connector pointer
  * @X: Pointer to drm_connector structure
@@ -930,11 +944,21 @@ int sde_connector_register_custom_event(struct sde_kms *kms,
 		struct drm_connector *conn_drm, u32 event, bool en);
 
 /**
- * sde_connector_pre_kickoff - trigger kickoff time feature programming
+ * sde_connector_update_complete_commit - trigger post kickoff time feature programming
  * @connector: Pointer to drm connector object
+ * @force_update_dsi_clocks: Bool to force update dsi clocks
  * Returns: Zero on success
  */
-int sde_connector_pre_kickoff(struct drm_connector *connector);
+int sde_connector_update_complete_commit(struct drm_connector *connector,
+		bool force_update_dsi_clocks);
+/**
+ * sde_connector_pre_kickoff - trigger kickoff time feature programming
+ * @connector: Pointer to drm connector object
+ * @force_update_dsi_clocks: Bool to force update dsi clocks
+ * Returns: Zero on success
+ */
+int sde_connector_pre_kickoff(struct drm_connector *connector,
+			bool force_update_dsi_clocks);
 
 /**
  * sde_connector_prepare_commit - trigger commit time feature programming
