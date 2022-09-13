@@ -4986,10 +4986,10 @@
 	/* brightness config */
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-dsi-bl-normal-max-level = <2047>;
-	qcom,mdss-dsi-bl-max-level = <4095>;
+	qcom,mdss-dsi-bl-max-level = <2047>;
 	qcom,mdss-brightness-default-level = <400>;
 	qcom,mdss-brightness-normal-max-level = <2047>;
-	qcom,mdss-brightness-max-level = <4095>;
+	qcom,mdss-brightness-max-level = <2047>;
 	qcom,mdss-dsi-dc-backlight-level = <520>;
 	oplus,dsi-fod-brightness = <0 0xff>,
 			<2 0xf2>,
