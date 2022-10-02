@@ -266,6 +266,7 @@
 				qcom,supply-max-voltage = <1312000>;
 				qcom,supply-enable-load = <21800>;
 				qcom,supply-disable-load = <0>;
+				qcom,supply-ulp-load = <0>;
 			};
 		};
 
@@ -308,6 +309,7 @@
 						00 00 0a 0a
 						00 00 8a 8a];
 		qcom,platform-regulator-settings = [1d 1d 1d 1d 1d];
+		qcom,phy-clamp-enable;
 		qcom,panel-allow-phy-poweroff;
 		qcom,dsi-pll-ssc-en;
 		qcom,dsi-pll-ssc-mode = "down-spread";
@@ -321,6 +323,7 @@
 				qcom,supply-max-voltage = <904000>;
 				qcom,supply-enable-load = <37550>;
 				qcom,supply-disable-load = <0>;
+				qcom,supply-ulp-load = <0>;
 			};
 		};
 	};
