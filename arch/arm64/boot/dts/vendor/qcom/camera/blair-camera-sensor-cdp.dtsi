@@ -110,6 +110,10 @@
 		rgltr-min-voltage = <1800000>;
 		rgltr-max-voltage = <1800000>;
 		rgltr-load-current = <120000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_flash_hwen_active>;
+		pinctrl-1 = <&cam_flash_hwen_suspend>;
 		gpios = <&tlmm 52 0>;
 		gpio-custom1 = <0>;
 		gpio-req-tbl-num = <0>;
@@ -129,6 +133,10 @@
 		rgltr-min-voltage = <1800000>;
 		rgltr-max-voltage = <1800000>;
 		rgltr-load-current = <120000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_flash_hwen_active>;
+		pinctrl-1 = <&cam_flash_hwen_suspend>;
 		gpios = <&tlmm 52 0>;
 		gpio-custom1 = <0>;
 		gpio-req-tbl-num = <0>;
@@ -148,6 +156,10 @@
 		rgltr-min-voltage = <1800000>;
 		rgltr-max-voltage = <1800000>;
 		rgltr-load-current = <120000>;
+		gpio-no-mux = <0>;
+		pinctrl-names = "cam_default", "cam_suspend";
+		pinctrl-0 = <&cam_flash_hwen_active>;
+		pinctrl-1 = <&cam_flash_hwen_suspend>;
 		gpios = <&tlmm 52 0>;
 		gpio-custom1 = <0>;
 		gpio-req-tbl-num = <0>;

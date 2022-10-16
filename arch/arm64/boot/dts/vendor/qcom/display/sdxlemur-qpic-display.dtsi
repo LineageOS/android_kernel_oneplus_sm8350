@@ -5,7 +5,7 @@
 		reg = <0x1b00000 0x24000>;
 		reg-names = "qpic_base";
 
-		interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts = <0 75 0>;
 		interrupt-names = "qpic_irq";
 
 		interconnect-names = "qpic-display-data-bus";
