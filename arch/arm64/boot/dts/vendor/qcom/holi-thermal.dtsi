@@ -72,12 +72,6 @@
 		#cooling-cells = <2>;
 		status = "disabled";
 	};
-
-	devfreq_vdd_cdev: devfreq-vdd-cdev {
-		compatible = "qcom,devfreq-vdd-cooling-device";
-		devfreq = <&msm_gpu>;
-		#cooling-cells = <2>;
-	};
 };
 
 &rpm_bus {
@@ -1173,9 +1167,9 @@
 				cooling-device = <&mx_cdev 1 1>;
 			};
 
-			devfreq_vdd_cdev {
+			gfx_vdd_cdev {
 				trip = <&zeroc_0_trip>;
-				cooling-device = <&devfreq_vdd_cdev 2 2>;
+				cooling-device = <&gfx_cdev 1 1>;
 			};
 
 			adsp_vdd_cdev {
@@ -1220,9 +1214,9 @@
 				cooling-device = <&mx_cdev 1 1>;
 			};
 
-			devfreq_vdd_cdev {
+			gfx_vdd_cdev {
 				trip = <&zeroc_1_trip>;
-				cooling-device = <&devfreq_vdd_cdev 2 2>;
+				cooling-device = <&gfx_cdev 1 1>;
 			};
 
 			adsp_vdd_cdev {

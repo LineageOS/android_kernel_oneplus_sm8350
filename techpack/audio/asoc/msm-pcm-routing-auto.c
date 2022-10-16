@@ -56,11 +56,6 @@
 #define STRING_LENGTH_OF_INT 12
 #define MAX_USR_CTRL_CNT 128
 
-#ifdef RX_TO_TX_LOOPBACK
-#define RX_TO_TX_LOOPBACK_DUMMY_TX_PORT  AFE_PORT_ID_QUINARY_TDM_TX_7
-#define RX_TO_TX_LOOPBACK_RX_PORT  AFE_PORT_ID_QUINARY_TDM_RX
-#endif
-
 static struct mutex routing_lock;
 
 static struct cal_type_data *cal_data[MAX_ROUTING_CAL_TYPES];
@@ -2475,20 +2470,14 @@ int msm_pcm_routing_reg_phy_stream(int fedai_id, int perf_mode,
 			bits_per_sample = msm_routing_get_bit_width(
 						msm_bedais[i].format);
 
-			topology = msm_routing_get_adm_topology(fedai_id,
-								session_type,
-								i);
 			app_type =
 			fe_dai_app_type_cfg[fedai_id][session_type][i].app_type;
 			if (app_type) {
 				app_type_idx =
 				msm_pcm_routing_get_app_type_idx(app_type);
-				if ((fe_dai_app_type_cfg[fedai_id][session_type][i].sample_rate != msm_bedais[i].sample_rate) &&
-					(topology == AUDIO_COPP_MFC)) {
-					pr_debug("%s: FE and BE SR is not equal", __func__);
-					sample_rate = msm_bedais[i].sample_rate;
-				} else
-					sample_rate = fe_dai_app_type_cfg[fedai_id][session_type][i].sample_rate;
+				sample_rate =
+				fe_dai_app_type_cfg[fedai_id][session_type][i]
+					.sample_rate;
 				bits_per_sample =
 					(fe_dai_app_type_cfg[fedai_id][session_type][i].bit_width) ?
 					fe_dai_app_type_cfg[fedai_id][session_type][i].bit_width :
@@ -2502,7 +2491,9 @@ int msm_pcm_routing_reg_phy_stream(int fedai_id, int perf_mode,
 			acdb_dev_id =
 			fe_dai_app_type_cfg[fedai_id][session_type][i]
 				.acdb_dev_id;
-
+			topology = msm_routing_get_adm_topology(fedai_id,
+								session_type,
+								i);
 			be_bit_width = msm_routing_get_bit_width(
                                                 msm_bedais[i].format);
 			copp_perf_mode = get_copp_perf_mode(fedai_id, session_type, i);
@@ -2536,19 +2527,7 @@ int msm_pcm_routing_reg_phy_stream(int fedai_id, int perf_mode,
 						&ec_ref_chmix_cfg[fedai_id]);
 				/* reset ec_ref config */
 				ec_ref_chmix_cfg[fedai_id].output_channel = 0;
-			}
-#ifdef RX_TO_TX_LOOPBACK
-			else if(session_type == SESSION_TYPE_TX &&
-					port_id == RX_TO_TX_LOOPBACK_DUMMY_TX_PORT) {
-				port_id = RX_TO_TX_LOOPBACK_RX_PORT;
-				copp_idx = adm_open(port_id, path_type,
-				sample_rate, channels, topology,
-				copp_perf_mode, bits_per_sample,
-				app_type, acdb_dev_id,
-				session_type, passthr_mode, copp_token);
-			}
-#endif
-			else
+			} else
 				copp_idx = adm_open(port_id, path_type,
 					    sample_rate, channels, topology,
 					    copp_perf_mode, bits_per_sample,
@@ -2567,16 +2546,11 @@ int msm_pcm_routing_reg_phy_stream(int fedai_id, int perf_mode,
 				&session_copp_map[fedai_id][session_type][i]);
 
 			if (msm_is_resample_needed(
-				fe_dai_app_type_cfg[fedai_id][session_type][i].sample_rate,
-				msm_bedais[i].sample_rate)) {
-				if ((session_type == SESSION_TYPE_TX) && (topology == AUDIO_COPP_MFC)) {
-					adm_copp_mfc_cfg(port_id, copp_idx,
-						fe_dai_app_type_cfg[fedai_id][session_type][i].sample_rate);
-				} else {
-					adm_copp_mfc_cfg(port_id, copp_idx,
-						msm_bedais[i].sample_rate);
-				}
-			}
+				sample_rate,
+				msm_bedais[i].sample_rate))
+				adm_copp_mfc_cfg(port_id, copp_idx,
+					msm_bedais[i].sample_rate);
+
 			for (j = 0; j < MAX_COPPS_PER_PORT; j++) {
 				unsigned long copp =
 				    session_copp_map[fedai_id][session_type][i];
@@ -19526,12 +19500,6 @@ static const struct snd_kcontrol_new mmul1_mixer_controls[] = {
 		MSM_BACKEND_DAI_QUAT_TDM_TX_3,
 		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
 		msm_routing_put_audio_mixer),
-#ifdef RX_TO_TX_LOOPBACK
-	SOC_DOUBLE_EXT("QUIN_TDM_TX_7", SND_SOC_NOPM,
-		MSM_BACKEND_DAI_QUIN_TDM_TX_7,
-		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
-		msm_routing_put_audio_mixer),
-#endif
 	SOC_DOUBLE_EXT("QUIN_TDM_TX_0", SND_SOC_NOPM,
 		MSM_BACKEND_DAI_QUIN_TDM_TX_0,
 		MSM_FRONTEND_DAI_MULTIMEDIA1, 1, 0, msm_routing_get_audio_mixer,
@@ -28347,9 +28315,7 @@ static const struct snd_soc_dapm_route intercon_tdm[] = {
 	{"MultiMedia1 Mixer", "QUAT_TDM_TX_1", "QUAT_TDM_TX_1"},
 	{"MultiMedia1 Mixer", "QUAT_TDM_TX_2", "QUAT_TDM_TX_2"},
 	{"MultiMedia1 Mixer", "QUAT_TDM_TX_3", "QUAT_TDM_TX_3"},
-#ifdef RX_TO_TX_LOOPBACK
-	{"MultiMedia1 Mixer", "QUIN_TDM_TX_7", "QUIN_TDM_TX_7"},
-#endif
+
 	{"MultiMedia1 Mixer", "QUIN_TDM_TX_0", "QUIN_TDM_TX_0"},
 	{"MultiMedia1 Mixer", "QUIN_TDM_TX_1", "QUIN_TDM_TX_1"},
 	{"MultiMedia1 Mixer", "QUIN_TDM_TX_2", "QUIN_TDM_TX_2"},
