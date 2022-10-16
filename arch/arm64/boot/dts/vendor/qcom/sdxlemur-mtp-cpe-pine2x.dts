@@ -4,7 +4,6 @@
 #include "sdxlemur-mtp-cpe.dtsi"
 #include "sdxlemur-mtp-cpe-pine2x.dtsi"
 #include "sdxlemur-1024mb.dtsi"
-#include "sdxlemur-bluetooth.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. SDXLEMUR MTP CPE 2x Pine";
