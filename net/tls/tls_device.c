@@ -470,13 +470,11 @@ handle_error:
 		copy = min_t(size_t, size, (pfrag->size - pfrag->offset));
 		copy = min_t(size_t, copy, (max_open_record_len - record->len));
 
-		if (copy) {
-			rc = tls_device_copy_data(page_address(pfrag->page) +
-						  pfrag->offset, copy, msg_iter);
-			if (rc)
-				goto handle_error;
-			tls_append_frag(record, pfrag, copy);
-		}
+		rc = tls_device_copy_data(page_address(pfrag->page) +
+					  pfrag->offset, copy, msg_iter);
+		if (rc)
+			goto handle_error;
+		tls_append_frag(record, pfrag, copy);
 
 		size -= copy;
 		if (!size) {

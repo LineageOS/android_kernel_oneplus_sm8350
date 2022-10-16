@@ -2449,6 +2449,7 @@
 
 			timing@wqhd_sdc_60 {
 				#include "dsi-panel-samsung-amb670yf01-dsc-60fps-cmd-common.dtsi"
+				qcom,mdss-dsi-splash-dms-switch-to-this-timing;
 				qcom,mdss-mdp-transfer-time-us = <7700>;
 				qcom,mdss-dsi-panel-framerate = <60>;
 				qcom,mdss-dsi-panel-clockrate = <1372000000>;
@@ -5143,10 +5144,14 @@
 			qcom,display-topology = <1 1 1>,<2 2 1>;
 			qcom,default-topology-index = <1>;
 		};
+		/delete-node/ timing@fhd_sdc_60;
+		/delete-node/ timing@fhd_sdc_90;
+		/delete-node/ timing@fhd_sdc_120;
 		/delete-node/ timing@fhd_oplus_60;
 		/delete-node/ timing@fhd_oplus_72;
 		/delete-node/ timing@fhd_oplus_90;
 		/delete-node/ timing@fhd_oplus_120;
+		/delete-node/ timing@wqhd_sdc_90;
 		/delete-node/ timing@wqhd_oplus_60;
 		/delete-node/ timing@wqhd_oplus_72;
 		/delete-node/ timing@wqhd_oplus_90;
