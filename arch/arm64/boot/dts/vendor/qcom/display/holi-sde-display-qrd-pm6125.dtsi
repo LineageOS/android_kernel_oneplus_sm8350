@@ -71,7 +71,6 @@
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-dsi-bl-inverted-dbv;
-	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-te-gpio = <&tlmm 23 0>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -82,7 +81,6 @@
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
-	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -94,7 +92,6 @@
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
-	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
 
@@ -105,7 +102,6 @@
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
-	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-te-gpio = <&tlmm 23 0>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -117,7 +113,6 @@
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,mdss-dsi-bl-inverted-dbv;
-	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,platform-te-gpio = <&tlmm 23 0>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
@@ -128,7 +123,6 @@
 	qcom,mdss-dsi-bl-min-level = <1>;
 	qcom,mdss-brightness-max-level = <255>;
 	qcom,mdss-dsi-bl-inverted-dbv;
-	qcom,bl-update-flag = "delay_until_first_frame";
 	qcom,mdss-dsi-bl-max-level = <4095>;
 	qcom,platform-reset-gpio = <&pmr735a_gpios 2 0>;
 };
