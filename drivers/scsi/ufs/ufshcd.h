@@ -1071,7 +1071,6 @@ struct ufs_hba {
 	bool restore;
 	bool abort_triggered_wlun;
 #endif
-
 #ifdef CONFIG_OPLUS_FEATURE_UFSPLUS
 #if defined(CONFIG_UFSFEATURE)
 	struct ufsf_feature ufsf;
