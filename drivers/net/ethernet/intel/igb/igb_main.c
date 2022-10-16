@@ -5318,8 +5318,7 @@ static void igb_watchdog_task(struct work_struct *work)
 				break;
 			}
 
-			if (adapter->link_speed != SPEED_1000 ||
-			    !hw->phy.ops.read_reg)
+			if (adapter->link_speed != SPEED_1000)
 				goto no_wait;
 
 			/* wait for Remote receiver status OK */
