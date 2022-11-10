@@ -47,7 +47,11 @@
 #define SDE_ENCODER_FRAME_EVENT_SIGNAL_RETIRE_FENCE	BIT(4)
 #define SDE_ENCODER_FRAME_EVENT_CWB_DONE		BIT(5)
 
+#ifdef OPLUS_BUG_STABILITY
+#define IDLE_POWERCOLLAPSE_DURATION	(80 - 16/2)
+#else
 #define IDLE_POWERCOLLAPSE_DURATION	(66 - 16/2)
+#endif
 #define IDLE_POWERCOLLAPSE_IN_EARLY_WAKEUP (200 - 16/2)
 
 /**
@@ -245,6 +249,9 @@ struct sde_encoder_virt {
 	struct kthread_work esd_trigger_work;
 	struct input_handler *input_handler;
 	struct msm_display_topology topology;
+#if defined(OPLUS_FEATURE_PXLW_IRIS5)
+	struct kthread_work disable_autorefresh_work;
+#endif
 	bool vblank_enabled;
 	bool idle_pc_restore;
 	enum frame_trigger_mode_type frame_trigger_mode;
@@ -261,7 +268,35 @@ struct sde_encoder_virt {
 	struct cpumask valid_cpu_mask;
 	struct msm_mode_info mode_info;
 	bool delay_kickoff;
+#ifdef OPLUS_BUG_STABILITY
+	struct hrtimer fakeframe_timer;
+	struct kthread_work fakeframe_work;
+	uint32_t cur_mode_hdisplay;
+	bool need_te_source_switch;
+	uint32_t need_te_source;
+#endif
 };
+
+#ifdef OPLUS_BUG_STABILITY
+/**
+ * Add for backlight smooths
+ * @g_pri_bk_level: global backlight of the primary screen
+ * @g_sec_bk_level: global backlight of the secondary screen
+ * @g_save_pcc: global pcc save for debug
+ */
+struct oplus_apollo_bk {
+	u32 g_pri_bk_level;
+	u32 g_sec_bk_level;
+};
+
+enum oplus_sync_method {
+	OPLUS_PREPARE_KICKOFF_METHOD = 0,
+	OPLUS_KICKOFF_METHOD,
+	OPLUS_POST_KICKOFF_METHOD,
+	OPLUS_WAIT_VSYNC_METHOD,
+	OPLUS_UNKNOW_METHOD,
+};
+#endif /* OPLUS_BUG_STABILITY */
 
 #define to_sde_encoder_virt(x) container_of(x, struct sde_encoder_virt, base)
 
@@ -633,4 +668,34 @@ static inline bool sde_encoder_is_widebus_enabled(struct drm_encoder *drm_enc)
 	sde_enc = to_sde_encoder_virt(drm_enc);
 	return sde_enc->mode_info.wide_bus_en;
 }
+
+#if defined(OPLUS_FEATURE_PXLW_IRIS5)
+/**
+ * sde_encoder_rc_lock - lock the sde encoder resource control.
+ * @drm_enc:    Pointer to drm encoder structure
+ * @Return:     void.
+ */
+void sde_encoder_rc_lock(struct drm_encoder *drm_enc);
+
+/**
+ * sde_encoder_rc_unlock - unlock the sde encoder resource control.
+ * @drm_enc:    Pointer to drm encoder structure
+ * @Return:     void.
+ */
+void sde_encoder_rc_unlock(struct drm_encoder *drm_enc);
+
+/**
+ * sde_encoder_disable_autorefresh - disable autorefresh
+ * @drm_enc:    Pointer to drm encoder structure
+ * @Return:     void.
+ */
+void sde_encoder_disable_autorefresh_handler(struct drm_encoder *drm_enc);
+
+/**
+ * sde_encoder_is_disabled - encoder is disabled
+ * @drm_enc:    Pointer to drm encoder structure
+ * @Return:     bool.
+ */
+bool sde_encoder_is_disabled(struct drm_encoder *drm_enc);
+#endif
 #endif /* __SDE_ENCODER_H__ */
