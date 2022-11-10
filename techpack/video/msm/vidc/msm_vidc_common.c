@@ -7851,7 +7851,11 @@ u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
 		count++;
 		avg_framerate += node->framerate;
 	}
+#ifndef OPLUS_ARCH_EXTENDS
 	avg_framerate = count ? (div_u64(avg_framerate, count)) : (1 << 16);
+#else /* OPLUS_ARCH_EXTENDS */
+	avg_framerate = count > 12 ? (div_u64(avg_framerate, count)) : (15 << 16);
+#endif /* OPLUS_ARCH_EXTENDS */
 
 	s_vpr_l(inst->sid, "%s: fps %u, list size %u\n", __func__, avg_framerate, count);
 	mutex_unlock(&inst->timestamps.lock);
