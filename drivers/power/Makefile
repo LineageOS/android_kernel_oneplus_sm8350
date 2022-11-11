@@ -6,9 +6,7 @@ obj-$(CONFIG_POWER_SUPPLY)	+= supply/
 $(warning $(CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY))
 ifeq ($(strip $(CONFIG_OPLUS_CHG_OP9RT_PMIC_VOOCPHY)), y)
 	obj-$(CONFIG_OPLUS_SM8350_CHARGER)	+= oplus/
-else ifeq ($(strip $(BRAND_SHOW_FLAG)), oneplus)
-	obj-$(CONFIG_OPLUS_SM8350_CHARGER)	+= oplus_chg/
 else
-	obj-$(CONFIG_OPLUS_SM8350_CHARGER)	+= oplus/
+	obj-$(CONFIG_OPLUS_SM8350_CHARGER)	+= oplus_chg/
 endif
 #endif
