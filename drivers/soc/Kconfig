@@ -21,5 +21,24 @@ source "drivers/soc/ux500/Kconfig"
 source "drivers/soc/versatile/Kconfig"
 source "drivers/soc/xilinx/Kconfig"
 source "drivers/soc/zte/Kconfig"
+#ifdef VENDOR_EDIT
+source "drivers/soc/oplus/system/Kconfig"
+#endif /* VENDOR_EDIT */
+
+#ifdef OPLUS_FEATURE_TP_BASIC
+source "drivers/soc/oplus/device_info/Kconfig"
+#endif /* OPLUS_FEATURE_TP_BASIC */
+
+#ifdef OPLUS_FEATURE_SENSOR_SMEM
+source "drivers/soc/oplus/sensor/Kconfig"
+#endif /* OPLUS_FEATURE_SENSOR_SMEM */
+
+#ifdef OPLUS_FEATURE_ESIM
+source "drivers/soc/oplus/misc/Kconfig"
+#endif /* OPLUS_FEATURE_ESIM */
 
 endmenu
+
+#ifdef OPLUS_FEATURE_GAME_OPT
+source "drivers/soc/oplus/game_opt/Kconfig"
+#endif /* OPLUS_FEATURE_GAME_OPT */

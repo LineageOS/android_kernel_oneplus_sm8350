@@ -22,6 +22,9 @@
 #include <trace/hooks/sysrqcrash.h>
 #include <trace/hooks/cgroup.h>
 #include <trace/hooks/sys.h>
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
+#include <trace/hooks/oplus_ufs.h>
+#endif
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -73,3 +76,7 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_map_util_freq);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_em_pd_energy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cgroup_set_task);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_syscall_prctl_finished);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_gen_proc_devinfo);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_latency_hist);
+#endif
