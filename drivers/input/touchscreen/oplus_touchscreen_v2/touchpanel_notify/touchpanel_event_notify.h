@@ -9,16 +9,16 @@
 #define EVENT_ACTION_FOR_FINGPRINT 0x01
 
 struct touchpanel_event {
-	int touchpanel_id;
+    int touchpanel_id;
 #ifndef CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY
-	struct timeval time;
+    struct timeval time;
 #endif
-	int x;
-	int y;
-	int fid;       /* Finger ID */
-	char type;     /* 'D' - Down, 'M' - Move, 'U' - Up, */
-	int touch_state;
-	int area_rate;
+    int x;
+    int y;
+    int fid;       /* Finger ID */
+    char type;     /* 'D' - Down, 'M' - Move, 'U' - Up, */
+    int touch_state;
+    int area_rate;
 };
 
 #define EVENT_TYPE_DOWN    'D'
@@ -31,4 +31,5 @@ int touchpanel_event_unregister_notifier(struct notifier_block *nb);
 
 /* callee API */
 void touchpanel_event_call_notifier(unsigned long action, void *data);
-#endif /*_TOUCHPANEL_EVENTNOTIFY_H*/
+
+#endif

@@ -253,6 +253,12 @@ int touch_i2c_write_block(struct i2c_client *client, u16 addr,
 		retval = -EIO;
 	}
 
+	if (ts->health_monitor_support) {
+		ts->monitor_data.bus_buf = msg[0].buf;
+		ts->monitor_data.bus_len = msg[0].len;
+		tp_healthinfo_report(&ts->monitor_data, HEALTH_BUS, &retval);
+	}
+
 	mutex_unlock(&ts->interface_data.bus_mutex);
 	return retval;
 }
@@ -270,10 +276,16 @@ int touch_i2c_read_byte(struct i2c_client *client, unsigned short addr)
 {
 	int retval = 0;
 	unsigned char buf[2] = {0};
-	struct touchpanel_data *ts = i2c_get_clientdata(client);
+	struct touchpanel_data *ts = NULL;
 
 	if (!client) {
 		dump_stack();
+		return -1;
+	}
+
+	ts = i2c_get_clientdata(client);
+	if (!ts) {
+		TPD_INFO("%s: ts is null\n", __func__);
 		return -1;
 	}
 
@@ -339,10 +351,15 @@ int touch_i2c_read_word(struct i2c_client *client, unsigned short addr)
 {
 	int retval;
 	unsigned char buf[2] = {0};
-	struct touchpanel_data *ts = i2c_get_clientdata(client);
+	struct touchpanel_data *ts = NULL;
 
 	if (!client) {
 		dump_stack();
+		return -1;
+	}
+	ts = i2c_get_clientdata(client);
+	if (!ts) {
+		TPD_INFO("%s: ts is null\n", __func__);
 		return -1;
 	}
 
@@ -598,6 +615,19 @@ inline int touch_i2c_read(struct i2c_client *client, char *writebuf,
 	}
 
 	memcpy(readbuf, ts->interface_data.read_buf, readlen);
+	if (writelen > 0) {
+		if (ts->health_monitor_support) {
+			ts->monitor_data.bus_buf = msg[0].buf;
+			ts->monitor_data.bus_len = msg[0].len;
+			tp_healthinfo_report(&ts->monitor_data, HEALTH_BUS, &retval);
+		}
+	} else {
+		if (ts->health_monitor_support) {
+			ts->monitor_data.bus_buf = message.buf;
+			ts->monitor_data.bus_len = message.len;
+			tp_healthinfo_report(&ts->monitor_data, HEALTH_BUS, &retval);
+		}
+	}
 
 	mutex_unlock(&ts->interface_data.bus_mutex);
 	return retval;

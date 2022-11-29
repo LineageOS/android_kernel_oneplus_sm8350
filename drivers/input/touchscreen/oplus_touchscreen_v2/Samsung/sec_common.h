@@ -18,6 +18,7 @@
 #include "../touchpanel_common.h"
 #include "../touch_comon_api/touch_comon_api.h"
 #include "../touchpanel_autotest/touchpanel_autotest.h"
+#include "../touchpanel_healthinfo/touchpanel_healthinfo.h"
 
 
 #define I2C_BURSTMAX                        (256)

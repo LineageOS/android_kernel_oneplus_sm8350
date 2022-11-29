@@ -146,7 +146,7 @@ void sec_raw_device_init(struct touchpanel_data *ts)
 
 	} else {
 		snprintf(name, sizeof(name), "%s", "sec");
-		snprintf(dev_name, sizeof(dev_name), "%s%x", "sec_ts", ts->tp_index);
+		snprintf(dev_name, sizeof(dev_name), "%s%d", "sec_ts", ts->tp_index);
 	}
 
 	sec_class = class_create(THIS_MODULE, name);
@@ -535,7 +535,7 @@ static ssize_t proc_curved_control_read(struct file *file,
 		return count;
 	}
 
-	sprintf(page, "%d\n", sec_ops->get_curved_rejsize(ts->chip_data));
+	sprintf(page, "%u\n", sec_ops->get_curved_rejsize(ts->chip_data));
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
 	return ret;
