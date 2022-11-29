@@ -58,8 +58,8 @@ config TOUCHPANEL_SYNAPTICS
 
 config TOUCHPANEL_SAMSUNG
     tristate "TP samsung IC enable or not for OPLUS"
-    ---help---
-    say Y to enable driver for Touchpanel using samsung IC
+    help
+    Say Y to enable driver for Touchpanel using samsung IC
     Say M to enable driver for Touchpanel using samsung IC as module.
 config TOUCHPANEL_ST
 	tristate "TP st IC enable or not for OPLUS"

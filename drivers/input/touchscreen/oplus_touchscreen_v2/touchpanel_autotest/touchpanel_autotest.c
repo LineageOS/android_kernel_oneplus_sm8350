@@ -6,6 +6,7 @@
 #include "../touchpanel_common.h"
 #include "touchpanel_autotest.h"
 #include "../touch_comon_api/touch_comon_api.h"
+#include "../touchpanel_healthinfo/touchpanel_healthinfo.h"
 #include <linux/seq_file.h>
 #include <linux/delay.h>
 #include <linux/uaccess.h>
@@ -328,7 +329,6 @@ static int tp_test_limit_switch(struct touchpanel_data *ts)
 	uint8_t copy_len = 0;
 
 	if (!ts) {
-		TP_INFO(ts->tp_index, "ts is NULL\n");
 		return -1;
 	}
 
@@ -359,7 +359,7 @@ EXIT:
 }
 
 static int request_test_limit(const struct firmware **fw,
-			      char *test_limit_name, struct device *device)
+	char *test_limit_name, struct device *device)
 {
 	int ret = 0;
 	int retry = 5;
@@ -377,7 +377,7 @@ static int request_test_limit(const struct firmware **fw,
 }
 
 static int request_real_test_limit(struct touchpanel_data *ts,
-				   const struct firmware **fw, char *test_limit_name, struct device *device)
+	const struct firmware **fw, char *test_limit_name, struct device *device)
 {
 	int ret = 0;
 
@@ -679,7 +679,7 @@ int tp_auto_test(struct seq_file *s, void *v)
 
 	/*step3:request test limit data from userspace*/
 	ret =  request_real_test_limit(ts, &ts->com_test_data.limit_fw,
-				       ts->panel_data.test_limit_name, ts->dev);
+		ts->panel_data.test_limit_name, ts->dev);
 
 	if (ret < 0) {
 		TP_INFO(ts->tp_index, "Request firmware failed - %s (%d)\n",
@@ -697,6 +697,8 @@ int tp_auto_test(struct seq_file *s, void *v)
 	ts->in_test_process = true;
 
 	error_count = ts->engineer_ops->auto_test(s, ts);
+
+	tp_healthinfo_report(&ts->monitor_data, HEALTH_TEST_AUTO, &error_count);
 
 	/*step5: release test limit firmware*/
 
@@ -727,11 +729,11 @@ int tp_black_screen_test(struct file *file, char __user *buffer, size_t count,
 
 	struct touchpanel_data *ts = PDE_DATA(file_inode(file));
 
-	TP_INFO(ts->tp_index, "%s %ld %lld\n", __func__, count, *ppos);
-
 	if (!ts || !ts->gesture_test.flag) {
 		return 0;
 	}
+
+	TP_INFO(ts->tp_index, "%s %ld %lld\n", __func__, count, *ppos);
 
 	ts->gesture_test.message = kzalloc(msg_size, GFP_KERNEL);
 
@@ -782,7 +784,7 @@ int tp_black_screen_test(struct file *file, char __user *buffer, size_t count,
 
 	/*step3:request test limit data from userspace*/
 	ret =  request_real_test_limit(ts, &ts->com_test_data.limit_fw,
-				       ts->panel_data.test_limit_name, ts->dev);
+		ts->panel_data.test_limit_name, ts->dev);
 
 	if (ret < 0) {
 		TP_INFO(ts->tp_index, "Request firmware failed - %s (%d)\n",
@@ -803,6 +805,8 @@ int tp_black_screen_test(struct file *file, char __user *buffer, size_t count,
 			 "1 errors:not support gesture test");
 		error_count = -1;
 	}
+
+	tp_healthinfo_report(&ts->monitor_data, HEALTH_TEST_BLACKSCREEN, &error_count);
 
 	ts->in_test_process = false;
 
