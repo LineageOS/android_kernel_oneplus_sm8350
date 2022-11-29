@@ -29,8 +29,9 @@
 #include "cam_common_util.h"
 #include "cam_compat.h"
 #include "cam_cpas_hw.h"
+#include "cam_trace.h"
 
-#define CAM_REQ_MGR_EVENT_MAX 30
+#define CAM_REQ_MGR_EVENT_MAX 1024
 
 static struct cam_req_mgr_device g_dev;
 struct kmem_cache *g_cam_req_mgr_timer_cachep;

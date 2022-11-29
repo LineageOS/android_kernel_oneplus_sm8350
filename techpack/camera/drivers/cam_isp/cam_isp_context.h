@@ -215,6 +215,9 @@ struct cam_isp_context_state_monitor {
 
 struct cam_isp_context_req_id_info {
 	int64_t                          last_bufdone_req_id;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON //lanhe todo:
+	uint64_t                         last_rdi_req_id;
+#endif
 };
 
 /**
@@ -283,6 +286,9 @@ struct cam_isp_context_event_record {
 struct cam_isp_context {
 	struct cam_context              *base;
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON //lanhe todo:
+	uint64_t                         rdi_frame_id;
+#endif
 	int64_t                          frame_id;
 	uint32_t                         frame_id_meta;
 	uint32_t                         substate_activated;
