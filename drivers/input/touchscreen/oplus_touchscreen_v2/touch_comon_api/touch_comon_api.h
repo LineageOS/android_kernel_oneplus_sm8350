@@ -10,8 +10,10 @@
 #include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/uaccess.h>
+#include <linux/version.h>
 
 #include "../touchpanel_common.h"
+#include "../touchpanel_healthinfo/touchpanel_healthinfo.h"
 
 /*******Part0:LOG TAG Declear************************/
 extern unsigned int tp_debug;
@@ -28,31 +30,31 @@ extern unsigned int tp_debug;
 #define TP_INFO(index, a, arg...)  pr_err("[TP""%x""]"TPD_DEVICE": " a, index, ##arg)
 
 #define TPD_DEBUG(a, arg...)\
-	do {\
+	do{\
 		if (LEVEL_DEBUG == tp_debug)\
 		pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
 	}while(0)
 
 #define TP_DEBUG(index, a, arg...)\
-			do {\
+			do{\
 				if (LEVEL_DEBUG == tp_debug)\
 					pr_err("[TP""%x""]"TPD_DEVICE": " a, index, ##arg);\
 			}while(0)
 
 #define TPD_DETAIL(a, arg...)\
-	do {\
+	do{\
 		if (LEVEL_BASIC != tp_debug)\
 			pr_err("[TP]"TPD_DEVICE ": " a, ##arg);\
 	}while(0)
 
 #define TP_DETAIL(index, a, arg...)\
-			do {\
+			do{\
 				if (LEVEL_BASIC != tp_debug)\
 					pr_err("[TP""%x""]"TPD_DEVICE": " a, index, ##arg);\
 			}while(0)
 
 #define TPD_SPECIFIC_PRINT(count, a, arg...)\
-	do {\
+	do{\
 		if (count++ == TPD_PRINT_POINT_NUM || LEVEL_DEBUG == tp_debug) {\
 			TPD_INFO(TPD_DEVICE ": " a, ##arg);\
 			count = 0;\
@@ -60,7 +62,7 @@ extern unsigned int tp_debug;
 	}while(0)
 
 #define TP_SPECIFIC_PRINT(index, count, a, arg...)\
-			do {\
+			do{\
 				if (count++ == TPD_PRINT_POINT_NUM || LEVEL_DEBUG == tp_debug) {\
 					TPD_INFO(TPD_DEVICE"%x"": " a, index, ##arg);\
 					count = 0;\
@@ -68,10 +70,29 @@ extern unsigned int tp_debug;
 			}while(0)
 
 #define TPD_DEBUG_NTAG(a, arg...)\
-			do {\
+			do{\
 				if (tp_debug)\
 					printk(a, ##arg);\
 			}while(0)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define DECLARE_PROC_OPS(name, open_func, read_func, write_func, release_func) \
+					static const struct proc_ops name = { \
+						.proc_open	= open_func,	  \
+						.proc_write = write_func,	  \
+						.proc_read	= read_func,	  \
+						.proc_release = release_func, \
+					}
+#else
+#define DECLARE_PROC_OPS(name, open_func, read_func, write_func, release_func) \
+					static const struct file_operations name = { \
+						.open  = open_func, 	 \
+						.write = write_func,	 \
+						.read  = read_func, 	 \
+						.release = release_func, \
+						.owner = THIS_MODULE,	 \
+					}
+#endif
 
 /*******Part1: common api Area********************************/
 
@@ -229,11 +250,22 @@ static inline int tp_alloc_mem(struct tp_buffer *buffer, unsigned int size)
 static inline void *tp_devm_kzalloc(struct device *dev, size_t size, gfp_t gfp)
 {
 	void *p;
+	struct touchpanel_data *ts = dev_get_drvdata(dev);
 
 	p = devm_kzalloc(dev, size, gfp);
 
 	if (!p) {
 		TPD_INFO("%s: Failed to allocate memory\n", __func__);
+
+		/*add for health monitor*/
+		if (ts->health_monitor_support) {
+			tp_healthinfo_report(&ts->monitor_data, HEALTH_ALLOC_FAILED, &size);
+		}
+
+	} else {
+		if (ts->health_monitor_support) {
+			tp_healthinfo_report(&ts->monitor_data, HEALTH_ALLOC_SUCCESS, &size);
+		}
 	}
 
 	return p;
@@ -241,9 +273,16 @@ static inline void *tp_devm_kzalloc(struct device *dev, size_t size, gfp_t gfp)
 
 static inline void tp_devm_kfree(struct device *dev, void **mem, size_t size)
 {
+	long size_minus = -size;
+	struct touchpanel_data *ts = dev_get_drvdata(dev);
+
 	if (*mem != NULL) {
 		devm_kfree(dev, *mem);
 		*mem = NULL;
+
+		if (ts->health_monitor_support) {
+			tp_healthinfo_report(&ts->monitor_data, HEALTH_ALLOC_SUCCESS, &size_minus);
+		}
 	}
 }
 

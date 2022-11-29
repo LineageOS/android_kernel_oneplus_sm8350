@@ -3,7 +3,7 @@
 #
 
 # Each configuration option enables a list of files.
-
+obj-$(CONFIG_TOUCHPANEL_SAMSUNG_S6SY791) += S6SY791/
 obj-$(CONFIG_TOUCHPANEL_SAMSUNG_S6SY792) += S6SY792/
 
 oplus_bsp_tp_sec_comnon-y += sec_common.o

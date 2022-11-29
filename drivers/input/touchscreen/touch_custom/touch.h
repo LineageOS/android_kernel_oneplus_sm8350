@@ -1,8 +1,13 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-/*
- * Copyright (C) 2016 Oplus. All rights reserved.
- */
-
+/***************************************************
+ * File:touch.h
+ * VENDOR_EDIT
+ * Copyright (c)  2008- 2030  Oplus Mobile communication Corp.ltd.
+ * Description:
+ *             tp dev
+ * Version:1.0:
+ * Date created:2016/09/02
+ * TAG: BSP.TP.Init
+*/
 
 #ifndef _TOUCH_H_
 #define _TOUCH_H_

@@ -12,19 +12,19 @@ static BLOCKING_NOTIFIER_HEAD(touchpanel_notifier_list);
 
 int touchpanel_event_register_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_register(&touchpanel_notifier_list, nb);
+    return blocking_notifier_chain_register(&touchpanel_notifier_list, nb);
 }
 EXPORT_SYMBOL(touchpanel_event_register_notifier);
 
 int touchpanel_event_unregister_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_unregister(&touchpanel_notifier_list, nb);
+    return blocking_notifier_chain_unregister(&touchpanel_notifier_list, nb);
 }
 EXPORT_SYMBOL(touchpanel_event_unregister_notifier);
 
 void touchpanel_event_call_notifier(unsigned long action, void *data)
 {
-	blocking_notifier_call_chain(&touchpanel_notifier_list, action, data);
+    blocking_notifier_call_chain(&touchpanel_notifier_list, action, data);
 }
 EXPORT_SYMBOL(touchpanel_event_call_notifier);
 

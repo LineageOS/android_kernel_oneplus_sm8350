@@ -3,15 +3,15 @@
  * Copyright (C) 2018-2020 Oplus. All rights reserved.
  */
 
-#ifndef SEC_H_S6SY792
-#define SEC_H_S6SY792
+#ifndef SEC_H_S6SY791
+#define SEC_H_S6SY791
 
 /*********PART1:Head files**********************/
 #include <linux/i2c.h>
 #include "../sec_common.h"
 
 /*********PART2:Define Area**********************/
-#define GESTURE_DOUBLECLICK                     0x25
+#define GESTURE_DOUBLECLICK                     0x00
 #define GESTURE_UP_V                            0x01
 #define GESTURE_DOWN_V                          0x02
 #define GESTURE_LEFT_V                          0x03
@@ -24,9 +24,7 @@
 #define GESTURE_M                               0x0A
 #define GESTURE_W                               0x0B
 #define GESTURE_DOUBLE_LINE                     0x0C
-#define GESTURE_SINGLE_TAP                      0x0E
-#define GESTURE_S                               0x0F
-#define GESTURE_EARSENSE                        0x10
+#define GESTURE_EARSENSE                        0x0E
 
 #define RESET_TO_NORMAL_TIME                    (70)
 #define SEC_EVENT_BUFF_SIZE                     8
@@ -48,12 +46,12 @@
 #define SEC_GESTURE_EVENT                       2
 #define SEC_EMPTY_EVENT                         3
 
-//sec status type
+/*sec status type*/
 #define TYPE_STATUS_EVENT_ERR                   1
 #define TYPE_STATUS_EVENT_INFO                  2
 #define TYPE_STATUS_EVENT_VENDOR_INFO           7
 
-// t_type
+/* t_type*/
 #define TYPE_SPECIAL_RELEASE                    9
 
 /* SEC_TS_INFO : Info acknowledge event */
@@ -70,27 +68,27 @@
 #define SEC_ERR_EVENT_QUEUE_FULL                0x01
 #define SEC_ERR_EVENT_ESD                       0x2
 
-//earsense status
+/*earsense status*/
 #define SEC_STATUS_EARDETECTED                  0x84
 
-//touchhold status
+/*touchhold status*/
 #define SEC_STATUS_TOUCHHOLD                    0x6B
 
-//boot status
+/*boot status*/
 #define SEC_STATUS_BOOT_MODE                    0x10
 #define SEC_STATUS_APP_MODE                     0x20
 
 #define STATE_MANAGE_ON                         1
 #define STATE_MANAGE_OFF                        0
 
-//cmd
+/*cmd*/
 #define SEC_READ_ONE_EVENT                      0x60
 #define SEC_READ_ALL_EVENT                      0x61
 #define SEC_CMD_CLEAR_EVENT_STACK               0x62
 #define SEC_READ_GESTURE_EVENT                  0x63
 #define SEC_CMD_GESTURE_DEBUG                   0x64
-#define SEC_READ_DEVICE_ID                      0x22    //for custom to print IC info
-#define SEC_READ_ID                             0x52    //for debug with IC touch mode
+#define SEC_READ_DEVICE_ID                      0x22    /*for custom to print IC info*/
+#define SEC_READ_ID                             0x52    /*for debug with IC touch mode*/
 #define SEC_READ_FIRMWARE_INTEGRITY             0x21
 #define SEC_READ_BOOT_STATUS                    0x55
 #define SEC_READ_TS_STATUS                      0xAF
@@ -109,19 +107,18 @@
 #define SEC_CMD_FLASH_READ_DATA                 0xD2
 #define SEC_CMD_WAKEUP_GESTURE_MODE             0x39
 #define SEC_CMD_SET_POWER_MODE                  0xE4
-#define SEC_CMD_DISABLE_GESTURE_MODE            0x66
 #define SET_CMD_SET_CHARGER_MODE                0x32
 #define SEC_CMD_READ_CALIBRATION_REPORT         0xF1
 #define SEC_CMD_FACTORY_PANELCALIBRATION        0x14
 #define SEC_CMD_MUTU_RAW_TYPE                   0x70
 #define SEC_CMD_SELF_RAW_TYPE                   0x71
-#define SEC_READ_TOUCH_RAWDATA                  0x72    //read all frame rawdata(ordered by RX len)
+#define SEC_READ_TOUCH_RAWDATA                  0x72    /*read all frame rawdata(ordered by RX len)*/
 #define SEC_READ_TOUCH_SELF_RAWDATA             0x73
-#define SEC_READ_TOUCH_SETLEN_RAWDATA           0x74    //read out self define length rawdata(ordered by TX len)
-#define SEC_CMD_TOUCH_RAWDATA_SETLEN            0x75    //set rawdata length of reading
-#define SEC_CMD_TOUCH_DELTA_READ                0x76    //cmd to read delta data
-#define SEC_CMD_TOUCH_RAWDATA_READ              0x77    //cmd to read rawdata data
-#define SEC_CMD_TOUCH_SELFDATA_READ             0x78    //cmd to read self data
+#define SEC_READ_TOUCH_SETLEN_RAWDATA           0x74    /*read out self define length rawdata(ordered by TX len)*/
+#define SEC_CMD_TOUCH_RAWDATA_SETLEN            0x75    /*set rawdata length of reading*/
+#define SEC_CMD_TOUCH_DELTA_READ                0x76    /*cmd to read delta data*/
+#define SEC_CMD_TOUCH_RAWDATA_READ              0x77    /*cmd to read rawdata data*/
+#define SEC_CMD_TOUCH_SELFDATA_READ             0x78    /*cmd to read self data*/
 #define SEC_CMD_SELFTEST                        0xAE
 #define SEC_READ_SELFTEST_RESULT                0x80
 #define SEC_CMD_STATEMANAGE_ON                  0x8E
@@ -146,13 +143,12 @@
 #define SEC_CMD_GAME_MODE                       0x45
 #define SEC_CMD_HEADSET_MODE                    0x4A
 
-#define SEC_CMD_RTDP_ERASE                      0xC9    //Erase RTDP Memory
-#define SEC_CMD_RTDP_START                      0xC0    //Start RTDP
-#define SEC_CMD_RTDP_INIT_PTR                   0xC8    //init RTDP read point
-#define SEC_READ_RTDP_RESULT                    0xC1    //Read RTDP result
-#define SEC_READ_RTDP_DATA                      0xC3    //Read RTDP data
-#define SEC_READ_RTDP_FRAMENUM                  0xC2    //Read RTDP frame num
-#define  SEC_CMD_NORMAL_TEMPERATURE             0xBE
+#define SEC_CMD_RTDP_ERASE                      0xC9    /*Erase RTDP Memory*/
+#define SEC_CMD_RTDP_START                      0xC0    /*Start RTDP*/
+#define SEC_CMD_RTDP_INIT_PTR                   0xC8    /*init RTDP read point*/
+#define SEC_READ_RTDP_RESULT                    0xC1    /*Read RTDP result*/
+#define SEC_READ_RTDP_DATA                      0xC3    /*Read RTDP data*/
+#define SEC_READ_RTDP_FRAMENUM                  0xC2    /*Read RTDP frame num*/
 
 
 /*********PART3:Struct Area**********************/
@@ -190,7 +186,7 @@ struct sec_gesture_status {
 	u8 coordLen;
 	u8 data;
 	u8 reserved[4];
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 /* 8 byte */
 struct sec_event_status {
@@ -205,7 +201,7 @@ struct sec_event_status {
 	u8 status_data_5;
 	u8 left_event_5_0: 6;
 	u8 reserved_2: 2;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 /* 8 byte */
 struct sec_event_coordinate {
@@ -222,7 +218,7 @@ struct sec_event_coordinate {
 	u8 ttype_3_2: 2;
 	u8 left_event: 6;
 	u8 ttype_1_0: 2;
-} __attribute__ ((packed));
+} __attribute__((packed));
 
 typedef enum {
 	DEAD_ZONE_TYPE_1        = 0x00,
@@ -277,7 +273,7 @@ typedef enum {
 	BOTTOM_SHORT_SIZE      = 4,
 } GRIP_EDGE_SIZE;
 
-struct chip_data_s6sy792 {
+struct chip_data_s6sy791 {
 	tp_dev                          tp_type;
 	struct i2c_client               *client;
 	u8                              boot_ver[3];
@@ -302,15 +298,14 @@ struct chip_data_s6sy792 {
 	int geture_points_count;
 	bool in_gesture;
 	u32 debug_gesture_type;
-	//bool water_sta;
-#endif //end of CONFIG_OPLUS_TP_APK
+	/*bool water_sta;*/
+#endif /*end of CONFIG_OPLUS_TP_APK*/
 
 	uint8_t  *data_buf;
-	uint32_t data_buf_size ;
+	uint32_t data_buf_size;
 	uint8_t *pRead;
-	uint32_t readbytes ;
+	uint32_t readbytes;
 	uint8_t *pReadself;
 	uint32_t readselfbytes;
 };
-
-#endif
+#endif  /*SEC_H_S6SY791*/
