@@ -157,6 +157,11 @@ int dsi_display_normal_hbm_on(struct dsi_display *display)
 		return -EINVAL;
 	}
 
+	if (!display->panel->is_hbm_enabled) {
+		pr_err("HBM already off\n");
+		return -EINVAL;
+	}
+
 	mutex_lock(&display->display_lock);
 
 	/* enable the clk vote for CMD mode panels */
