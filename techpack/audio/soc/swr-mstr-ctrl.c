@@ -2197,7 +2197,7 @@ handle_irq:
 				dev_err_ratelimited(swrm->dev,
 					"%s: SWR wokeup during clock stop\n",
 					__func__);
-				/* It might be possible the slave device gets
+				/* It might be possible the slave device gets reset
 				 * reset and slave interrupt gets missed. So
 				 * re-enable Host IRQ and process slave pending
 				 * interrupts, if any.
