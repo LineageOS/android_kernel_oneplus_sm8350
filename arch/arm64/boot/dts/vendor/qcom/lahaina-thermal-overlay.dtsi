@@ -9,38 +9,8 @@
 };
 
 &thermal_zones {
-	socd {
-		cooling-maps {
-			socd_cpu4 {
-				trip = <&socd_trip>;
-				cooling-device = <&cpu4_isolate 1 1>;
-			};
-
-			socd_cpu5 {
-				trip = <&socd_trip>;
-				cooling-device = <&cpu5_isolate 1 1>;
-			};
-
-			socd_cpu6 {
-				trip = <&socd_trip>;
-				cooling-device = <&cpu6_isolate 1 1>;
-			};
-
-			socd_cpu7 {
-				trip = <&socd_trip>;
-				cooling-device = <&cpu7_isolate 1 1>;
-			};
-		};
-	};
-
-
 	pm8350b-bcl-lvl0 {
 		cooling-maps {
-			vbat_modem_l3 {
-				trip = <&b_bcl_lvl0>;
-				cooling-device = <&modem_tj 3 3>;
-			};
-
 			vbat_gpu0 {
 				trip = <&b_bcl_lvl0>;
 				cooling-device = <&msm_gpu 2 2>;
@@ -106,11 +76,6 @@
 	pm8350c-bcl-lvl0 {
 		disable-thermal-zone;
 		cooling-maps {
-			vph_modem_l3 {
-				trip = <&c_bcl_lvl0>;
-				cooling-device = <&modem_tj 3 3>;
-			};
-
 			vph_gpu0 {
 				trip = <&c_bcl_lvl0>;
 				cooling-device = <&msm_gpu 2 2>;

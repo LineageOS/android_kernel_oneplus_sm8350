@@ -1,5 +1,5 @@
 #include <dt-bindings/clock/qcom,camcc-lahaina.h>
-
+/*
 &soc {
 	led_flash_triple_rear: qcom,camera-flash@4 {
 		cell-index = <4>;
@@ -822,3 +822,4 @@
 		clock-rates = <24000000>;
 	};
 };
+*/
