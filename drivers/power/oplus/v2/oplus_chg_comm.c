@@ -15,7 +15,7 @@
 #include <linux/notifier.h>
 #include <linux/fb.h>
 #include <soc/oplus/system/boot_mode.h>
-#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_QCOM_KGSL) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 #include <linux/msm_drm_notify.h>
 #endif
 #if IS_ENABLED(CONFIG_DRM_PANEL_NOTIFY)
@@ -4649,7 +4649,7 @@ static void oplus_comm_panel_notifier_callback(enum panel_event_notifier_tag tag
 
 #else /* CONFIG_DRM_PANEL_NOTIFY */
 
-#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_QCOM_KGSL) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 static int fb_notifier_callback(struct notifier_block *nb,
 		unsigned long event, void *data)
 {
@@ -4728,7 +4728,7 @@ static int fb_notifier_callback(struct notifier_block *nb,
 	}
 	return 0;
 }
-#endif /* CONFIG_DRM_MSM */
+#endif /* CONFIG_QCOM_KGSL */
 
 #endif /* CONFIG_DRM_PANEL_NOTIFY */
 
@@ -4786,7 +4786,7 @@ static int oplus_comm_register_lcd_notify(struct oplus_chg_comm *chip)
 
 #else /* CONFIG_DRM_PANEL_NOTIFY */
 
-#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_QCOM_KGSL) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 	chip->chg_fb_notify.notifier_call = fb_notifier_callback;
 	rc = msm_drm_register_client(&chip->chg_fb_notify);
 #elif IS_ENABLED(CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY_CHG)
@@ -4797,7 +4797,7 @@ static int oplus_comm_register_lcd_notify(struct oplus_chg_comm *chip)
 #else
 	chip->chg_fb_notify.notifier_call = fb_notifier_callback;
 	rc = fb_register_client(&chip->chg_fb_notify);
-#endif /*CONFIG_DRM_MSM*/
+#endif /*CONFIG_QCOM_KGSL*/
 	if (rc)
 		chg_err("Unable to register chg_fb_notify, rc=%d\n", rc);
 
@@ -4976,11 +4976,11 @@ static int oplus_comm_driver_remove(struct platform_device *pdev)
 			panel_event_notifier_unregister(
 				comm_dev->notifier_cookie);
 #else /* CONFIG_DRM_PANEL_NOTIFY */
-#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_QCOM_KGSL) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 		msm_drm_unregister_client(&comm_dev->chg_fb_notify);
 #else
 		fb_unregister_client(&comm_dev->chg_fb_notify);
-#endif /* CONFIG_DRM_MSM */
+#endif /* CONFIG_QCOM_KGSL */
 #endif /* CONFIG_DRM_PANEL_NOTIFY */
 	}
 

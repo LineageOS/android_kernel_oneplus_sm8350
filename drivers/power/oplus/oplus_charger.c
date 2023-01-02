@@ -166,7 +166,7 @@ static void oplus_chg_qc_config(struct oplus_chg_chip *chip);
 static void oplus_chg_voter_charging_start(struct oplus_chg_chip *chip,
                                         OPLUS_CHG_STOP_VOTER voter);
 static void oplus_chg_check_abnormal_adapter(int vbus_rising);
-#if IS_ENABLED(CONFIG_FB) || IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_FB) || IS_ENABLED(CONFIG_QCOM_KGSL) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 static int fb_notifier_callback(struct notifier_block *nb, unsigned long event, void *data);
 #elif IS_ENABLED(CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY_CHG)
 static int chg_mtk_drm_notifier_callback(struct notifier_block *nb, unsigned long event, void *data);
@@ -3405,7 +3405,7 @@ int oplus_chg_init(struct oplus_chg_chip *chip)
 	oplus_chg_bcc_thread_init();
 	oplus_pps_init(chip);
 
-#if IS_ENABLED(CONFIG_DRM_MSM) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
+#if IS_ENABLED(CONFIG_QCOM_KGSL) || IS_ENABLED(CONFIG_DRM_OPLUS_NOTIFY)
 	chip->chg_fb_notify.notifier_call = fb_notifier_callback;
 	rc = msm_drm_register_client(&chip->chg_fb_notify);
 #elif IS_ENABLED(CONFIG_FB)
