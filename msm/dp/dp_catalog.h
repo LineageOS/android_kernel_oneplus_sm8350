@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  */
 
@@ -334,6 +335,9 @@ struct dp_catalog_sub *dp_catalog_get_v420(struct device *dev,
 			struct dp_catalog *catalog, struct dp_catalog_io *io);
 
 struct dp_catalog_sub *dp_catalog_get_v200(struct device *dev,
+			struct dp_catalog *catalog, struct dp_catalog_io *io);
+
+struct dp_catalog_sub *dp_catalog_get_v500(struct device *dev,
 			struct dp_catalog *catalog, struct dp_catalog_io *io);
 
 #endif /* _DP_CATALOG_H_ */
