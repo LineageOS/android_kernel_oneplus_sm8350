@@ -149,8 +149,8 @@ static int edp_vco_pll_init_db_7nm(struct dp_pll_db *pdb,
 		pdb->div_frac_start3_mode0 = 0x07;
 		pdb->lock_cmp1_mode0 = 0x6f;
 		pdb->lock_cmp2_mode0 = 0x08;
-		pdb->phy_vco_div = 0x02;
-		pdb->lock_cmp_en = 0x04;
+		pdb->phy_vco_div = 0x01;
+		pdb->lock_cmp_en = 0x08;
 		pdb->ssc_step_size1_mode0 = 0x45;
 		pdb->ssc_step_size2_mode0 = 0x06;
 		break;
@@ -279,7 +279,6 @@ static int edp_config_vco_rate_7nm(struct dp_pll *pll,
 	}
 
 	dp_pll_write(dp_phy, DP_PHY_PD_CTL, 0x7d);
-	dp_pll_write(dp_phy, DP_PHY_MODE, 0xfc);
 	/* Make sure the PLL register writes are done */
 	wmb();
 
@@ -314,7 +313,7 @@ static int edp_config_vco_rate_7nm(struct dp_pll *pll,
 	dp_pll_write(dp_pll, QSERDES_COM_CLK_SEL, 0x30);
 	dp_pll_write(dp_pll,
 		QSERDES_COM_HSCLK_SEL, pdb->hsclk_sel);
-	dp_pll_write(dp_pll, QSERDES_COM_PLL_IVCO, 0x07);
+	dp_pll_write(dp_pll, QSERDES_COM_PLL_IVCO, 0x0f);
 	dp_pll_write(dp_pll,
 		QSERDES_COM_LOCK_CMP_EN, pdb->lock_cmp_en);
 	dp_pll_write(dp_pll, QSERDES_COM_PLL_CCTRL_MODE0, 0x36);
@@ -350,6 +349,8 @@ static int edp_config_vco_rate_7nm(struct dp_pll *pll,
 	dp_pll_write(dp_pll,
 		QSERDES_COM_BIAS_EN_CLKBUFLR_EN, 0x17);
 	dp_pll_write(dp_pll, QSERDES_COM_CORE_CLK_EN, 0x0f);
+	dp_pll_write(dp_pll, QSERDES_COM_VCO_TUNE1_MODE0, 0xa0);
+	dp_pll_write(dp_pll, QSERDES_COM_VCO_TUNE2_MODE0, 0x03);
 	/* Make sure the PHY register writes are done */
 	wmb();
 
@@ -482,6 +483,27 @@ static int edp_pll_enable_7nm(struct dp_pll *pll)
 	}
 
 	dp_pll_write(dp_phy, DP_PHY_CFG, 0x19);
+	dp_pll_write(dp_ln_tx0, TXn_HIGHZ_DRVR_EN, 0x1f);
+	dp_pll_write(dp_ln_tx0, TXn_HIGHZ_DRVR_EN, 0x04);
+	dp_pll_write(dp_ln_tx0, TXn_TX_POL_INV, 0x00);
+	dp_pll_write(dp_ln_tx1, TXn_HIGHZ_DRVR_EN, 0x1f);
+	dp_pll_write(dp_ln_tx1, TXn_HIGHZ_DRVR_EN, 0x04);
+	dp_pll_write(dp_ln_tx1, TXn_TX_POL_INV, 0x00);
+	dp_pll_write(dp_ln_tx0, TXn_TX_DRV_LVL_OFFSET, 0x10);
+	dp_pll_write(dp_ln_tx1, TXn_TX_DRV_LVL_OFFSET, 0x10);
+	dp_pll_write(dp_ln_tx0,
+		TXn_RES_CODE_LANE_OFFSET_TX0, 0x11);
+	dp_pll_write(dp_ln_tx0,
+		TXn_RES_CODE_LANE_OFFSET_TX1, 0x11);
+	dp_pll_write(dp_ln_tx1,
+		TXn_RES_CODE_LANE_OFFSET_TX0, 0x11);
+	dp_pll_write(dp_ln_tx1,
+		TXn_RES_CODE_LANE_OFFSET_TX1, 0x11);
+	dp_pll_write(dp_ln_tx0, TXn_TX_EMP_POST1_LVL, 0x10);
+	dp_pll_write(dp_ln_tx1, TXn_TX_EMP_POST1_LVL, 0x10);
+	dp_pll_write(dp_ln_tx0, TXn_TX_DRV_LVL, 0x1f);
+	dp_pll_write(dp_ln_tx1, TXn_TX_DRV_LVL, 0x1f);
+
 	/* Make sure the PHY register writes are done */
 	wmb();
 
@@ -506,32 +528,15 @@ static int edp_pll_enable_7nm(struct dp_pll *pll)
 	}
 
 	dp_pll_write(dp_ln_tx0, TXn_HIGHZ_DRVR_EN, drvr_en0);
-	dp_pll_write(dp_ln_tx0, TXn_TX_POL_INV, 0x00);
+	dp_pll_write(dp_ln_tx0, TXn_TRANSCEIVER_BIAS_EN,
+		bias_en0);
 	dp_pll_write(dp_ln_tx1, TXn_HIGHZ_DRVR_EN, drvr_en1);
-	dp_pll_write(dp_ln_tx1, TXn_TX_POL_INV, 0x00);
-	dp_pll_write(dp_ln_tx0, TXn_TX_DRV_LVL_OFFSET, 0x10);
-	dp_pll_write(dp_ln_tx1, TXn_TX_DRV_LVL_OFFSET, 0x10);
-	dp_pll_write(dp_ln_tx0,
-		TXn_RES_CODE_LANE_OFFSET_TX0, 0x11);
-	dp_pll_write(dp_ln_tx0,
-		TXn_RES_CODE_LANE_OFFSET_TX1, 0x11);
-	dp_pll_write(dp_ln_tx1,
-		TXn_RES_CODE_LANE_OFFSET_TX0, 0x11);
-	dp_pll_write(dp_ln_tx1,
-		TXn_RES_CODE_LANE_OFFSET_TX1, 0x11);
-
-	dp_pll_write(dp_ln_tx0, TXn_TX_EMP_POST1_LVL, 0x10);
-	dp_pll_write(dp_ln_tx1, TXn_TX_EMP_POST1_LVL, 0x10);
-	dp_pll_write(dp_ln_tx0, TXn_TX_DRV_LVL, 0x1f);
-	dp_pll_write(dp_ln_tx1, TXn_TX_DRV_LVL, 0x1f);
+	dp_pll_write(dp_ln_tx1, TXn_TRANSCEIVER_BIAS_EN,
+		bias_en1);
 
 	/* Make sure the PHY register writes are done */
 	wmb();
 
-	dp_pll_write(dp_ln_tx0, TXn_TRANSCEIVER_BIAS_EN,
-		bias_en0);
-	dp_pll_write(dp_ln_tx1, TXn_TRANSCEIVER_BIAS_EN,
-		bias_en1);
 	dp_pll_write(dp_phy, DP_PHY_CFG_1, phy_cfg_1);
 
 	if (!edp_7nm_pll_get_status(pll, PHY_READY)) {
@@ -771,7 +776,7 @@ static long edp_pll_vco_div_clk_round(struct clk_hw *hw, unsigned long rate,
 }
 
 static int edp_pll_vco_div_clk_set_rate(struct clk_hw *hw, unsigned long rate,
-				       unsigned long parent_rate)
+					unsigned long parent_rate)
 {
 	struct dp_pll *pll = NULL;
 	struct dp_pll_vco_clk *pll_link = NULL;
@@ -815,11 +820,11 @@ static const struct clk_ops edp_pll_vco_div_clk_ops = {
 
 static struct clk_init_data edp_phy_pll_clks[DP_PLL_NUM_CLKS] = {
 	{
-		.name = "_phy_pll_link_clk",
+		.name = "edp_phy_pll_link_clk",
 		.ops = &edp_pll_link_clk_ops,
 	},
 	{
-		.name = "_phy_pll_vco_div_clk",
+		.name = "edp_phy_pll_vco_div_clk",
 		.ops = &edp_pll_vco_div_clk_ops,
 	},
 };
@@ -830,7 +835,7 @@ static struct dp_pll_vco_clk *edp_pll_get_clks(struct dp_pll *pll)
 
 	for (i = 0; i < DP_PLL_NUM_CLKS; i++) {
 		snprintf(pll->pll_clks[i].name, DP_PLL_NAME_MAX_SIZE,
-				"%s%s", pll->name, edp_phy_pll_clks[i].name);
+				"%s", edp_phy_pll_clks[i].name);
 		pll->pll_clks[i].init_data.name = pll->pll_clks[i].name;
 		pll->pll_clks[i].init_data.ops = edp_phy_pll_clks[i].ops;
 		pll->pll_clks[i].hw.init = &pll->pll_clks[i].init_data;

@@ -40,15 +40,6 @@ enum {
 	TX_DRIVE_MODE_MAX,
 };
 
-static u8 const ldo_config[TX_DRIVE_MODE_MAX] = {
-	0x81,	/* 600mV */
-	0x00,	/* off */
-	0x41,	/* 650mV */
-	0x00,	/* off */
-	0x00,	/* off */
-	0x00,	/* off */
-};
-
 static u8 const vm_pre_emphasis
 	[TX_DRIVE_MODE_MAX][MAX_VOLTAGE_LEVELS][MAX_PRE_EMP_LEVELS] = {
 	/* pe0, 0 db; pe1, 2.0 db; pe2, 3.6 db; pe3, 6.0 db */
@@ -119,16 +110,16 @@ static u8 const vm_voltage_swing
 		{0x17, 0xFF, 0xFF, 0xFF}  /* sw1, 0.45 v */
 	},
 	{	// DP-only, DP/USB
-		{0x27, 0x2F, 0x36, 0xFF}, /* sw0, 0.4v  */
-		{0x31, 0x3E, 0x3F, 0xFF}, /* sw1, 0.6v  */
-		{0x3A, 0x3F, 0xFF, 0xFF}, /* sw2, 0.8v  */
-		{0xFF, 0xFF, 0xFF, 0xFF}  /* sw3, 1.2 v, optional */
+		{0x02, 0x12, 0x16, 0x1A}, /* sw0, 0.4v  */
+		{0x09, 0x19, 0x1F, 0xFF}, /* sw1, 0.6v  */
+		{0x10, 0x1F, 0xFF, 0xFF}, /* sw2, 0.8v  */
+		{0x1F, 0xFF, 0xFF, 0xFF}  /* sw3, 1.2 v, optional */
 	},
 	{	// MiniDP-only
-		{0x09, 0x17, 0x1F, 0xFF}, /* sw0, 0.4v  */
-		{0x11, 0x1D, 0x1F, 0xFF}, /* sw1, 0.6v  */
-		{0x1C, 0x1F, 0xFF, 0xFF}, /* sw2, 0.8v  */
-		{0xFF, 0xFF, 0xFF, 0xFF}  /* sw3, 1.2 v, optional */
+		{0x07, 0x0F, 0x16, 0x1F}, /* sw0, 0.4v  */
+		{0x11, 0x1E, 0x1F, 0xFF}, /* sw1, 0.6v  */
+		{0x16, 0x1F, 0xFF, 0xFF}, /* sw2, 0.8v  */
+		{0x1F, 0xFF, 0xFF, 0xFF}  /* sw3, 1.2 v, optional */
 	},
 };
 
@@ -162,12 +153,8 @@ static void dp_catalog_aux_setup_v500(struct dp_catalog_aux *aux,
 	revision_id = (dp_read(DP_PHY_REVISION_ID3) & 0xFF) << 8;
 	revision_id |= (dp_read(DP_PHY_REVISION_ID2) & 0xFF);
 	DP_DEBUG("DP phy revision_id: 0x%X\n", revision_id);
-	if (revision_id > 0x5000)
-		dp_write(DP_PHY_MODE_V500, 0xfc);
-	else
-		dp_write(DP_PHY_MODE, 0xfc);
 
-	dp_write(DP_PHY_PD_CTL_V500, 0x7d);
+	dp_write(DP_PHY_PD_CTL_V500, 0x65);
 	wmb(); /* make sure PD programming happened */
 
 	/* Turn on BIAS current for PHY/PLL */
@@ -175,6 +162,20 @@ static void dp_catalog_aux_setup_v500(struct dp_catalog_aux *aux,
 	dp_write(QSERDES_COM_BIAS_EN_CLKBUFLR_EN,
 			0x17);
 	wmb(); /* make sure BIAS programming happened */
+
+	io_data = catalog->io->dp_phy;
+	dp_write(DP_PHY_PD_CTL_V500, 0x2);
+	wmb(); /* make sure PD programming happened */
+	udelay(1000);
+
+	dp_write(DP_PHY_PD_CTL_V500, 0x7d);
+	wmb(); /* make sure PD programming happened */
+	udelay(1000);
+
+	if (revision_id >= 0x5000)
+		dp_write(DP_PHY_MODE_V500, 0xfc);
+	else
+		dp_write(DP_PHY_MODE, 0xfc);
 
 	io_data = catalog->io->dp_phy;
 	/* DP AUX CFG register programming */
@@ -353,18 +354,7 @@ static void dp_catalog_ctrl_update_vx_px_v500(struct dp_catalog_ctrl *ctrl,
 
 	value0 = vm_voltage_swing[index][v_level][p_level];
 	value1 = vm_pre_emphasis[index][v_level][p_level];
-	ldo_cfg = ldo_config[index];
-
-	/* program default setting first */
-	io_data = catalog->io->dp_ln_tx0;
-	dp_write(TXn_LDO_CONFIG_V500, 0x01);
-	dp_write(TXn_TX_DRV_LVL_V500, 0x17);
-	dp_write(TXn_TX_EMP_POST1_LVL_V500, 0x00);
-
-	io_data = catalog->io->dp_ln_tx1;
-	dp_write(TXn_LDO_CONFIG_V500, 0x01);
-	dp_write(TXn_TX_DRV_LVL_V500, 0x2A);
-	dp_write(TXn_TX_EMP_POST1_LVL_V500, 0x20);
+	ldo_cfg = 0x01;
 
 	/* Configure host and panel only if both values are allowed */
 	if (value0 != 0xFF && value1 != 0xFF) {
