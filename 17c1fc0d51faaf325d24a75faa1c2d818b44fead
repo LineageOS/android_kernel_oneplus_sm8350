@@ -1,6 +1,23 @@
 {
   "comments": [
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "b4e965e7_4ef9666b",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2023-02-11T18:55:26Z",
+      "side": 1,
+      "message": "Where do you see \"Discharging\"?",
+      "revId": "17c1fc0d51faaf325d24a75faa1c2d818b44fead",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "56e81007_39b2a795",
