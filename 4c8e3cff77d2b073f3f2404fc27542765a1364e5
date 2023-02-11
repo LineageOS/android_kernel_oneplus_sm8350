@@ -39,6 +39,30 @@
       },
       "revId": "4c8e3cff77d2b073f3f2404fc27542765a1364e5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "9137755d_5a628ddd",
+        "filename": "drivers/base/firmware_loader/main.c",
+        "patchSetId": 1
+      },
+      "lineNbr": 501,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2023-02-11T18:01:13Z",
+      "side": 1,
+      "message": "\"documentation\"",
+      "parentUuid": "2f869c22_c96617a8",
+      "range": {
+        "startLine": 501,
+        "startChar": 0,
+        "endLine": 501,
+        "endChar": 39
+      },
+      "revId": "4c8e3cff77d2b073f3f2404fc27542765a1364e5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
