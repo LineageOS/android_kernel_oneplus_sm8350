@@ -33,6 +33,24 @@
       "message": "What about this?",
       "revId": "17c1fc0d51faaf325d24a75faa1c2d818b44fead",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "c8a52d79_6c56fd85",
+        "filename": "drivers/power/oplus_chg/oplus_chg_intf.c",
+        "patchSetId": 2
+      },
+      "lineNbr": 1494,
+      "author": {
+        "id": 32354
+      },
+      "writtenOn": "2023-02-12T10:09:20Z",
+      "side": 1,
+      "message": "I tested on my lemonadep and only the change I submitted is required to return the status correctly when discharging, other occurrences seemingly have no effect.",
+      "parentUuid": "56e81007_39b2a795",
+      "revId": "17c1fc0d51faaf325d24a75faa1c2d818b44fead",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
