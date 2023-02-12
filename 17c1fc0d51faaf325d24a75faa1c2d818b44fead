@@ -18,6 +18,24 @@
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     },
     {
+      "unresolved": false,
+      "key": {
+        "uuid": "99a64323_faae3196",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 2
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 32354
+      },
+      "writtenOn": "2023-02-12T10:10:33Z",
+      "side": 1,
+      "message": "You don\u0027t really see \"Discharging\" anywhere when the phone is actually discharging, however the enum value is named DISCHARGING and for a lack of better way to describe it I used that.",
+      "parentUuid": "b4e965e7_4ef9666b",
+      "revId": "17c1fc0d51faaf325d24a75faa1c2d818b44fead",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
       "unresolved": true,
       "key": {
         "uuid": "56e81007_39b2a795",
