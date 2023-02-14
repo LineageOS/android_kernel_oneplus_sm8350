@@ -2339,12 +2339,7 @@ static int fts3658u_refresh_switch(void *chip_data, int fps)
 		fps == 60 ? FTS_120HZ_REPORT_RATE : FTS_180HZ_REPORT_RATE);
 }
 
-#ifdef FTS_KIT
 static struct oplus_touchpanel_operations fts_ops = {
-#endif
-#ifndef FTS_KIT
-static struct oplus_touchpanel_operations fts_ops = {
-#endif
 	.power_control              = fts3658u_power_control,
 	.get_vendor                 = fts3658u_get_vendor,
 	.get_chip_info              = fts3658u_get_chip_info,
@@ -2501,7 +2496,7 @@ static int fts3658u_tp_probe(struct i2c_client * client,
 
 #ifdef FTS_KIT
 	/*proc/touchpanel/baseline_test*/
-	/*create baseline_test, oplus driver delete*/
+	/*create baseline_test, oplus     driver delete*/
 	fts_create_proc_baseline_test(ts);
 #endif
 
