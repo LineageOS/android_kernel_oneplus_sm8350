@@ -5273,6 +5273,7 @@
 		qcom,pas-id = <0xf>;
 		qcom,firmware-name = "yupik_ipa_fws";
 		qcom,pil-force-shutdown;
+		qcom,proxy-timeout-ms = <1000>;
 		memory-region = <&pil_ipa_gsi_mem>;
 	};
 
