@@ -481,6 +481,24 @@ int focal_create_sysfs(struct i2c_client *client)
 	return err;
 }
 EXPORT_SYMBOL(focal_create_sysfs);
+
+int focal_create_sysfs_spi(struct spi_device *spi)
+{
+	int err = -1;
+	err = sysfs_create_group(&spi->dev.kobj, &focal_attribute_group);
+
+	if (0 != err) {
+		TPD_INFO("[EX]: sysfs_create_group() failed!\n");
+		sysfs_remove_group(&spi->dev.kobj, &focal_attribute_group);
+		return -EIO;
+
+	} else {
+		TPD_INFO("[EX]: sysfs_create_group() succeeded!\n");
+	}
+
+	return err;
+}
+EXPORT_SYMBOL(focal_create_sysfs_spi);
 /******************************* End of device attribute file******************************************/
 
 /********************Start of apk debug file and it's operation callbacks******************************/
@@ -1300,6 +1318,7 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 	struct test_item_info *p_test_item_info = NULL;
 	struct focal_auto_test_operations *fts_test_ops = NULL;
 	struct com_test_data *com_test_data_p = NULL;
+	int support_item = 0;
 
 	com_test_data_p = &ts->com_test_data;
 
@@ -1337,6 +1356,7 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST1, ret);
 			error_count++;
 		}
+		support_item++;
 	}
 
 	tp_kfree((void **)&p_test_item_info);
@@ -1353,6 +1373,7 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST2, ret);
 			error_count++;
 		}
+		support_item++;
 	}
 
 	tp_kfree((void **)&p_test_item_info);
@@ -1369,6 +1390,7 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST3, ret);
 			error_count++;
 		}
+		support_item++;
 	}
 
 	tp_kfree((void **)&p_test_item_info);
@@ -1385,6 +1407,7 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST4, ret);
 			error_count++;
 		}
+		support_item++;
 	}
 
 	tp_kfree((void **)&p_test_item_info);
@@ -1401,6 +1424,7 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST5, ret);
 			error_count++;
 		}
+		support_item++;
 	}
 
 	tp_kfree((void **)&p_test_item_info);
@@ -1417,9 +1441,20 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST6, ret);
 			error_count++;
 		}
+		support_item++;
 	}
 
 	tp_kfree((void **)&p_test_item_info);
+
+	if (!fts_test_ops->test7) {
+		TPD_INFO("test%d not support\n", TYPE_TEST7);
+	} else {
+		ret = fts_test_ops->test7(s, ts->chip_data, p_focal_testdata, p_test_item_info);
+		if (ret < 0) {
+			TPD_INFO("test%d failed! ret is %d\n", TYPE_TEST7, ret);
+			error_count++;
+		}
+	}
 
 	if (!fts_test_ops->auto_test_endoperation) {
 		TPD_INFO("not support fts_test_ops->auto_test_preoperation callback\n");
@@ -1435,6 +1470,9 @@ static int focal_test_item(struct seq_file *s, struct touchpanel_data *ts,
 	}
 
 END:
+	if (!support_item) {
+		error_count++;
+	}
 	return error_count;
 }
 

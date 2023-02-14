@@ -78,6 +78,7 @@ enum {
 	TYPE_TEST4                   = 0x04,
 	TYPE_TEST5                   = 0x05,
 	TYPE_TEST6                   = 0x06,
+	TYPE_TEST7                   = 0x07,
 	TYPE_TEST_MAX                = 0xFF,
 };
 
@@ -107,6 +108,9 @@ struct focal_auto_test_operations {
 	int (*test6)(struct seq_file *s, void *chip_data,
 		     struct auto_testdata *focal_testdata,
 		     struct test_item_info *p_test_item_info);
+	int (*test7)(struct seq_file *s, void *chip_data,
+		     struct auto_testdata *focal_testdata,
+		     struct test_item_info *p_test_item_info);
 	int (*auto_test_preoperation)(struct seq_file *s, void *chip_data,
 				      struct auto_testdata *focal_testdata,
 				      struct test_item_info *p_test_item_info);
@@ -129,6 +133,7 @@ struct focal_debug_func {
 };
 
 /*********PART4:function declare*****************/
+int focal_create_sysfs_spi(struct spi_device *spi);
 int focal_create_sysfs(struct i2c_client *client);
 int focal_create_apk_debug_channel(struct touchpanel_data *ts);
 void ft_limit_read_std(struct seq_file *s, struct touchpanel_data *ts);
