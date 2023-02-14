@@ -472,7 +472,7 @@ static int fts_fwupg_ecc_cal_host(u8 *buf, u32 len)
 	return (int)ecc;
 }
 
-int fts_fwupg_ecc_cal_tp(struct chip_data_ft3518 *ts_data, u32 saddr, u32 len)
+static int fts_fwupg_ecc_cal_tp(struct chip_data_ft3518 *ts_data, u32 saddr, u32 len)
 {
 	int ret = 0;
 	u8 wbuf[7] = { 0 };
@@ -1701,13 +1701,27 @@ static int fts_get_touch_points(void *chip_data, struct point_info *points,
 		}
 
 		touch_point++;
-		if (!ts_data->high_resolution_support) {
-			points[pointid].x = ((buf[2 + base] & 0x0F) << 8) + (buf[3 + base] & 0xFF);
-			points[pointid].y = ((buf[4 + base] & 0x0F) << 8) + (buf[5 + base] & 0xFF);
-			points[pointid].touch_major = buf[7 + base];
-			points[pointid].width_major = buf[7 + base];
-			points[pointid].z =  buf[6 + base];
-			event_flag = (buf[2 + base] >> 6);
+		if (!ts_data->high_resolution_support && !ts_data->high_resolution_support_x8) {
+		    points[pointid].x = ((buf[2 + base] & 0x0F) << 8) + (buf[3 + base] & 0xFF);
+		    points[pointid].y = ((buf[4 + base] & 0x0F) << 8) + (buf[5 + base] & 0xFF);
+		    points[pointid].touch_major = buf[7 + base];
+		    points[pointid].width_major = buf[7 + base];
+		    points[pointid].z =  buf[6 + base];
+		    event_flag = (buf[2 + base] >> 6);
+		} else if (ts_data->high_resolution_support_x8) {
+		    points[pointid].x = ((buf[2 + base] & 0x20) >> 5) +
+					((buf[2 + base] & 0x0F) << 11) +
+					((buf[3 + base] & 0xFF) << 3) +
+					((buf[6 + base] & 0xC0) >> 5);
+		    points[pointid].y = ((buf[2 + base] & 0x10) >> 4) +
+					((buf[4 + base] & 0x0F) << 11) +
+					((buf[5 + base] & 0xFF) << 3) +
+					((buf[6 + base] & 0x30) >> 3);
+		    points[pointid].touch_major = buf[7 + base];
+		    points[pointid].width_major = buf[7 + base];
+		    points[pointid].z =  buf[6 + base] & 0x0F;
+		    event_flag = (buf[2 + base] >> 6);
+
 		} else {
 			points[pointid].x = ((buf[2 + base] & 0x0F) << 10) + ((buf[3 + base] & 0xFF) << 2)
 					+ ((buf[6 + base] & 0xC0) >> 6);
@@ -2117,8 +2131,10 @@ static int ft3518_parse_dts(struct chip_data_ft3518 *ts_data, struct i2c_client 
 	np = dev->of_node;
 
 	ts_data->high_resolution_support = of_property_read_bool(np, "high_resolution_support");
-	TPD_INFO("%s:high_resolution_support is:%d\n", __func__, ts_data->high_resolution_support);
-
+	ts_data->high_resolution_support_x8 = of_property_read_bool(np, "high_resolution_support_x8");
+	TPD_INFO("%s:high_resolution_support is:%d %d\n", __func__, ts_data->high_resolution_support, ts_data->high_resolution_support_x8);
+	ts_data->read_buffer_support = of_property_read_bool(np, "read_buffer_support");
+	TPD_INFO("%s:read_buffer_support is:%d\n", __func__, ts_data->read_buffer_support);
 	return 0;
 }
 
@@ -2194,7 +2210,7 @@ static struct debug_info_proc_operations fts_debug_info_proc_ops = {
 	.self_delta_read   = fts_self_delta_read,
 };
 
-struct focal_debug_func focal_debug_ops = {
+static struct focal_debug_func focal_debug_ops = {
 	.esd_check_enable       = focal_esd_check_enable,
 	.get_esd_check_flag     = focal_get_esd_check_flag,
 	.get_fw_version         = focal_get_fw_version,
