@@ -49,6 +49,11 @@
 #define REGDB_FILE_NAME			"regdb.bin"
 #define DUMMY_BDF_FILE_NAME		"bdwlan.dmy"
 
+#ifdef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
+#define ELF_BDF_FILE_SEC		"bdwlanu.elf"
+#endif /* OPLUS_FEATURE_WIFI_BDF */
+
 #define QDSS_TRACE_CONFIG_FILE "qdss_trace_config.cfg"
 
 #define DEVICE_BAR_SIZE			0x200000
@@ -947,6 +952,36 @@ void icnss_dms_deinit(struct icnss_priv *priv)
 	qmi_handle_release(&priv->qmi_dms);
 }
 
+#ifdef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
+static bool is_secondory_BDF() {
+	int pcbVersion =  get_PCB_Version();
+	icnss_pr_dbg("pcbVersion: %d", pcbVersion);
+	if (pcbVersion != 16 &&
+		pcbVersion != 24 &&
+		pcbVersion != 32 &&
+		pcbVersion != 40) {
+		return true;
+		}
+	return false;
+}
+
+static void icnss_get_oplus_bdf_file_name(char* file_name, u32 filename_len) {
+	int project_id = get_project();
+	icnss_pr_dbg("project id: %d", project_id);
+
+	if (project_id == 22055) {
+		if (is_secondory_BDF()) {
+			snprintf(file_name, filename_len, ELF_BDF_FILE_SEC);
+		} else {
+			snprintf(file_name, filename_len, ELF_BDF_FILE_NAME);
+		}
+	} else {
+		snprintf(file_name, filename_len, ELF_BDF_FILE_NAME);
+	}
+}
+#endif /* OPLUS_FEATURE_WIFI_BDF */
+
 static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 				   u32 bdf_type, char *filename,
 				   u32 filename_len)
@@ -957,7 +992,12 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 	switch (bdf_type) {
 	case ICNSS_BDF_ELF:
 		if (priv->board_id == 0xFF)
+#ifndef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
 			snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
+#else
+			icnss_get_oplus_bdf_file_name(filename_tmp,filename_len);
+#endif /* OPLUS_FEATURE_WIFI_BDF */
 		else if (priv->board_id < 0xFF)
 			snprintf(filename_tmp, filename_len,
 				 ELF_BDF_FILE_NAME_PREFIX "%02x",
