@@ -51,6 +51,23 @@
       "parentUuid": "988e793f_84353ece",
       "revId": "ea5187318ac2b7863567359228dc093775695b65",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "2659fa8c_104a5179",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 17649
+      },
+      "writtenOn": "2023-02-21T23:02:07Z",
+      "side": 1,
+      "message": "Seems to work fine on sake:\n\nASUS_I006D:/ # settings list global | grep freezer\ncached_apps_freezer\u003ddevice_default\nASUS_I006D:/ # logcat -b all | grep freezer\n02-21 23:59:07.298  1387  1387 W ActivityManager: unable to read freezer info",
+      "revId": "ea5187318ac2b7863567359228dc093775695b65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
