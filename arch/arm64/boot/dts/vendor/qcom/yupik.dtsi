@@ -416,7 +416,10 @@
 
 	pil_trustedvm_mem: pil_trustedvm_region@d0800000 {
 		no-map;
-		reg = <0x0 0xd0800000 0x0 0x76f7000>;
+		//#ifdef OPLUS_FEATURE_BOOT_SECURITY
+		/* 2021/06/21, delete for not use TVM TUI */
+		//reg = <0x0 0xd0800000 0x0 0x76f7000>;
+		//#endif /* OPLUS_FEATURE_BOOT_SECURITY */
 	};
 
 	qrtr_shbuf: qrtr-shmem {
