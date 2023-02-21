@@ -353,104 +353,577 @@
 			effect_0 {
 				/* CLICK */
 				qcom,effect-id = <0>;
-				qcom,wf-vmax-mv = <3600>;
-				qcom,wf-pattern-data =  <0x01f  S_PERIOD_T_LRA  0>,
-							<0x03f  S_PERIOD_T_LRA  0>,
-							<0x05f  S_PERIOD_T_LRA  0>,
-							<0x07f  S_PERIOD_T_LRA  0>,
-							<0x17f  S_PERIOD_T_LRA  0>,
-							<0x15f  S_PERIOD_T_LRA  0>,
-							<0x13f  S_PERIOD_T_LRA  0>,
-							<0x11f  S_PERIOD_T_LRA  0>;
-				qcom,wf-pattern-period-us = <6667>;
-				qcom,wf-brake-pattern = /bits/ 8 <0x0 0x0 0x0>;
-				qcom,wf-pattern-preload;
+				qcom,wf-vmax-mv = <8900>;
+				qcom,wf-fifo-data = [
+							00 07 0e 15 1c 22 29 2f
+							36 3b 41 47 4c 51 56 5a
+							5e 62 65 68 6b 6d 6f 70
+							71 71 71 71 70 6f 6d 6b
+							68 65 62 5f 5b 56 51 4c
+							47 42 3c 36 30 29 23 1c
+							15 0e 07 00 f9 f3 ec e5
+							de d8 d1 cb c5 bf b9 b4
+							af aa a6 a2 9e 9b 98 95
+							93 92 90 8f 8f 8f 8f 90
+							91 93 95 97 9a 9e a1 a5
+							aa ae b3 b8 be c4 ca d0
+							d6 dd e4 ea f1 f8 ff 06
+							0d 14 1b 21 28 2e 35 3b
+							41 46 4c 51 55 5a 5e 61
+							65 68 6a 6d 6e 70 71 71
+							71 71 70 6f 6d 6b 69 66
+							63 5f 5b 57 52 4d 48 42
+							3d 37 30 2a 24 1d 16 0f
+							08 00 06 0c 12 18 1e 23
+							29 2e 34 39 3d 42 46 4a
+							4e 52 55 58 5a 5c 5e 60
+							61 62 62 62 62 61 60 5e
+							5d 5a 58 55 52 4e 4b 47
+							42 3e 39 34 2f 29 24 1e
+							18 12 0c 06 00 fa f4 ee
+							e9 e3 dd d7 d2 cd c8 c3
+							be ba b6 b2 af ab a8 a6
+							a4 a2 a0 9f 9e 9e 9e 9e
+							9f a0 a2 a3 a6 a8 ab ae
+							b1 b5 b9 bd c2 c7 cc d1
+							d6 dc e2 e7 ed f3 f9 ff
+							05 0b 11 17 1d 23 28 2e
+							33 38 3d 41 46 4a 4e 51
+							54 57 5a 5c 5e 60 61 61
+							62 62 62 61 60 5f 5d 5b
+							58 55 52 4f 4b 47 43 3e
+							3a 34 2f 2a 24 1f 19 13
+							0d 07  ];
 				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+				qcom,wf-fifo-period = <S_PERIOD_F_24KHZ>;
 			};
 
 			effect_1 {
 				/* DOUBLE_CLICK */
 				qcom,effect-id = <1>;
-				qcom,wf-vmax-mv = <3600>;
-				qcom,wf-pattern-data =  <0x01f  S_PERIOD_T_LRA  0>,
-							<0x03f  S_PERIOD_T_LRA  0>,
-							<0x05f  S_PERIOD_T_LRA  0>,
-							<0x07f  S_PERIOD_T_LRA  0>,
-							<0x17f  S_PERIOD_T_LRA  0>,
-							<0x15f  S_PERIOD_T_LRA  0>,
-							<0x13f  S_PERIOD_T_LRA  0>,
-							<0x11f  S_PERIOD_T_LRA  0>;
-				qcom,wf-pattern-period-us = <6667>;
-				qcom,wf-brake-pattern = /bits/ 8 <0x0 0x0 0x0>;
+				qcom,wf-vmax-mv = <8900>;
+				qcom,wf-fifo-data = [
+							00 00 08 10 17 1f 26 2e
+							35 3c 43 49 50 55 5b 60
+							65 6a 6e 72 75 78 7a 7c
+							7d 7e 7f 7f 7e 7e 7c 7a
+							78 75 72 6e 6a 66 61 5b
+							56 50 4a 43 3c 35 2e 27
+							1f 18 10 08 00 f9 f1 e9
+							e2 da d3 cb c4 be b7 b1
+							ab a5 a0 9b 97 92 8f 8b
+							88 86 84 83 82 81 81 81
+							82 84 86 88 8b 8e 92 96
+							9a 9f a4 aa b0 b6 bc c3
+							ca d1 d9 e0 e8 ef f7 00
+							f9 f2 eb e4 dd d6 d0 c9
+							c3 bd b8 b2 ad a8 a4 a0
+							9c 99 96 93 91 8f 8e 8d
+							8c 8c 8d 8e 8f 91 93 95
+							98 9c 9f a4 a8 ad b2 b7
+							bd c3 c9 cf d6 dd e3 ea
+							f1 f8 00 07 0e 15 1c 23
+							29 30 36 3c 42 48 4d 53
+							57 5c 60 64 67 6a 6d 6f
+							71 72 73 73 74 73 72 71
+							6f 6d 6b 68 64 61 5d 58
+							54 4e 49 43 3e 37 31 2b
+							24 1d 16 0f 08 00 00 ];
 				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+				qcom,wf-fifo-period = <S_PERIOD_F_24KHZ>;
 			};
 
 			effect_2 {
 				/* TICK */
 				qcom,effect-id = <2>;
-				qcom,wf-vmax-mv = <3600>;
-				qcom,wf-pattern-data =  <0x01f  S_PERIOD_T_LRA  0>,
-							<0x03f  S_PERIOD_T_LRA  0>,
-							<0x05f  S_PERIOD_T_LRA  0>,
-							<0x07f  S_PERIOD_T_LRA  0>,
-							<0x17f  S_PERIOD_T_LRA  0>,
-							<0x15f  S_PERIOD_T_LRA  0>,
-							<0x13f  S_PERIOD_T_LRA  0>,
-							<0x11f  S_PERIOD_T_LRA  0>;
-				qcom,wf-pattern-period-us = <6667>;
-				qcom,wf-brake-pattern = /bits/ 8 <0x0 0x0 0x0>;
+				qcom,wf-vmax-mv = <8900>;
+				qcom,wf-fifo-data = [
+							00 07 0e 15 1c 22 29 2f
+							36 3b 41 47 4c 51 56 5a
+							5e 62 65 68 6b 6d 6f 70
+							71 71 71 71 70 6f 6d 6b
+							68 65 62 5f 5b 56 51 4c
+							47 42 3c 36 30 29 23 1c
+							15 0e 07 00 f9 f3 ec e5
+							de d8 d1 cb c5 bf b9 b4
+							af aa a6 a2 9e 9b 98 95
+							93 92 90 8f 8f 8f 8f 90
+							91 93 95 97 9a 9e a1 a5
+							aa ae b3 b8 be c4 ca d0
+							d6 dd e4 ea f1 f8 ff 06
+							0d 14 1b 21 28 2e 35 3b
+							41 46 4c 51 55 5a 5e 61
+							65 68 6a 6d 6e 70 71 71
+							71 71 70 6f 6d 6b 69 66
+							63 5f 5b 57 52 4d 48 42
+							3d 37 30 2a 24 1d 16 0f
+							08 00 06 0c 12 18 1e 23
+							29 2e 34 39 3d 42 46 4a
+							4e 52 55 58 5a 5c 5e 60
+							61 62 62 62 62 61 60 5e
+							5d 5a 58 55 52 4e 4b 47
+							42 3e 39 34 2f 29 24 1e
+							18 12 0c 06 00 fa f4 ee
+							e9 e3 dd d7 d2 cd c8 c3
+							be ba b6 b2 af ab a8 a6
+							a4 a2 a0 9f 9e 9e 9e 9e
+							9f a0 a2 a3 a6 a8 ab ae
+							b1 b5 b9 bd c2 c7 cc d1
+							d6 dc e2 e7 ed f3 f9 ff
+							05 0b 11 17 1d 23 28 2e
+							33 38 3d 41 46 4a 4e 51
+							54 57 5a 5c 5e 60 61 61
+							62 62 62 61 60 5f 5d 5b
+							58 55 52 4f 4b 47 43 3e
+							3a 34 2f 2a 24 1f 19 13
+							0d 07  ];
 				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+				qcom,wf-fifo-period = <S_PERIOD_F_24KHZ>;
 			};
 
 			effect_3 {
 				/* THUD */
 				qcom,effect-id = <3>;
-				qcom,wf-vmax-mv = <3600>;
-				qcom,wf-pattern-data =  <0x01f  S_PERIOD_T_LRA  0>,
-							<0x03f  S_PERIOD_T_LRA  0>,
-							<0x05f  S_PERIOD_T_LRA  0>,
-							<0x07f  S_PERIOD_T_LRA  0>,
-							<0x17f  S_PERIOD_T_LRA  0>,
-							<0x15f  S_PERIOD_T_LRA  0>,
-							<0x13f  S_PERIOD_T_LRA  0>,
-							<0x11f  S_PERIOD_T_LRA  0>;
-				qcom,wf-pattern-period-us = <6667>;
-				qcom,wf-brake-pattern = /bits/ 8 <0x0 0x0 0x0>;
+				qcom,wf-vmax-mv = <8900>;
+				qcom,wf-fifo-data = [				
+							00 05 0a 0f 14 19 1d 22
+							26 2b 2f 33 37 3a 3e 41
+							44 46 49 4b 4d 4e 4f 50
+							51 51 51 51 50 4f 4e 4d
+							4b 49 46 44 41 3e 3b 37
+							33 2f 2b 27 22 1e 19 14
+							0f 0a 05 00 fb f6 f1 ed
+							e8 e3 de da d6 d1 cd ca
+							c6 c3 bf bc ba b7 b5 b3
+							b2 b1 b0 af af af af b0
+							b1 b2 b3 b5 b7 b9 bc bf
+							c2 c5 c9 cd d1 d5 d9 dd
+							e2 e7 ec f0 f5 fa ff 04
+							09 0e 13 18 1d 21 26 2a
+							2e 32 36 3a 3d 40 43 46
+							48 4b 4c 4e 4f 50 51 51
+							51 51 50 50 4e 4d 4b 49
+							47 44 41 3e 3b 37 34 30
+							2c 27 23 1e 1a 15 10 0b
+							06 01 fc f7 f2 ed e8 e4
+							df da d6 d2 ce ca c6 c3
+							c0 bd ba b8 b6 b4 b2 b1
+							b0 af af af af b0 b0 b2
+							b3 b5 b7 b9 bc be c2 c5
+							c8 cc d0 d4 d8 dd e1 e6
+							eb f0 f5 fa ff 04 09 0e
+							13 17 1c 21 25 2a 2e 32
+							36 39 3d 40 43 46 48 4a
+							4c 4e 4f 50 51 51 51 51
+							51 50 4f 4d 4b 49 47 45
+							42 3f 3b 38 34 30 2c 28
+							23 1f 1a 15 10 0c 07 02
+							fd f8 f3 ee e9 e4 e0 db
+							d7 d2 ce ca c7 c3 c0 bd
+							ba b8 b6 b4 b2 b1 b0 af
+							af af af af b0 b1 b3 b4
+							b6 b9 bb be c1 c4 c8 cc
+							d0 d4 d8 dc e1 e6 ea ef
+							f4 f9 00 02 03 05 07 08
+							0a 0c 0d 0f 10 11 13 14
+							15 16 17 18 19 1a 1a 1b
+							1b 1c 1c 1c 1c 1c 1c 1b
+							1b 1a 1a 19 18 17 16 15
+							14 13 12 10 0f 0d 0c 0a
+							09 07 05 04 02 00 fe fd
+							fb f9 f8 f6 f4 f3 f1 f0
+							ef ed ec eb ea e9 e8 e7
+							e6 e6 e5 e5 e4 e4 e4 e4
+							e4 e4 e5 e5 e6 e6 e7 e8
+							e9 ea eb ec ed ee f0 f1
+							f3 f4 f6 f7 f9 fb fc fe
+							00 01 03 05 07 08 0a 0b
+							0d 0f 10 11 13 14 15 16
+							17 18 19 1a 1a 1b 1b 1c
+							1c 1c 1c 1c 1c 1b 1b 1a
+							1a 19 18 17 16 15 14 13
+							12 10 0f 0d 0c 0a 09 07
+							05 04 02 00 ff fd fb fa
+							f8 f6 f5 f3 f2 f0 ef ed
+							ec eb ea e9 e8 e7 e6 e6
+							e5 e5 e4 e4 e4 e4 e4 e4
+							e5 e5 e6 e6 e7 e8 e8 e9
+							eb ec ed ee f0 f1 f2 f4
+							f6 f7 f9 fa fc fe 00 01
+							03 05 06 08 0a 0b 0d 0e
+							10 11 12 14 15 16 17 18
+							19 1a 1a 1b 1b 1c 1c 1c
+							1c 1c 1c 1b 1b 1b 1a 19
+							18 18 17 16 14 13 12 11
+							0f 0e 0c 0b 09 07 06 04
+							02 01 ff fd fb fa f8 f6
+							f5 f3 f2 f0 ef ee ec eb
+							ea e9 e8 e7 e7 e6 e5 e5
+							e4 e4 e4 e4 e4 e4 e5 e5
+							e5 e6 e7 e8 e8 e9 ea ec
+							ed ee ef f1 f2 f4 f5 f7
+							f9 fa fc fe ff 01 03 04
+							06 08 09 0b 0d 0e 10 11
+							12 14 15 16 17 18 19 19
+							1a 1b 1b 1b 1c 1c 1c 1c
+							1c 1b 1b 1b 1a 19 19 18
+							17 16 15 13 12 11 0f 0e
+							0c 0b 09 08 06 04 02 01
+							ff fd fc fa f8 f7 f5 f3
+							f2 f1 ef ee ed eb ea e9
+							e8 e7 e7 e6 e5 e5 e5 e4
+							e4 e4 e4 e4 e5 e5 e5 e6
+							e7 e7 e8 e9 ea eb ed ee
+							ef f1 f2 f4 f5 f7 f8 fa
+							fc fd ff 01 03 04 06 08
+							09 0b 0c 0e 0f 11 12 13
+							15 16 17 18 19 19 1a 1b
+							1b 1b 1c 1c 1c 1c 1c 1b
+							1b 1b 1a 19 19 18 17 16
+							15 14 12 11 10 0e 0d 0b
+							09 08 06 04 03 01 ff fe
+							fc fa f8 f7 f5 f4 f2 f1
+							ef ee ed eb ea e9 e8 e7
+							e7 e6 e5 e5 e5 e4 e4 e4
+							e4 e4 e5 e5 e5 e6 e7 e7
+							e8 e9 ea eb ec ee ef f0
+							f2 f3 f5 f7 f8 fa fb fd
+							ff 01 02 04 06 07 09 0b
+							0c 0e 0f 11 12 13 14 16
+							17 18 18 19 1a 1b 1b 1b
+							1c 1c 1c 1c 1c 1c 1b 1b
+							1a 1a 19 18 17 16 15 14
+							12 11 10 0e 0d 0b 0a 08
+							06 05 03 01 ff fe fc fa
+							f9 f7 f5 f4 f2 f1 ef ee
+							ed ec ea e9 e8 e8 e7 e6
+							e5 e5 e5 e4 e4 e4 e4 e4
+							e4 e5 e5 e6 e6 e7 e8 e9
+							ea eb ec ed ef f0 f2 f3
+							f5 f6 f8 fa fb fd ff 00
+							02 04 06 07 09 0a 0c 0e
+							0f 10 12 13 14 15 17 17
+							18 19 1a 1a 1b 1b 1c 1c
+							1c 1c 1c 1c 1b 1b 1a 1a
+							19 18 17 16 15 14 13 11
+							10 0e 0d 0b 0a 08 07 05
+							03 01 00 fe fc fb f9 f7
+							f6 f4 f3 f1 f0 ee ed ec
+							eb ea e9 e8 e7 e6 e6 e5
+							e5 e4 e4 e4 e4 e4 e4 e5
+							e5 e6 e6 e7 e8 e9 ea eb
+							ec ed ef f0 f1 f3 f5 f6
+							f8 f9 fb fd fe 00 02 04
+							05 07 09 0a 0c 0d 0f 10
+							12 13 14 15 16 17 18 19
+							1a 1a 1b 1b 1c 1c 1c 1c
+							1c 1c 1b 1b 1a 1a 19 18
+							17 16 15 14 13 11 10 0f
+							0d 0c 0a 08 07 05 03 02
+							00 fe fd fb f9 f7 f6 f4
+							f3 f1 f0 ee ed ec eb ea
+							e9 e8 e7 e6 e6 e5 e5 e4
+							e4 e4 e4 e4 e4 e5 e5 e6
+							e6 e7 e8 e9 ea eb ec ed
+							ee f0 f1 f3 f4 f6 f8 f9
+							fb fd fe 00 02 03 05 07
+							08 0a 0c 0d 0f 10 11 13
+							14 15 16 17 18 19 1a 1a
+							1b 1b 1c 1c 1c 1c 1c 1c
+							1b 1b 1a 1a 19 18 17 16
+							15 14 13 12 10 0f 0d 0c
+							0a 09 07 05 04 02 00 fe
+							fd fb f9 f8 f6 f4 f3 f1
+							f0 ef ed ec eb ea e9 e8
+							e7 e6 e6 e5 e5 e4 e4 e4
+							e4 e4 e4 e5 e5 e6 e6 e7
+							e8 e9 ea eb ec ed ee f0
+							f1 f3 f4 f6 f7 f9 fb fc
+							fe 00 fa f4 ee e8 e2 dd
+							d7 d2 cd c8 c3 be ba b6
+							b2 af ab a9 a6 a4 a2 a1
+							9f 9f 9e 9e 9f 9f a0 a2
+							a4 a6 a8 ab ae b2 b6 ba
+							be c2 c7 cc d1 d7 dc e2
+							e8 ee f4 fa 00 06 0c 12
+							17 1d 23 28 2e 33 38 3d
+							42 46 4a 4e 51 54 57 5a
+							5c 5e 5f 61 61 62 62 61
+							61 60 5e 5c 5a 58 55 52
+							4e 4b 47 42 3e 39 34 2f
+							2a 24 1e 19 13 0d 07 01
+							fb f5 ef e9 e3 dd d8 d2
+							cd c8 c3 bf ba b6 b3 af
+							ac a9 a6 a4 a2 a1 a0 9f
+							9e 9e 9f 9f a0 a2 a3 a6
+							a8 ab ae b1 b5 b9 bd c2
+							c7 cc d1 d6 dc e1 e7 ed
+							f3 f9 ff 05 0b 11 17 1d
+							22 28 2d 32 37 3c 41 45
+							49 4d 51 54 57 5a 5c 5e
+							5f 60 61 62 62 61 61 60
+							5e 5d 5b 58 55 52 4f 4b
+							47 43 3e 3a 35 30 2a 25
+							1f 19 13 0e 08 02 fc f6
+							f0 ea e4 de d9 d3 ce c9
+							c4 bf bb b7 b3 af ac a9
+							a7 a4 a2 a1 a0 9f 9e 9e
+							9e 9f a0 a1 a3 a5 a8 aa
+							ae b1 b5 b9 bd c1 c6 cb
+							d0 d5 db e1 e6 ec f2 f8
+							00  ];
 				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+				qcom,wf-fifo-period = <S_PERIOD_F_24KHZ>;
 			};
 
 			effect_4 {
 				/* POP */
 				qcom,effect-id = <4>;
-				qcom,wf-vmax-mv = <3600>;
-				qcom,wf-pattern-data =  <0x01f  S_PERIOD_T_LRA  0>,
-							<0x03f  S_PERIOD_T_LRA  0>,
-							<0x05f  S_PERIOD_T_LRA  0>,
-							<0x07f  S_PERIOD_T_LRA  0>,
-							<0x17f  S_PERIOD_T_LRA  0>,
-							<0x15f  S_PERIOD_T_LRA  0>,
-							<0x13f  S_PERIOD_T_LRA  0>,
-							<0x11f  S_PERIOD_T_LRA  0>;
-				qcom,wf-pattern-period-us = <6667>;
-				qcom,wf-brake-pattern = /bits/ 8 <0x0 0x0 0x0>;
+				qcom,wf-vmax-mv = <8900>;
+				qcom,wf-fifo-data = [
+							00 00 00 00 06 0c 13 19
+							1f 24 2a 30 35 3a 3f 44
+							48 4d 50 54 57 5a 5d 5f
+							61 63 64 64 65 65 64 64
+							63 61 5f 5d 5a 57 54 51
+							4d 49 44 3f 3b 35 30 2a
+							25 1f 19 13 0d 07 00 fa
+							f4 ee e8 e2 dc d6 d1 cb
+							c6 c1 bc b8 b4 b0 ac a9
+							a6 a3 a1 9f 9e 9c 9c 9b
+							9b 9c 9c 9d 9f a1 a3 a5
+							a8 ac af b3 b7 bc c0 c5
+							ca d0 d5 db e1 e7 ed f3
+							f9 ff 05 0c 12 18 1e 24
+							29 2f 34 3a 3f 43 48 4c
+							50 54 57 5a 5d 5f 61 62
+							64 64 65 65 65 64 63 61
+							5f 5d 5b 58 55 51 4d 49
+							45 40 3b 36 31 2b 26 20
+							1a 14 0e 07 00 05 0b 10
+							15 1a 20 24 29 2e 32 37
+							3b 3f 42 46 49 4c 4e 50
+							52 54 55 56 57 57 57 57
+							56 55 54 52 51 4e 4c 49
+							46 42 3f 3b 37 33 2e 2a
+							25 20 1b 16 10 0b 06 00
+							fb f6 f0 eb e6 e1 dc d7
+							d2 ce ca c5 c2 be bb b7
+							b5 b2 b0 ae ac ab aa a9
+							a9 a9 a9 aa ab ac ad af
+							b2 b4 b7 ba bd c1 c5 c9
+							cd d1 d6 db e0 e5 ea ef
+							f5 fa ff 05 0a 0f 15 1a
+							1f 24 29 2d 32 36 3a 3e
+							42 45 48 4b 4e 50 52 54
+							55 56 57 57 57 57 56 56
+							54 53 51 4f 4c 49 46 43
+							3f 3c 38 33 2f 2a 25 20
+							1b 16 11 0c 06 00 00 00
+							00  ];
 				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+				qcom,wf-fifo-period = <S_PERIOD_F_24KHZ>;
 			};
 
 			effect_5 {
 				/* HEAVY CLICK */
 				qcom,effect-id = <5>;
-				qcom,wf-vmax-mv = <3600>;
-				qcom,wf-pattern-data =  <0x01f  S_PERIOD_T_LRA  0>,
-							<0x03f  S_PERIOD_T_LRA  0>,
-							<0x05f  S_PERIOD_T_LRA  0>,
-							<0x07f  S_PERIOD_T_LRA  0>,
-							<0x17f  S_PERIOD_T_LRA  0>,
-							<0x15f  S_PERIOD_T_LRA  0>,
-							<0x13f  S_PERIOD_T_LRA  0>,
-							<0x11f  S_PERIOD_T_LRA  0>;
-				qcom,wf-pattern-period-us = <6667>;
-				qcom,wf-brake-pattern = /bits/ 8 <0x0 0x0 0x0>;
+				qcom,wf-vmax-mv = <8900>;
+				qcom,wf-fifo-data = [				
+							00 05 0a 0f 14 19 1d 22
+							26 2b 2f 33 37 3a 3e 41
+							44 46 49 4b 4d 4e 4f 50
+							51 51 51 51 50 4f 4e 4d
+							4b 49 46 44 41 3e 3b 37
+							33 2f 2b 27 22 1e 19 14
+							0f 0a 05 00 fb f6 f1 ed
+							e8 e3 de da d6 d1 cd ca
+							c6 c3 bf bc ba b7 b5 b3
+							b2 b1 b0 af af af af b0
+							b1 b2 b3 b5 b7 b9 bc bf
+							c2 c5 c9 cd d1 d5 d9 dd
+							e2 e7 ec f0 f5 fa ff 04
+							09 0e 13 18 1d 21 26 2a
+							2e 32 36 3a 3d 40 43 46
+							48 4b 4c 4e 4f 50 51 51
+							51 51 50 50 4e 4d 4b 49
+							47 44 41 3e 3b 37 34 30
+							2c 27 23 1e 1a 15 10 0b
+							06 01 fc f7 f2 ed e8 e4
+							df da d6 d2 ce ca c6 c3
+							c0 bd ba b8 b6 b4 b2 b1
+							b0 af af af af b0 b0 b2
+							b3 b5 b7 b9 bc be c2 c5
+							c8 cc d0 d4 d8 dd e1 e6
+							eb f0 f5 fa ff 04 09 0e
+							13 17 1c 21 25 2a 2e 32
+							36 39 3d 40 43 46 48 4a
+							4c 4e 4f 50 51 51 51 51
+							51 50 4f 4d 4b 49 47 45
+							42 3f 3b 38 34 30 2c 28
+							23 1f 1a 15 10 0c 07 02
+							fd f8 f3 ee e9 e4 e0 db
+							d7 d2 ce ca c7 c3 c0 bd
+							ba b8 b6 b4 b2 b1 b0 af
+							af af af af b0 b1 b3 b4
+							b6 b9 bb be c1 c4 c8 cc
+							d0 d4 d8 dc e1 e6 ea ef
+							f4 f9 00 02 03 05 07 08
+							0a 0c 0d 0f 10 11 13 14
+							15 16 17 18 19 1a 1a 1b
+							1b 1c 1c 1c 1c 1c 1c 1b
+							1b 1a 1a 19 18 17 16 15
+							14 13 12 10 0f 0d 0c 0a
+							09 07 05 04 02 00 fe fd
+							fb f9 f8 f6 f4 f3 f1 f0
+							ef ed ec eb ea e9 e8 e7
+							e6 e6 e5 e5 e4 e4 e4 e4
+							e4 e4 e5 e5 e6 e6 e7 e8
+							e9 ea eb ec ed ee f0 f1
+							f3 f4 f6 f7 f9 fb fc fe
+							00 01 03 05 07 08 0a 0b
+							0d 0f 10 11 13 14 15 16
+							17 18 19 1a 1a 1b 1b 1c
+							1c 1c 1c 1c 1c 1b 1b 1a
+							1a 19 18 17 16 15 14 13
+							12 10 0f 0d 0c 0a 09 07
+							05 04 02 00 ff fd fb fa
+							f8 f6 f5 f3 f2 f0 ef ed
+							ec eb ea e9 e8 e7 e6 e6
+							e5 e5 e4 e4 e4 e4 e4 e4
+							e5 e5 e6 e6 e7 e8 e8 e9
+							eb ec ed ee f0 f1 f2 f4
+							f6 f7 f9 fa fc fe 00 01
+							03 05 06 08 0a 0b 0d 0e
+							10 11 12 14 15 16 17 18
+							19 1a 1a 1b 1b 1c 1c 1c
+							1c 1c 1c 1b 1b 1b 1a 19
+							18 18 17 16 14 13 12 11
+							0f 0e 0c 0b 09 07 06 04
+							02 01 ff fd fb fa f8 f6
+							f5 f3 f2 f0 ef ee ec eb
+							ea e9 e8 e7 e7 e6 e5 e5
+							e4 e4 e4 e4 e4 e4 e5 e5
+							e5 e6 e7 e8 e8 e9 ea ec
+							ed ee ef f1 f2 f4 f5 f7
+							f9 fa fc fe ff 01 03 04
+							06 08 09 0b 0d 0e 10 11
+							12 14 15 16 17 18 19 19
+							1a 1b 1b 1b 1c 1c 1c 1c
+							1c 1b 1b 1b 1a 19 19 18
+							17 16 15 13 12 11 0f 0e
+							0c 0b 09 08 06 04 02 01
+							ff fd fc fa f8 f7 f5 f3
+							f2 f1 ef ee ed eb ea e9
+							e8 e7 e7 e6 e5 e5 e5 e4
+							e4 e4 e4 e4 e5 e5 e5 e6
+							e7 e7 e8 e9 ea eb ed ee
+							ef f1 f2 f4 f5 f7 f8 fa
+							fc fd ff 01 03 04 06 08
+							09 0b 0c 0e 0f 11 12 13
+							15 16 17 18 19 19 1a 1b
+							1b 1b 1c 1c 1c 1c 1c 1b
+							1b 1b 1a 19 19 18 17 16
+							15 14 12 11 10 0e 0d 0b
+							09 08 06 04 03 01 ff fe
+							fc fa f8 f7 f5 f4 f2 f1
+							ef ee ed eb ea e9 e8 e7
+							e7 e6 e5 e5 e5 e4 e4 e4
+							e4 e4 e5 e5 e5 e6 e7 e7
+							e8 e9 ea eb ec ee ef f0
+							f2 f3 f5 f7 f8 fa fb fd
+							ff 01 02 04 06 07 09 0b
+							0c 0e 0f 11 12 13 14 16
+							17 18 18 19 1a 1b 1b 1b
+							1c 1c 1c 1c 1c 1c 1b 1b
+							1a 1a 19 18 17 16 15 14
+							12 11 10 0e 0d 0b 0a 08
+							06 05 03 01 ff fe fc fa
+							f9 f7 f5 f4 f2 f1 ef ee
+							ed ec ea e9 e8 e8 e7 e6
+							e5 e5 e5 e4 e4 e4 e4 e4
+							e4 e5 e5 e6 e6 e7 e8 e9
+							ea eb ec ed ef f0 f2 f3
+							f5 f6 f8 fa fb fd ff 00
+							02 04 06 07 09 0a 0c 0e
+							0f 10 12 13 14 15 17 17
+							18 19 1a 1a 1b 1b 1c 1c
+							1c 1c 1c 1c 1b 1b 1a 1a
+							19 18 17 16 15 14 13 11
+							10 0e 0d 0b 0a 08 07 05
+							03 01 00 fe fc fb f9 f7
+							f6 f4 f3 f1 f0 ee ed ec
+							eb ea e9 e8 e7 e6 e6 e5
+							e5 e4 e4 e4 e4 e4 e4 e5
+							e5 e6 e6 e7 e8 e9 ea eb
+							ec ed ef f0 f1 f3 f5 f6
+							f8 f9 fb fd fe 00 02 04
+							05 07 09 0a 0c 0d 0f 10
+							12 13 14 15 16 17 18 19
+							1a 1a 1b 1b 1c 1c 1c 1c
+							1c 1c 1b 1b 1a 1a 19 18
+							17 16 15 14 13 11 10 0f
+							0d 0c 0a 08 07 05 03 02
+							00 fe fd fb f9 f7 f6 f4
+							f3 f1 f0 ee ed ec eb ea
+							e9 e8 e7 e6 e6 e5 e5 e4
+							e4 e4 e4 e4 e4 e5 e5 e6
+							e6 e7 e8 e9 ea eb ec ed
+							ee f0 f1 f3 f4 f6 f8 f9
+							fb fd fe 00 02 03 05 07
+							08 0a 0c 0d 0f 10 11 13
+							14 15 16 17 18 19 1a 1a
+							1b 1b 1c 1c 1c 1c 1c 1c
+							1b 1b 1a 1a 19 18 17 16
+							15 14 13 12 10 0f 0d 0c
+							0a 09 07 05 04 02 00 fe
+							fd fb f9 f8 f6 f4 f3 f1
+							f0 ef ed ec eb ea e9 e8
+							e7 e6 e6 e5 e5 e4 e4 e4
+							e4 e4 e4 e5 e5 e6 e6 e7
+							e8 e9 ea eb ec ed ee f0
+							f1 f3 f4 f6 f7 f9 fb fc
+							fe 00 fa f4 ee e8 e2 dd
+							d7 d2 cd c8 c3 be ba b6
+							b2 af ab a9 a6 a4 a2 a1
+							9f 9f 9e 9e 9f 9f a0 a2
+							a4 a6 a8 ab ae b2 b6 ba
+							be c2 c7 cc d1 d7 dc e2
+							e8 ee f4 fa 00 06 0c 12
+							17 1d 23 28 2e 33 38 3d
+							42 46 4a 4e 51 54 57 5a
+							5c 5e 5f 61 61 62 62 61
+							61 60 5e 5c 5a 58 55 52
+							4e 4b 47 42 3e 39 34 2f
+							2a 24 1e 19 13 0d 07 01
+							fb f5 ef e9 e3 dd d8 d2
+							cd c8 c3 bf ba b6 b3 af
+							ac a9 a6 a4 a2 a1 a0 9f
+							9e 9e 9f 9f a0 a2 a3 a6
+							a8 ab ae b1 b5 b9 bd c2
+							c7 cc d1 d6 dc e1 e7 ed
+							f3 f9 ff 05 0b 11 17 1d
+							22 28 2d 32 37 3c 41 45
+							49 4d 51 54 57 5a 5c 5e
+							5f 60 61 62 62 61 61 60
+							5e 5d 5b 58 55 52 4f 4b
+							47 43 3e 3a 35 30 2a 25
+							1f 19 13 0e 08 02 fc f6
+							f0 ea e4 de d9 d3 ce c9
+							c4 bf bb b7 b3 af ac a9
+							a7 a4 a2 a1 a0 9f 9e 9e
+							9e 9f a0 a1 a3 a5 a8 aa
+							ae b1 b5 b9 bd c1 c6 cb
+							d0 d5 db e1 e6 ec f2 f8
+							00  ];
 				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+				qcom,wf-fifo-period = <S_PERIOD_F_24KHZ>;
 			};
 		};
 	};
@@ -472,42 +945,6 @@
 	qcom,vmax-mv = <1300>;
 	qcom,lra-period-us = <5880>;
 	status = "disabled";
-
-	effect_0 {
-		/* CLICK */
-		qcom,wf-vmax-mv = <1800>;
-		qcom,wf-pattern-period-us = <5880>;
-	};
-
-	effect_1 {
-		/* DOUBLE_CLICK */
-		qcom,wf-vmax-mv = <1800>;
-		qcom,wf-pattern-period-us = <5880>;
-	};
-
-	effect_2 {
-		/* TICK */
-		qcom,wf-vmax-mv = <1800>;
-		qcom,wf-pattern-period-us = <5880>;
-	};
-
-	effect_3 {
-		/* THUD */
-		qcom,wf-vmax-mv = <1800>;
-		qcom,wf-pattern-period-us = <5880>;
-	};
-
-	effect_4 {
-		/* POP */
-		qcom,wf-vmax-mv = <1800>;
-		qcom,wf-pattern-period-us = <5880>;
-	};
-
-	effect_5 {
-		/* HEAVY CLICK */
-		qcom,wf-vmax-mv = <1800>;
-		qcom,wf-pattern-period-us = <5880>;
-	};
 };
 
 &pm8350b_haptics {
