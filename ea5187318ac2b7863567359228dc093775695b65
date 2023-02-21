@@ -86,6 +86,24 @@
       "parentUuid": "2659fa8c_104a5179",
       "revId": "ea5187318ac2b7863567359228dc093775695b65",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "63e8bd14_940eb95f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 17649
+      },
+      "writtenOn": "2023-02-21T23:07:04Z",
+      "side": 1,
+      "message": "also good\n\nASUS_I006D:/ # dumpsys | grep use_freezer\n  use_freezer\u003dfalse",
+      "parentUuid": "5733f0da_072bef9d",
+      "revId": "ea5187318ac2b7863567359228dc093775695b65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
