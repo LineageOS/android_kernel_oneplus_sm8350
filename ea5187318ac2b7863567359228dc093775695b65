@@ -121,6 +121,23 @@
       "message": "It\u0027s been two days without a single media playback issue on venus.",
       "revId": "ea5187318ac2b7863567359228dc093775695b65",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "738d1c99_9974ecbd",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 30416
+      },
+      "writtenOn": "2023-02-22T17:17:35Z",
+      "side": 1,
+      "message": "No media player issues so far on realme GT master (778G) since applying the patch.",
+      "revId": "ea5187318ac2b7863567359228dc093775695b65",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
