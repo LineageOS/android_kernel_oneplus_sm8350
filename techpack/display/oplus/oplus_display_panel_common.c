@@ -130,6 +130,11 @@ int oplus_display_panel_get_max_brightness(void *buf)
 	if (panel_id == 1)
 		display = get_sec_display();
 
+	if (!display || !display->panel) {
+		pr_err("%s failed to get display\n", __func__);
+		return -EINVAL;
+	}
+
 	if (oplus_debug_max_brightness == 0) {
 		(*max_brightness) = display->panel->bl_config.bl_normal_max_level;
 	} else {
@@ -156,6 +161,11 @@ int oplus_display_panel_get_oplus_max_brightness(void *buf)
 	if (panel_id == 1)
 		display = get_sec_display();
 
+	if (!display || !display->panel) {
+		pr_err("%s failed to get display\n", __func__);
+		return -EINVAL;
+	}
+
 	(*max_brightness) = display->panel->bl_config.bl_normal_max_level;
 
 	return 0;
@@ -168,6 +178,11 @@ int oplus_display_panel_get_brightness(void *buf)
 	struct dsi_display *display = get_main_display();
 	if (panel_id == 1)
 		display = get_sec_display();
+
+	if (!display || !display->panel) {
+		pr_err("%s failed to get display\n", __func__);
+		return -EINVAL;
+	}
 
 	if(!strcmp(display->panel->oplus_priv.vendor_name, "AMS643YE01")) {
 		(*brightness) = display->panel->bl_config.oplus_raw_bl;
@@ -363,7 +378,10 @@ end:
 
 int oplus_display_panel_get_serial_number(void *buf) {
 	int ret = 0;
+	int read_index = 0;
+	int len = 0;
 	unsigned char read[30];
+	unsigned char ret_val[1];
 	PANEL_SERIAL_INFO panel_serial_info;
 	struct panel_serial_number *panel_rnum = buf;
 	uint64_t serial_number;
@@ -443,8 +461,41 @@ int oplus_display_panel_get_serial_number(void *buf) {
 			} else if (!strcmp(display->panel->name, "samsung amb655x fhd cmd mode dsc dsi panel")
 				|| !strcmp(display->panel->name, "samsung SOFE03F dsc cmd mode panel")) {
 				ret = dsi_display_read_panel_reg(display, 0xA1, read, 18);
+			} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37705")) {
+				char panel_info_page[] = { 0x55, 0xAA, 0x52, 0x8, 0x1 };
+
+				mutex_lock(&display->display_lock);
+				mutex_lock(&display->panel->panel_lock);
+				if (display->panel->panel_initialized) {
+					if (display->config.panel_mode == DSI_OP_CMD_MODE) {
+						dsi_display_clk_ctrl(display->dsi_clk_handle, DSI_ALL_CLKS, DSI_CLK_ON);
+					}
+
+					ret = mipi_dsi_dcs_write(&display->panel->mipi_device, 0xF0, panel_info_page, sizeof(panel_info_page));
+					if (display->config.panel_mode == DSI_OP_CMD_MODE) {
+						dsi_display_clk_ctrl(display->dsi_clk_handle, DSI_ALL_CLKS, DSI_CLK_OFF);
+					}
+				}
+				mutex_unlock(&display->panel->panel_lock);
+				mutex_unlock(&display->display_lock);
+
+				ret = dsi_display_read_panel_reg(display, 0xD7, read, 8);
 			} else {
-				ret = dsi_display_read_panel_reg(display, 0xA1, read, 17);
+				if (display->panel->oplus_ser.is_switch_page) {
+					len = sizeof(display->panel->oplus_ser.serial_number_multi_regs) - 1;
+					for (read_index = 0; read_index < len; read_index++) {
+						ret = dsi_display_read_panel_reg_switch_page(display, display->panel->oplus_ser.serial_number_multi_regs[read_index],
+							ret_val, 1);
+						read[read_index] = ret_val[0];
+						if (ret < 0) {
+							ret = scnprintf(buf, PAGE_SIZE,
+								"Get panel serial number failed, reason:%d", ret);
+							msleep(20);
+							break;
+						}
+					}
+				} else
+					ret = dsi_display_read_panel_reg(display, 0xA1, read, 17);
 			}
 		}
 		if(ret < 0) {
@@ -470,7 +521,8 @@ int oplus_display_panel_get_serial_number(void *buf) {
 			panel_serial_info.reg_index = 7;
 		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "S6E3HC3")) {
 			panel_serial_info.reg_index = 4;
-		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")) {
+		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")
+			|| !strcmp(display->panel->oplus_priv.vendor_name, "NT37705")) {
 			panel_serial_info.reg_index = 0;
 		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "S6E3XA1")) {
 			panel_serial_info.reg_index = 15;
@@ -478,7 +530,10 @@ int oplus_display_panel_get_serial_number(void *buf) {
 			|| !strcmp(display->panel->name, "samsung SOFE03F dsc cmd mode panel")) {
 			panel_serial_info.reg_index = 11;
 		} else {
-			panel_serial_info.reg_index = 10;
+			 if (display->panel->oplus_ser.is_switch_page)
+				panel_serial_info.reg_index = display->panel->oplus_ser.serial_number_index;
+			 else
+				panel_serial_info.reg_index = 10;
 		}
 
 		if (!strcmp(display->panel->name, "21075 ds ili7807s fhd tft lcd panel with dsc")) {
@@ -1299,6 +1354,7 @@ int oplus_display_set_cabc_status(void *buf)
 	}
 
 	if(get_oplus_display_power_status() == OPLUS_DISPLAY_POWER_ON && 0 != panel->bl_config.bl_level) {
+		mutex_lock(&display->panel->panel_lock);
 		switch (cabc_status_backup) {
 		case OPLUS_DISPLAY_CABC_OFF:
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_CABC_OFF);
@@ -1336,6 +1392,7 @@ int oplus_display_set_cabc_status(void *buf)
 		panel->oplus_priv.cabc_status = cabc_status_backup;
 		DSI_INFO("[CABC] buf = [%s], oplus_priv.cabc_status = [%d]\n",
 				buf, panel->oplus_priv.cabc_status);
+		mutex_unlock(&display->panel->panel_lock);
 	} else {
 		DSI_WARN("[CABC] buf = [%s], oplus_priv.cabc_status = [%d]. Skiped because of display panel status is not on!\n",
 				buf, panel->oplus_priv.cabc_status);

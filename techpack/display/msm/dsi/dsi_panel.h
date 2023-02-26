@@ -228,6 +228,7 @@ struct dsi_panel_oplus_privite {
 	u32 pre_bl_delay_ms;
 	bool dp_support;
 	bool cabc_enabled;
+	bool lp_config_flag;
 	u32 cabc_status;
 	bool dre_enabled;
 	// Add for apollo support
@@ -249,6 +250,12 @@ struct dsi_panel_oplus_privite {
 	bit(7):ultra low power aod
 ********************************************/
 	u32 fp_type;
+};
+
+struct dsi_panel_oplus_serial_number {
+	bool is_switch_page;
+	u32 *serial_number_multi_regs;
+	int serial_number_index;
 };
 #endif /* OPLUS_BUG_STABILITY */
 
@@ -340,6 +347,7 @@ struct dsi_panel {
 	int ba_count;
 	int dc_ba_count;
 	struct dsi_panel_oplus_privite oplus_priv;
+	struct dsi_panel_oplus_serial_number oplus_ser;
 	int panel_id2;
 	atomic_t esd_pending;
 #endif
