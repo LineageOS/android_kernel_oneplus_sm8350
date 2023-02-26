@@ -377,6 +377,8 @@ enum dsi_cmd_set_type {
 	/* Add for 21005 esd check switch page */
 	DSI_CMD_ESD_SWITCH_PAGE,
 	DSI_CMD_FPS_CHANGE,
+	DSI_CMD_PANEL_INFO_SWITCH_PAGE,
+	DSI_CMD_DEFAULT_SWITCH_PAGE,
 #endif
 
 	DSI_CMD_SET_MAX

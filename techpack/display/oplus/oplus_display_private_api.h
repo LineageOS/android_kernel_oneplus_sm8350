@@ -71,4 +71,7 @@ void lcdinfo_notify(unsigned long val, void *v);
 
 bool is_support_panel_dither(struct dsi_panel *panel);
 
+int dsi_display_read_panel_reg_switch_page(struct dsi_display *display, u8 cmd, void *data,
+			       size_t len);
+
 #endif /* _OPLUS_DISPLAY_PRIVATE_API_H_ */
