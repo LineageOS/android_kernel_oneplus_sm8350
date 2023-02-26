@@ -261,6 +261,12 @@ int dsi_panel_read_panel_reg(struct dsi_display_ctrl *ctrl,
 	cmdsreq.msg.rx_buf = rbuf;
 	cmdsreq.msg.rx_len = len;
 	cmdsreq.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
+	#ifdef OPLUS_BUG_STABILITY
+	/*MM.Display.LCD.Params,2022-10-18,lp config*/
+	if (panel->oplus_priv.lp_config_flag) {
+		cmdsreq.msg.flags |= MIPI_DSI_MSG_USE_LPM;
+	}
+	#endif /* OPLUS_BUG_STABILITY */
 	flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ |
 		  DSI_CTRL_CMD_CUSTOM_DMA_SCHED |
 		  DSI_CTRL_CMD_LAST_COMMAND);
@@ -458,6 +464,78 @@ int dsi_display_read_panel_reg(struct dsi_display *display, u8 cmd, void *data,
 	}
 
 	dsi_display_cmd_engine_disable(display);
+
+done:
+	mutex_unlock(&display->display_lock);
+	pr_err("%s, return: %d\n", __func__, rc);
+	return rc;
+}
+
+int dsi_display_read_panel_reg_switch_page(struct dsi_display *display, u8 cmd, void *data,
+			       size_t len)
+{
+	int rc = 0;
+	struct dsi_panel *panel;
+	struct dsi_display_ctrl *m_ctrl;
+
+	if (!display || !display->panel || data == NULL) {
+		pr_err("%s, Invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	panel = display->panel;
+	mutex_lock(&display->display_lock);
+
+
+	rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_PANEL_INFO_SWITCH_PAGE);
+	if (rc) {
+		printk(KERN_ERR"%s Failed to set DSI_CMD_PANEL_INFO_SWITCH_PAGE !!\n", __func__);
+		goto done;
+	}
+
+	m_ctrl = &display->ctrl[display->cmd_master_idx];
+	if (display->tx_cmd_buf == NULL) {
+		rc = dsi_host_alloc_cmd_tx_buffer(display);
+
+		if (rc) {
+			pr_err("%s, failed to allocate cmd tx buffer memory\n", __func__);
+			goto done;
+		}
+	}
+
+	rc = dsi_display_cmd_engine_enable(display);
+	if (rc) {
+		pr_err("%s, cmd engine enable failed\n", __func__);
+		goto done;
+	}
+
+	/* enable the clk vote for CMD mode panels */
+	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
+		dsi_display_clk_ctrl(display->dsi_clk_handle,
+				     DSI_ALL_CLKS, DSI_CLK_ON);
+	}
+
+	rc = dsi_panel_read_panel_reg(m_ctrl, display->panel, cmd, data, len);
+	if (rc < 0) {
+		pr_err("%s, [%s] failed to read panel register, rc=%d,cmd=%d\n",
+		       __func__,
+		       display->name,
+		       rc,
+		       cmd);
+	}
+
+	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
+		rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
+					  DSI_ALL_CLKS, DSI_CLK_OFF);
+	}
+
+	dsi_display_cmd_engine_disable(display);
+
+	rc = dsi_panel_tx_cmd_set(display->panel, DSI_CMD_DEFAULT_SWITCH_PAGE);
+	if (rc) {
+		printk(KERN_ERR"%s Failed to set DSI_CMD_DEFAULT_SWITCH_PAGE !!\n", __func__);
+		goto done;
+	}
 
 done:
 	mutex_unlock(&display->display_lock);
@@ -788,7 +866,10 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 		struct kobj_attribute *attr, char *buf)
 {
 	int ret = 0;
+	int read_index = 0;
+	int len = 0;
 	unsigned char read[30];
+	unsigned char ret_val[1];
 	PANEL_SERIAL_INFO panel_serial_info;
 	uint64_t serial_number;
 	struct dsi_display *display = get_main_display();
@@ -860,9 +941,43 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 			ret = dsi_display_read_panel_reg(get_main_display(), 0xD8, read, 22);
 		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")) {
 				ret = dsi_display_read_panel_reg(display, 0xA3, read, 8);
+		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37705")) {
+			char panel_info_page[] = { 0x55, 0xAA, 0x52, 0x8, 0x1 };
+
+			mutex_lock(&display->display_lock);
+			mutex_lock(&display->panel->panel_lock);
+			if (display->panel->panel_initialized) {
+				if (display->config.panel_mode == DSI_OP_CMD_MODE) {
+					dsi_display_clk_ctrl(display->dsi_clk_handle, DSI_ALL_CLKS, DSI_CLK_ON);
+				}
+
+				ret = mipi_dsi_dcs_write(&display->panel->mipi_device, 0xF0, panel_info_page, sizeof(panel_info_page));
+				if (display->config.panel_mode == DSI_OP_CMD_MODE) {
+					dsi_display_clk_ctrl(display->dsi_clk_handle, DSI_ALL_CLKS, DSI_CLK_OFF);
+				}
+			}
+			mutex_unlock(&display->panel->panel_lock);
+			mutex_unlock(&display->display_lock);
+
+			ret = dsi_display_read_panel_reg(display, 0xD7, read, 8);
+		} else {
+			if (display->panel->oplus_ser.is_switch_page) {
+				len = sizeof(display->panel->oplus_ser.serial_number_multi_regs) - 1;
+				for (read_index = 0; read_index < len; read_index++) {
+					ret = dsi_display_read_panel_reg_switch_page(display, display->panel->oplus_ser.serial_number_multi_regs[read_index],
+						ret_val, 1);
+
+					read[read_index] = ret_val[0];
+					if (ret < 0) {
+						ret = scnprintf(buf, PAGE_SIZE,
+							"Get panel serial number failed, reason:%d", ret);
+						msleep(20);
+						break;
+					}
+				}
+			} else
+				ret = dsi_display_read_panel_reg(get_main_display(), 0xA1, read, 11);
 		}
-		else
-			ret = dsi_display_read_panel_reg(get_main_display(), 0xA1, read, 11);
 
 		if (ret < 0) {
 			ret = scnprintf(buf, PAGE_SIZE,
@@ -882,14 +997,18 @@ static ssize_t oplus_display_get_panel_serial_number(struct kobject *obj,
 			panel_serial_info.reg_index = 11;
 		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "S6E3XA1")) {
 			panel_serial_info.reg_index = 15;
-		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")) {
+		} else if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")
+			|| !strcmp(display->panel->oplus_priv.vendor_name, "NT37705")) {
 			panel_serial_info.reg_index = 0;
 		} else if (!strcmp(display->panel->name, "samsung AMS643YE01 dsc cmd mode panel")
 			|| !strcmp(display->panel->name, "samsung ams662zs01 dvt dsc cmd mode panel")) {
 			panel_serial_info.reg_index = 7;
+		} else {
+			 if (display->panel->oplus_ser.is_switch_page)
+				panel_serial_info.reg_index = display->panel->oplus_ser.serial_number_index;
+			 else
+				panel_serial_info.reg_index = 4;
 		}
-		else
-			panel_serial_info.reg_index = 4;
 
 		panel_serial_info.year		= (read[panel_serial_info.reg_index] & 0xF0) >> 0x4;
 		if (!strcmp(display->panel->oplus_priv.vendor_name, "NT37701")) {
@@ -2730,8 +2849,7 @@ int dsi_display_oplus_set_power(struct drm_connector *connector,
 	switch (power_mode) {
 	case SDE_MODE_DPMS_LP1:
 	case SDE_MODE_DPMS_LP2:
-		if (power_mode == SDE_MODE_DPMS_LP1 &&
-				display->panel->power_mode == SDE_MODE_DPMS_ON) {
+		if (display->panel->power_mode == SDE_MODE_DPMS_ON) {
 			notify_off = true;
 		}
 

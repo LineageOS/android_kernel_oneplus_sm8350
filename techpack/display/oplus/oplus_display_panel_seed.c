@@ -265,6 +265,8 @@ int dsi_panel_seed_mode(struct dsi_panel *panel, int mode)
 		(!strcmp(panel->oplus_priv.vendor_name, "S6E3XA1") ||
 		 !strcmp(panel->oplus_priv.vendor_name, "NT37701"))) {
 		rc = dsi_panel_loading_effect_mode_unlock(panel, mode);
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "JDI_ILI7807S")) {
+		return 0;
 	} else {
 		rc = dsi_panel_seed_mode_unlock(panel, mode);
 	}

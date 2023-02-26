@@ -190,6 +190,7 @@ int dsi_display_hbm_off(struct dsi_display *display)
 	}
 
 	mutex_lock(&display->display_lock);
+	mutex_lock(&display->panel->panel_lock);
 
 	/* enable the clk vote for CMD mode panels */
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
@@ -221,6 +222,7 @@ int dsi_display_hbm_off(struct dsi_display *display)
 					  DSI_CORE_CLK, DSI_CLK_OFF);
 	}
 
+	mutex_unlock(&display->panel->panel_lock);
 	mutex_unlock(&display->display_lock);
 	return rc;
 }
