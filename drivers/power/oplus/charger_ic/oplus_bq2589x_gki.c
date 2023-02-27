@@ -32,6 +32,7 @@
 #include "../oplus_charger.h"
 #include "../oplus_gauge.h"
 #include "../oplus_vooc.h"
+#include "../voocphy/oplus_voocphy.h"
 #include <charger_class.h>
 #include <mtk_pd.h>
 #define _BQ25890H_
@@ -41,6 +42,8 @@
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #include <soc/oplus/system/oplus_project.h>
 #endif
+#include <tcpm.h>
+#include <tcpci.h>
 
 extern void set_charger_ic(int sel);
 extern struct charger_consumer *charger_manager_get_by_name(
@@ -51,8 +54,8 @@ extern int oplus_battery_meter_get_battery_voltage(void);
 extern int oplus_get_rtc_ui_soc(void);
 extern int oplus_set_rtc_ui_soc(int value);
 extern int set_rtc_spare_fg_value(int val);
-extern void mt_usb_connect(void);
-extern void mt_usb_disconnect(void);
+extern void oplus_mt_usb_connect(void);
+extern void oplus_mt_usb_disconnect(void);
 extern bool mt6357_chrdet_status(void);
 extern void oplus_wake_up_usbtemp_thread(void);
 extern void oplus_get_usbtemp_volt(struct oplus_chg_chip *chip);
@@ -62,6 +65,8 @@ extern bool oplus_chg_wake_update_work(void);
 extern int oplus_bq2560x_set_current(int curr);
 extern int get_rtc_spare_oplus_fg_value(void);
 extern int set_rtc_spare_oplus_fg_value(int value);
+extern void oplus_mt6789_usbtemp_set_cc_open(void);
+extern void oplus_mt6789_usbtemp_set_typec_sinkonly(void);
 
 #define DEFAULT_CV 4435
 
@@ -214,10 +219,9 @@ struct bq2589x {
 	struct delayed_work init_work;
 	struct delayed_work enter_hz_work;
 	struct delayed_work bq2589x_hvdcp_bc12_work;
-#ifdef CONFIG_TCPC_CLASS
 	/*type_c_port0*/
 	struct tcpc_device *tcpc;
-#endif
+	struct power_supply_desc psy_desc;
 	int part_no;
 	int revision;
 
@@ -229,6 +233,7 @@ struct bq2589x {
 
 	enum charger_type chg_type;
 	enum power_supply_type oplus_chg_type;
+	struct notifier_block pd_nb;
 
 	int status;
 	int irq;
@@ -623,19 +628,17 @@ int bq2589x_adc_read_vbus_volt(struct bq2589x *bq)
 	uint8_t val;
 	int volt;
 	int ret;
-	int vbus_good = 0;
 
 	ret = bq2589x_read_byte(bq, BQ2589X_REG_11, &val);
 	if (ret < 0) {
 		chg_err("read vbus voltage failed :%d\n", ret);
 		return ret;
-	} else{
-		vbus_good = val & 0x80;
-		if (vbus_good == 0){
-			dev_err(bq->dev, "bq2589x vbus good:%d\n",vbus_good);
+	} else {
+		volt = ((val & BQ2589X_VBUSV_MASK) >> BQ2589X_VBUSV_SHIFT) * BQ2589X_VBUSV_LSB;
+		if (volt == 0) {
 			volt = 0;
 		} else {
-			volt = BQ2589X_VBUSV_BASE + ((val & BQ2589X_VBUSV_MASK) >> BQ2589X_VBUSV_SHIFT) * BQ2589X_VBUSV_LSB ;
+			volt += BQ2589X_VBUSV_BASE;
 		}
 
 		return volt;
@@ -645,6 +648,10 @@ EXPORT_SYMBOL_GPL(bq2589x_adc_read_vbus_volt);
 
 static int mt6357_get_vbus_voltage(void)
 {
+	if (oplus_vooc_get_fast_chg_type() == CHARGER_SUBTYPE_FASTCHG_VOOC) {
+		return oplus_voocphy_get_cp_vbus();
+	}
+
 	return bq2589x_adc_read_vbus_volt(g_bq);
 }
 
@@ -864,11 +871,24 @@ int bq2589x_enter_hiz_mode(struct bq2589x *bq)
 		val = BQ2589X_HIZ_ENABLE << BQ2589X_ENHIZ_SHIFT;
 		result = bq2589x_update_bits(bq, BQ2589X_REG_00, BQ2589X_ENHIZ_MASK, val);
 	} else {
+		val = BQ2589X_HIZ_ENABLE << BQ2589X_ENHIZ_SHIFT;
+		result = bq2589x_update_bits(bq, BQ2589X_REG_00, BQ2589X_ENHIZ_MASK, val);
 		result = bq2589x_disable_charger(bq);
 	}
 	return result;
 }
 EXPORT_SYMBOL_GPL(bq2589x_enter_hiz_mode);
+
+static int bq2589x_en_hiz_mode(struct bq2589x *bq, bool enable)
+{
+	u8 val = 0;
+
+	if (enable)
+		val = BQ2589X_HIZ_ENABLE << BQ2589X_ENHIZ_SHIFT;
+	else
+		val = BQ2589X_HIZ_DISABLE << BQ2589X_ENHIZ_SHIFT;
+	return bq2589x_update_bits(bq, BQ2589X_REG_00, BQ2589X_ENHIZ_MASK, val);
+}
 
 int bq2589x_exit_hiz_mode(struct bq2589x *bq)
 {
@@ -1227,10 +1247,11 @@ static int bq2589x_get_charger_type(struct bq2589x *bq, enum power_supply_type *
 		oplus_chg_type = POWER_SUPPLY_TYPE_USB_DCP;
 		break;
 	default:
-		oplus_chg_type = POWER_SUPPLY_TYPE_USB_DCP;
+		oplus_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 		break;
 	}
 
+	bq->oplus_chg_type = oplus_chg_type;
 	*type = oplus_chg_type;
 
 	return 0;
@@ -1307,8 +1328,11 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 
 	if (dumpreg_by_irq)
 		bq2589x_dump_regs(bq);
-	if (oplus_vooc_get_fastchg_started() == true) {
-		chg_err("oplus_vooc_get_fastchg_started = true!(%d %d)\n", prev_pg, bq->power_good);
+
+	if ((oplus_vooc_get_fast_chg_type() == CHARGER_SUBTYPE_FASTCHG_VOOC) || (oplus_vooc_get_fastchg_started() == true)) {
+		chg_err("fast_chg_type=%d, wait_ffc_flag=%d, prev_pg = %d, bq->power_good = %d, fastchg_started = %d\n",
+				oplus_vooc_get_fast_chg_type(), chip->waiting_for_ffc, prev_pg,
+				bq->power_good, oplus_vooc_get_fastchg_started());
 		return IRQ_HANDLED;
 	}
 
@@ -1328,7 +1352,7 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 		bq2589x_set_input_current_limit(bq, BQ2589X_INP_CURR_500MA);
 
 		/*step2: start 5s thread */
-	   /* oplus_chg_wake_update_work(); */
+		oplus_chg_wake_update_work();
 
 		/*step3: BC1.2*/
 		chg_debug("adapter/usb inserted. start bc1.2");
@@ -1382,10 +1406,9 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 		bq2589x_enable_enlim(bq);
 		bq2589x_disable_hvdcp(bq);
 		bq2589x_cfg_dpdm2hiz_mode(bq);
-		oplus_vooc_reset_fastchg_after_usbout();
-		oplus_chg_set_chargerid_switch_val(0);
-		oplus_chg_clear_chargerid_info();
 		oplus_chg_set_charger_type_unknown();
+		oplus_vooc_reset_fastchg_after_usbout();
+
 		Charger_Detect_Release();
 		cancel_delayed_work_sync(&bq->bq2589x_retry_adapter_detection);
 		cancel_delayed_work_sync(&bq->bq2589x_aicr_setting_work);
@@ -1436,7 +1459,7 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 			bq2589x_disable_enlim(bq);
 			bq->is_force_aicl = false;
 			bq2589x_inform_charger_type(bq);
-			/* oplus_chg_wake_update_work(); */
+			oplus_chg_wake_update_work();
 		}
 	} else if (cur_chg_type != POWER_SUPPLY_TYPE_UNKNOWN) {
 		/*Step 6.2: DCP/HVDCP*/
@@ -1449,12 +1472,20 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 
 		/*Step7: HVDCP and BC1.2*/
 		if (!bq->hvdcp_checked && !bq2589x_is_hvdcp(bq)) {
-			chg_info(" enable hvdcp.");
+			chg_info(" enable hvdcp.waiting_for_ffc=%d", chip->waiting_for_ffc);
 			if (!bq2589x_is_dcp(bq)) {
 				chg_debug(" not dcp.");
 			}
 
-			schedule_delayed_work(&bq->bq2589x_hvdcp_bc12_work, msecs_to_jiffies(1500));
+			if (chip->waiting_for_ffc == true) {
+				bq->hvdcp_checked = true;
+			} else {
+				if (g_oplus_chip->chgic_mtk.oplus_info->hvdcp_disabled) {
+					bq->hvdcp_checked = true;
+				} else {
+					schedule_delayed_work(&bq->bq2589x_hvdcp_bc12_work, msecs_to_jiffies(1500));
+				}
+			}
 		} else if (bq->hvdcp_checked) {
 			chg_info(" bq2589x hvdcp is checked");
 
@@ -1472,11 +1503,7 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 	} else {
 		chg_err("oplus_chg_type = %d, vbus_type = %d", bq->oplus_chg_type, bq->vbus_type);
 	}
-
-	bq2589x_get_charger_type(bq, &cur_chg_type);
 	oplus_wake_up_usbtemp_thread();
-	oplus_chg_wake_update_work();
-	chg_err("oplus_chg_type = %d, vbus_type = %d", bq->oplus_chg_type, bq->vbus_type);
 
 	return IRQ_HANDLED;
 }
@@ -1953,11 +1980,9 @@ static int bq2589x_set_otg(struct charger_device *chg_dev, bool en)
 	struct bq2589x *bq = dev_get_drvdata(&chg_dev->dev);
 
 	if (en) {
-		bq2589x_disable_charger(bq);
 		ret = bq2589x_enable_otg(bq);
 	} else {
 		ret = bq2589x_disable_otg(bq);
-		bq2589x_enable_charger(bq);
 	}
 	if(!ret)
 		bq->otg_enable = en;
@@ -2028,10 +2053,10 @@ static int bq2589x_chgdet_en(struct bq2589x *bq, bool en)
 	if (en) {
 		Charger_Detect_Init();
 		oplus_for_cdp();
-                bq2589x_enable_auto_dpdm(bq, false);
-                /* bq->is_force_aicl = true; */
-                bq->is_retry_bc12 = true;
-                bq2589x_force_dpdm(bq, true);
+		bq2589x_enable_auto_dpdm(bq, false);
+		/* bq->is_force_aicl = true; */
+		bq->is_retry_bc12 = true;
+		bq2589x_force_dpdm(bq, true);
 		bq->is_force_dpdm = false;
 	} else {
 		bq->pre_current_ma = -1;
@@ -2089,8 +2114,13 @@ static int bq2589x_enter_ship_mode(struct bq2589x *bq, bool en)
 	int ret;
 	u8 val;
 
-	if (en)
+	if (en) {
+		val = BQ2589X_BATFET_OFF_DLY;
+		val <<= BQ2589X_BATFET_DLY_SHIFT;
+		ret = bq2589x_update_bits(bq, BQ2589X_REG_09,
+						BQ2589X_BATFET_DLY_MASK, val);
 		val = BQ2589X_BATFET_OFF;
+	}
 	else
 		val = BQ2589X_BATFET_ON;
 	val <<= BQ2589X_BATFET_DIS_SHIFT;
@@ -2271,7 +2301,14 @@ int oplus_bq2589x_set_aicr(int current_ma)
 			aicl_point_temp = aicl_point = 4500;
 	}
 
-	chg_info("usb input max current limit=%d, aicl_point_temp=%d", current_ma, aicl_point_temp);
+	chg_info("usb input max current limit=%d, aicl_point_temp=%d, chip->stop_chg=%d, chip->mmi_chg=%d",
+            current_ma, aicl_point_temp, chip->stop_chg, chip->mmi_chg);
+	if (chip->mmi_chg == 0) {
+		bq2589x_disable_charger(g_bq);
+		i = 0;
+		goto aicl_end;
+	}
+
 	if (current_ma < 500) {
 		i = 0;
 		goto aicl_end;
@@ -2551,6 +2588,7 @@ int oplus_bq2589x_hardware_init(void)
 
 	/* Enable charging */
 	if (strcmp(g_bq->chg_dev_name, "primary_chg") == 0) {
+		ret = bq2589x_en_hiz_mode(g_bq, false);
 		ret = bq2589x_enable_charger(g_bq);
 		if (ret < 0) {
 			dev_notice(g_bq->dev, "%s: en chg failed\n", __func__);
@@ -2635,12 +2673,21 @@ int oplus_bq2589x_get_chg_current_step(void)
 
 int oplus_bq2589x_get_charger_type(void)
 {
-	enum power_supply_type type = POWER_SUPPLY_TYPE_UNKNOWN;
+	enum power_supply_type pre_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
 	if(!g_bq)
 		return 0 ;
 
-	bq2589x_get_charger_type(g_bq, &type);
-	chg_info(" %s g_bq->oplus_chg_type = %d \n ",__func__,g_bq->oplus_chg_type);
+	pre_chg_type = g_bq->oplus_chg_type;
+	if ((oplus_vooc_get_fast_chg_type() == CHARGER_SUBTYPE_FASTCHG_VOOC) ||
+	    (oplus_vooc_get_fastchg_to_normal() == true) ||
+	    (oplus_vooc_get_fastchg_to_warm() == true)) {
+		chg_info("%s,fastchg_to_normal = %d;fast_chg_type = %d;fastchg_to_warm = %d\n",
+		__func__, oplus_vooc_get_fastchg_to_normal(), oplus_vooc_get_fast_chg_type(),
+		oplus_vooc_get_fastchg_to_warm());
+
+		return pre_chg_type;
+	}
+	chg_info(" %s pre_chg_type = %d,g_bq->oplus_chg_type = %d \n ", __func__, pre_chg_type, g_bq->oplus_chg_type);
 	return g_bq->oplus_chg_type;
 }
 
@@ -2671,6 +2718,11 @@ int oplus_bq2589x_charger_unsuspend(void)
 	}
 	printk("%s\n", __func__);
 	return 0;
+}
+
+void oplus_bq2589x_really_suspend_charger(bool en)
+{
+	bq2589x_set_hz_mode(en);
 }
 
 int oplus_bq2589x_set_rechg_vol(int vol)
@@ -2816,16 +2868,20 @@ int oplus_bq2589x_set_qc_config(void)
 	static int qc_to_9v_count = 0;
 	int ret = 0;
 
-	if(g_bq->chg_consumer != NULL)
+	if(g_bq->chg_consumer != NULL) {
+		/* info is null retry 1 time */
+		g_bq->chg_consumer =
+			charger_manager_get_by_name(g_bq->dev, "bq2589x");
 		info = g_bq->chg_consumer->cm;
+	}
 
 	if(!info) {
-		chg_info("%s:error\n", __func__);
+		chg_info("%s:error info\n", __func__);
 		return -1;
 	}
 
 	if (!chip) {
-		chg_info("%s: error\n", __func__);
+		chg_info("%s: error chip\n", __func__);
 		return -1;
 	}
 
@@ -2894,7 +2950,7 @@ int oplus_bq2589x_set_qc_config(void)
 	return ret;
 }
 
-int oplus_bq2589x_enable_qc_detect(void)
+int __attribute__((weak)) oplus_bq2589x_enable_qc_detect(void)
 {
 	return 0;
 }
@@ -3132,6 +3188,8 @@ static void bq2589x_init_work_handler(struct work_struct *work)
 	u8 reg_val = 0;
 
 	chg_debug("boot_mode = %d", boot_mode);
+	if(boot_mode == META_BOOT && g_bq->psy)
+		power_supply_changed(g_bq->psy);
 
 	if ((boot_mode != META_BOOT) && mt6357_get_vbus_status() && !g_oplus_chip->ac_online) {
 		chg_info("USB is inserted!");
@@ -3142,7 +3200,7 @@ static void bq2589x_init_work_handler(struct work_struct *work)
 		 {
 			ret = bq2589x_read_byte(g_bq, BQ2589X_REG_0B, &reg_val);
 			if (0 == ret) {
-				g_bq->power_good = !!(reg_val & BQ2589X_PG_STAT_MASK);
+				/* g_bq->power_good = !!(reg_val & BQ2589X_PG_STAT_MASK); */
 			}
 
 			chg_info("USB is inserted, power_good = %d !", g_bq->power_good);
@@ -3181,6 +3239,23 @@ static void bq2589x_hvdcp_bc12_work_handler(struct work_struct *work)
 	return;
 }
 
+void oplus_chgic_rerun_bc12(void)
+{
+	enum power_supply_type type = POWER_SUPPLY_TYPE_UNKNOWN;
+
+	if (!g_bq) {
+		chg_err("%s :g_bq is null!\n");
+		return;
+	}
+
+	if (!(g_oplus_chip->chgic_mtk.oplus_info->hvdcp_disabled)) {
+		/* enable hvdcp check */
+		schedule_delayed_work(&g_bq->bq2589x_hvdcp_bc12_work, 0);
+		/* get chg type */
+		bq2589x_get_charger_type(g_bq, &type);
+		chg_debug("%s type:%d, real_type:%d\n", __func__, type, g_bq->vbus_type);
+	}
+}
 
 static void bq2589x_enter_hz_work_handler(struct work_struct *work) {
 	chg_debug("enter hz mode for meta boot mode!");
@@ -3201,6 +3276,7 @@ struct oplus_chg_operations  oplus_chg_bq2589x_ops = {
 	.get_charging_enable = oplus_bq2589x_is_charging_enabled,
 	.charger_suspend = oplus_bq2589x_charger_suspend,
 	.charger_unsuspend = oplus_bq2589x_charger_unsuspend,
+	.really_suspend_charger = oplus_bq2589x_really_suspend_charger,
 	.set_rechg_vol = oplus_bq2589x_set_rechg_vol,
 	.reset_charger = oplus_bq2589x_reset_charger,
 	.read_full = oplus_bq2589x_is_charging_done,
@@ -3220,8 +3296,8 @@ struct oplus_chg_operations  oplus_chg_bq2589x_ops = {
 	.get_rtc_soc = get_rtc_spare_oplus_fg_value,
 	.set_rtc_soc = set_rtc_spare_oplus_fg_value,
 	.set_power_off = oplus_mt_power_off,
-	.usb_connect = mt_usb_connect,
-	.usb_disconnect = mt_usb_disconnect,
+	.usb_connect = oplus_mt_usb_connect,
+	.usb_disconnect = oplus_mt_usb_disconnect,
 	.get_chg_current_step = oplus_bq2589x_get_chg_current_step,
 	.need_to_check_ibatt = oplus_bq2589x_need_to_check_ibatt,
 	.get_dyna_aicl_result = oplus_bq2589x_get_dyna_aicl_result,
@@ -3236,18 +3312,32 @@ struct oplus_chg_operations  oplus_chg_bq2589x_ops = {
 	.oplus_chg_set_hz_mode = bq2589x_set_hz_mode,
 	.oplus_usbtemp_monitor_condition = oplus_usbtemp_condition,
 	.get_usbtemp_volt = oplus_get_usbtemp_volt,
+	.set_typec_cc_open = oplus_mt6789_usbtemp_set_cc_open,
+	.set_typec_sinkonly = oplus_mt6789_usbtemp_set_typec_sinkonly,
 };
 
 static void retry_detection_work_callback(struct work_struct *work)
 {
+	static int bc12_retry = 0;
+RECHECK:
 	if (g_bq->sdp_retry || g_bq->cdp_retry || g_bq->retry_hvdcp_algo) {
 		Charger_Detect_Init();
-		chg_info("usb/cdp start bc1.2 once");
+		chg_info("bc1.2 usb/cdp start bc1.2 once\n");
 		oplus_for_cdp();
-		g_bq->usb_connect_start = true;
-		g_bq->is_force_aicl = true;
-		g_bq->is_retry_bc12 = true;
+		if(bc12_retry > 0) {
+		    g_bq->usb_connect_start = true;
+		    g_bq->is_force_aicl = true;
+		    g_bq->is_retry_bc12 = true;
+		}
 		bq2589x_force_dpdm(g_bq, true);
+	}
+	if(bc12_retry < 1) {
+		chg_info("bc1.2 usb/cdp start bc1.2 2nd\n");
+		msleep(200);
+		bc12_retry++;
+		goto RECHECK;
+	} else {
+		bc12_retry = 0;
 	}
 }
 
@@ -3341,6 +3431,161 @@ static const struct i2c_device_id bq2589x_i2c_device_id[] = {
 
 MODULE_DEVICE_TABLE(i2c, bq2589x_i2c_device_id);
 
+static int pd_tcp_notifier_call(struct notifier_block *nb,
+				unsigned long event, void *data)
+{
+	struct tcp_notify *noti = data;
+	struct bq2589x *bq =
+		(struct bq2589x *)container_of(nb,
+		struct bq2589x, pd_nb);
+
+	switch (event) {
+	case TCP_NOTIFY_TYPEC_STATE:
+		if (noti->typec_state.old_state == TYPEC_UNATTACHED &&
+		    noti->typec_state.new_state == TYPEC_ATTACHED_SNK) {
+			pr_info("USB Plug in\n");
+			power_supply_changed(bq->psy);
+		} else if (noti->typec_state.old_state == TYPEC_ATTACHED_SNK
+			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
+			bq2589x_en_hiz_mode(bq, false);
+			pr_info("USB Plug out\n");
+			if (oplus_vooc_get_fast_chg_type() == CHARGER_SUBTYPE_FASTCHG_VOOC && oplus_chg_get_wait_for_ffc_flag() != true) {
+				bq->power_good = 0;
+				bq->is_force_aicl = false;
+				bq->pre_current_ma = -1;
+				bq->usb_connect_start = false;
+				bq->hvdcp_can_enabled = false;
+				bq->hvdcp_checked = false;
+				bq->sdp_retry = false;
+				bq->cdp_retry = false;
+				bq->is_force_dpdm = false;
+				bq->retry_hvdcp_algo = false;
+				bq->chg_type = CHARGER_UNKNOWN;
+				bq->oplus_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
+				bq->nonstand_retry_bc = false;
+				bq->chg_cur = 0;
+				bq->aicr = 500;
+
+				bq2589x_adc_start(bq, false);
+				bq2589x_disable_charger(bq);
+				oplus_chg_set_charger_type_unknown();
+				oplus_vooc_set_fastchg_type_unknow();
+				bq2589x_inform_charger_type(bq);
+				oplus_vooc_reset_fastchg_after_usbout();
+				oplus_chg_clear_chargerid_info();
+				Charger_Detect_Release();
+				cancel_delayed_work_sync(&bq->bq2589x_retry_adapter_detection);
+				cancel_delayed_work_sync(&bq->bq2589x_aicr_setting_work);
+				cancel_delayed_work_sync(&bq->bq2589x_hvdcp_bc12_work);
+				oplus_chg_wake_update_work();
+				pr_info("usb real remove vooc fastchg clear flag!\n");
+			}
+		}
+		break;
+	default:
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static enum power_supply_usb_type bq2589x_charger_usb_types[] = {
+	POWER_SUPPLY_USB_TYPE_UNKNOWN,
+	POWER_SUPPLY_USB_TYPE_SDP,
+	POWER_SUPPLY_USB_TYPE_DCP,
+	POWER_SUPPLY_USB_TYPE_CDP,
+	POWER_SUPPLY_USB_TYPE_C,
+	POWER_SUPPLY_USB_TYPE_PD,
+	POWER_SUPPLY_USB_TYPE_PD_DRP,
+	POWER_SUPPLY_USB_TYPE_APPLE_BRICK_ID
+};
+
+static enum power_supply_property bq2589x_charger_properties[] = {
+	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_TYPE,
+	POWER_SUPPLY_PROP_USB_TYPE,
+};
+
+static int bq2589x_charger_get_online(struct bq2589x *bq, bool *val)
+{
+	bool pwr_rdy = false;
+	int ret = 0;
+	u8 reg_val;
+	ret = bq2589x_read_byte(bq, BQ2589X_REG_0B, &reg_val);
+	if (0 == ret) {
+		pwr_rdy = !!(reg_val & BQ2589X_PG_STAT_MASK);
+	}
+
+	if (tcpm_inquire_typec_attach_state(bq->tcpc) != TYPEC_ATTACHED_SNK) {
+		chg_info(" cc detect usb cable not in.");
+		*val = 0;
+		return 0;
+	}
+
+	pr_info("online = %d\n", pwr_rdy);
+	*val = pwr_rdy;
+	return 0;
+}
+static int bq2589x_charger_get_property(struct power_supply *psy,
+						   enum power_supply_property psp,
+						   union power_supply_propval *val)
+{
+	struct bq2589x *bq = power_supply_get_drvdata(psy);
+	bool pwr_rdy = false;
+	int ret = 0;
+	int boot_mode = get_boot_mode();
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		ret = bq2589x_charger_get_online(bq, &pwr_rdy);
+		val->intval = pwr_rdy;
+		break;
+	case POWER_SUPPLY_PROP_TYPE:
+	case POWER_SUPPLY_PROP_USB_TYPE:
+		if (boot_mode == META_BOOT) {
+			val->intval = POWER_SUPPLY_TYPE_USB;
+		} else {
+			if (g_bq->usb_connect_start == true)
+				val->intval = g_bq->oplus_chg_type;
+		}
+		pr_info("bq2589x power_supply_type = %d\n", val->intval);
+		break;
+	default:
+		ret = -ENODATA;
+	}
+	return ret;
+}
+
+static char *bq2589x_charger_supplied_to[] = {
+	"battery",
+	"mtk-master-charger"
+};
+
+static const struct power_supply_desc bq2589x_charger_desc = {
+	.type			= POWER_SUPPLY_TYPE_USB,
+	.usb_types      = bq2589x_charger_usb_types,
+	.num_usb_types  = ARRAY_SIZE(bq2589x_charger_usb_types),
+	.properties 	= bq2589x_charger_properties,
+	.num_properties 	= ARRAY_SIZE(bq2589x_charger_properties),
+	.get_property		= bq2589x_charger_get_property,
+};
+
+static int bq2589x_chg_init_psy(struct bq2589x *bq)
+{
+	struct power_supply_config cfg = {
+		.drv_data = bq,
+		.of_node = bq->dev->of_node,
+		.supplied_to = bq2589x_charger_supplied_to,
+		.num_supplicants = ARRAY_SIZE(bq2589x_charger_supplied_to),
+	};
+
+	pr_err("%s\n", __func__);
+	memcpy(&bq->psy_desc, &bq2589x_charger_desc, sizeof(bq->psy_desc));
+	bq->psy_desc.name = "bq2589x";
+	bq->psy = devm_power_supply_register(bq->dev, &bq->psy_desc,
+						&cfg);
+	return IS_ERR(bq->psy) ? PTR_ERR(bq->psy) : 0;
+}
+
 static int bq2589x_charger_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
 {
@@ -3402,6 +3647,11 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 	bq2589x_disable_batfet_rst(bq);
 	/*Enable AICL for sy6970*/
 	bq2589x_enable_ico(bq, true);
+	ret = bq2589x_chg_init_psy(bq);
+	if (ret < 0) {
+		pr_err("failed to init power supply\n");
+		goto err_register_psy;
+	}
 
 	INIT_DELAYED_WORK(&bq->bq2589x_aicr_setting_work, aicr_setting_work_callback);
 	INIT_DELAYED_WORK(&bq->bq2589x_vol_convert_work, vol_convert_work);
@@ -3431,12 +3681,18 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 	if (strcmp(bq->chg_dev_name, "primary_chg") == 0) {
 		schedule_delayed_work(&bq->init_work, msecs_to_jiffies(14000));
 
-#ifdef CONFIG_TCPC_CLASS
 		bq->tcpc = tcpc_dev_get_by_name("type_c_port0");
 		if (!bq->tcpc) {
 			chr_err("%s get tcpc device type_c_port0 fail\n", __func__);
 		}
-#endif
+	}
+	bq->pd_nb.notifier_call = pd_tcp_notifier_call;
+	ret = register_tcp_dev_notifier(bq->tcpc, &bq->pd_nb,
+				TCP_NOTIFY_TYPE_ALL);
+	if (ret < 0) {
+		pr_notice("register tcpc notifer fail\n");
+		ret = -EINVAL;
+		goto err_register_tcp_notifier;
 	}
 
 	set_charger_ic(BQ2589X);
@@ -3454,6 +3710,8 @@ err_device_register:
 err_init:
 err_parse_dt:
 err_nodev:
+err_register_psy:
+err_register_tcp_notifier:
 	mutex_destroy(&bq->i2c_rw_lock);
 	mutex_destroy(&bq->chgdet_en_lock);
 	devm_kfree(bq->dev, bq);
@@ -3475,6 +3733,7 @@ static int bq2589x_charger_remove(struct i2c_client *client)
 static void bq2589x_charger_shutdown(struct i2c_client *client)
 {
 	if ((g_oplus_chip != NULL) && g_bq != NULL) {
+		bq2589x_disable_hvdcp(g_bq);
 		if((g_bq->hvdcp_can_enabled) && (g_oplus_chip->charger_exist)) {
 			bq2589x_disable_hvdcp(g_bq);
 			bq2589x_force_dpdm(g_bq, true);

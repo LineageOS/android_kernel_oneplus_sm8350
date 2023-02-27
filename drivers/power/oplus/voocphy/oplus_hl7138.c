@@ -283,6 +283,7 @@ static void hl7138_update_data(struct oplus_voocphy_manager *chip)
 			| data_block[HL7138_REG_ADC_L_BIT_VSYS]) * HL7138_FACTOR_125_100;	/* vout_lsb=1.25mV; */
 	chip->cp_vbat = ((data_block[HL7138_REG_ADC_H_BIT_VBAT] << HL7138_REG_ADC_BIT_OFFSET_4)
 			| data_block[HL7138_REG_ADC_L_BIT_VBAT]) * HL7138_FACTOR_125_100;	/* vout_lsb=1.25mV; */
+	chip->cp_vac = chip->cp_vbus;
 	chg_debug("cp_ichg = %d cp_vbus = %d, cp_vsys = %d, cp_vbat = %d, int_flag = %d",
 		chip->cp_ichg, chip->cp_vbus, chip->cp_vsys, chip->cp_vbat, chip->int_flag);
 }
@@ -612,7 +613,7 @@ static int hl7138_init_device(struct oplus_voocphy_manager *chip)
 	hl7138_write_byte(chip->client, HL7138_REG_10, 0xEC);	/* JL:Dis IIN_REG; */
 	hl7138_write_byte(chip->client, HL7138_REG_12, 0x05);	/* JL:Fsw=500KHz;07->12; */
 	hl7138_write_byte(chip->client, HL7138_REG_14, 0x08);	/* JL:dis WDG; */
-	hl7138_write_byte(chip->client, HL7138_REG_16, 0x3B);	/* JL:OV=600, UV=200 */
+	hl7138_write_byte(chip->client, HL7138_REG_16, 0x2C);	/* JL:OV=500, UV=250 */
 
 	return 0;
 }
@@ -741,13 +742,17 @@ static int hl7138_svooc_hw_setting(struct oplus_voocphy_manager *chip)
 	hl7138_write_byte(chip->client, HL7138_REG_0B, 0x88);	/* VBUS_OVP:12V */
 	hl7138_write_byte(chip->client, HL7138_REG_0C, 0x00);	/* VIN_OVP:10.2V,,JL:04-0C; */
 
-	hl7138_write_byte(chip->client, HL7138_REG_0E, 0x32);	/* IBUS_OCP:3.6A,UCP_DEB=5ms;JL:05-0E; */
+	if (chip->high_curr_setting)
+		hl7138_write_byte(chip->client, HL7138_REG_0E, 0xB2);	/* disable OCP */
+	else
+		hl7138_write_byte(chip->client, HL7138_REG_0E, 0x32);	/* IBUS_OCP:3.6A,UCP_DEB=5ms;JL:05-0E; */
 
 	hl7138_write_byte(chip->client, HL7138_REG_14, 0x02);	/* WD:1000ms,JL:09-14; */
 	hl7138_write_byte(chip->client, HL7138_REG_15, 0x00);	/* enter cp mode */
-	hl7138_write_byte(chip->client, HL7138_REG_16, 0x3B);	/* JL:OV=600, UV=200 */
+	hl7138_write_byte(chip->client, HL7138_REG_16, 0x2C);	/* JL:OV=500, UV=250 */
 
 	hl7138_write_byte(chip->client, HL7138_REG_3F, 0x91);	/* Loose_det=1,JL:33-3F; */
+
 	return 0;
 }
 
@@ -763,9 +768,9 @@ static int hl7138_vooc_hw_setting(struct oplus_voocphy_manager *chip)
 
 	hl7138_write_byte(chip->client, HL7138_REG_14, 0x02);	/* WD:1000ms,JL:09-14; */
 	hl7138_write_byte(chip->client, HL7138_REG_15, 0x80);	/* JL:bp mode; */
-	hl7138_write_byte(chip->client, HL7138_REG_16, 0x3B);	/* JL:OV=600, UV=200 */
-
+	hl7138_write_byte(chip->client, HL7138_REG_16, 0x2C);	/* JL:OV=500, UV=250 */
 	hl7138_write_byte(chip->client, HL7138_REG_3F, 0x91);	/* Loose_det=1,JL:33-3F; */
+
 	return 0;
 }
 
@@ -1007,6 +1012,8 @@ static int hl7138_parse_dt(struct oplus_voocphy_manager *chip)
 		chip->voocphy_vbus_high = DEFUALT_VBUS_HIGH;
 	}
 	chg_err("voocphy_vbus_high is %d\n", chip->voocphy_vbus_high);
+
+	chip->high_curr_setting = of_property_read_bool(node, "qcom,high_curr_setting");
 
 	return 0;
 }

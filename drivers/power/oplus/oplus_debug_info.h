@@ -18,6 +18,8 @@ enum oplus_chg_debug_info_notify_type {
 	OPLUS_CHG_DEBUG_NOTIFY_TYPE_GAUGE_ERROR,
 	OPLUS_CHG_DEBUG_NOTIFY_TYPE_WIRELESS,/*add for wireless chg*/
 	OPLUS_CHG_DEBUG_NOTIFY_TYPE_RECHG,/*add for rechg counts*/
+	OPLUS_CHG_DEBUG_NOTIFY_TYPE_SC8517,
+	OPLUS_CHG_DEBUG_NOTIFY_TYPE_SC8571,
 	OPLUS_CHG_DEBUG_NOTIFY_TYPE_BCC_ERR,
 	OPLUS_CHG_DEBUG_NOTIFY_TYPE_SC85x7,/*ic end*/
 	OPLUS_CHG_DEBUG_NOTIFY_TYPE_MAX,
@@ -47,6 +49,8 @@ enum oplus_chg_debug_info_notify_flag {
 	OPLUS_NOTIFY_VOOCPHY_ERR,/*add for voocPhy chg*/
 	OPLUS_NOTIFY_MCU_UPDATE_FAIL,
 	OPLUS_NOTIFY_SC85x7_ERROR, /* ic end */
+	OPLUS_NOTIFY_SC8517_ERROR,
+	OPLUS_NOTIFY_SC8571_ERROR,
 	OPLUS_NOTIFY_CHG_BATT_RECHG,/*add for rechg counts*/
 	OPLUS_NOTIFY_BATT_AGING_CAP,
 	OPLUS_NOTIFY_CHG_VOOC_BREAK,
@@ -67,15 +71,6 @@ enum oplus_chg_debug_info_notify_flag {
 	OPLUS_NOTIFY_FG_CAN_NOT_UPDATE, /*add for soc do not update issue*/
 	OPLUS_NOTIFY_CHG_MAX_CNT,
 };
-
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
-enum oplus_power_supply_type {
-	POWER_SUPPLY_TYPE_USB_HVDCP = 13,		/* High Voltage DCP */
-	POWER_SUPPLY_TYPE_USB_HVDCP_3,		/* Efficient High Voltage DCP */
-	POWER_SUPPLY_TYPE_USB_HVDCP_3P5,	/* Efficient High Voltage DCP */
-	POWER_SUPPLY_TYPE_USB_FLOAT,		/* Floating charger */
-};
-#endif
 
 struct wireless_pen_status {
 	bool support;
@@ -172,6 +167,7 @@ struct oplus_chg_debug_info {
 	char flag_reason[32];
 	char type_reason[32];
 	char sc85x7_error_reason[32];
+	char sc8571_error_reason[32];
 	struct timespec charge_start_ts;
 	int vooc_mcu_error;
 	bool report_soh;
@@ -209,4 +205,5 @@ extern int oplus_switching_get_charge_enable(void);
 extern int oplus_switching_get_fastcharge_current(void);
 extern int oplus_switching_get_discharge_current(void);
 extern int oplus_chg_bcc_err(const char* buf);
+extern void oplus_chg_sc8571_error(int report_flag, int *buf, int ret);
 #endif

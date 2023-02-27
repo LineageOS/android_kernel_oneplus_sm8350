@@ -115,7 +115,7 @@ static __inline__ void sgm41512_i2c_err_inc(struct sgm41512_chip *chip)
 {
 	if (atomic_inc_return(&i2c_err_count) > I2C_ERR_MAX) {
 		atomic_set(&i2c_err_count, 0);
-		oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_I2C,
+		oplus_chg_ic_creat_err_msg(chip->ic_dev, OPLUS_IC_ERR_I2C, 0,
 					   "continuous error");
 		oplus_chg_ic_virq_trigger(chip->ic_dev, OPLUS_IC_VIRQ_ERR);
 	}

@@ -32,13 +32,13 @@ static dev_t oplus_chg_ic_devno;
 static const char * const err_type_text[] = {
 	[OPLUS_IC_ERR_UNKNOWN]		= "Unknown",
 	[OPLUS_IC_ERR_I2C]		= "I2C",
-	[OPLUS_IC_ERR_OCP]		= "OCP",
-	[OPLUS_IC_ERR_OVP]		= "OVP",
-	[OPLUS_IC_ERR_UCP]		= "UCP",
-	[OPLUS_IC_ERR_UVP]		= "UVP",
-	[OPLUS_IC_ERR_TIMEOUT]		= "Timeout",
-	[OPLUS_IC_ERR_OVER_HEAT]	= "Overheat",
-	[OPLUS_IC_ERR_COLD]		= "Cold",
+	[OPLUS_IC_ERR_GPIO]		= "GPIO",
+	[OPLUS_IC_ERR_PLAT_PMIC]	= "PlatformPMIC",
+	[OPLUS_IC_ERR_BUCK_BOOST]	= "Buck/Boost",
+	[OPLUS_IC_ERR_GAUGE]		= "Gauge",
+	[OPLUS_IC_ERR_WLS_RX]		= "WirelessRX",
+	[OPLUS_IC_ERR_CP]		= "ChargePump",
+	[OPLUS_IC_ERR_CC_LOGIC]		= "CCLogic",
 };
 
 int oplus_chg_ic_get_new_minor(void)
@@ -656,10 +656,10 @@ int oplus_chg_ic_virq_trigger(struct oplus_chg_ic_dev *ic_dev,
 	return -ENOTSUPP;
 }
 
-__printf(3, 4)
+__printf(4, 5)
 int oplus_chg_ic_creat_err_msg(struct oplus_chg_ic_dev *ic_dev,
-			     enum oplus_chg_ic_err err_type, const char *format,
-			     ...)
+			       enum oplus_chg_ic_err err_type, int sub_err_type,
+			       const char *format, ...)
 {
 	va_list args;
 	struct oplus_chg_ic_err_msg *err_msg;
@@ -677,6 +677,7 @@ int oplus_chg_ic_creat_err_msg(struct oplus_chg_ic_dev *ic_dev,
 
 	err_msg->ic = ic_dev;
 	err_msg->type = err_type;
+	err_msg->sub_type = sub_err_type;
 	va_start(args, format);
 	length = vsnprintf(err_msg->msg, IC_ERR_MSG_MAX - 1, format, args);
 	va_end(args);

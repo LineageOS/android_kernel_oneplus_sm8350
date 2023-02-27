@@ -169,6 +169,8 @@ int oplus_mms_publish_msg(struct oplus_mms *mms, struct mms_msg *msg);
 int oplus_mms_publish_msg_sync(struct oplus_mms *mms, struct mms_msg *msg);
 int oplus_mms_publish_ic_err_msg(struct oplus_mms *topic, u32 item_id,
 				 struct oplus_chg_ic_err_msg *err_msg);
+int oplus_mms_analysis_ic_err_msg(char *buf, size_t buf_size, int *name_index,
+				  int *type, int *sub_type, int *msg_index);
 struct mms_subscribe *oplus_mms_subscribe(
 	struct oplus_mms *mms, void *priv_data,
 	void (*callback)(struct mms_subscribe *, enum mms_msg_type, u32),

@@ -36,6 +36,7 @@
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #define OEM_OPCODE_READ_BUFFER    0x10000
 #define BCC_OPCODE_READ_BUFFER    0x10003
+#define PPS_OPCODE_READ_BUFFER    0x10004
 #define OEM_READ_WAIT_TIME_MS    500
 #define TRACK_OPCODE_READ_BUFFER	0x10005
 #define TRACK_READ_WAIT_TIME_MS	2000
@@ -83,6 +84,7 @@
 #define BC_ADSP_NOTIFY_AP_CP_BYPASS_INIT                         0x0062
 #define BC_ADSP_NOTIFY_AP_CP_MOS_ENABLE                          0x0063
 #define BC_ADSP_NOTIFY_AP_CP_MOS_DISABLE                         0x0064
+#define BC_PPS_OPLUS                    0x65
 #define BC_ADSP_NOTIFY_TRACK				0x66
 #endif
 
@@ -94,6 +96,9 @@
 #define USB_RESERVE4		0x10
 #define USB_DONOT_USE		0x80000000
 #define PM8350B_BOOST_VOL_MIN_MV 4800
+#define USB_OTG_CURR_LIMIT_MAX   3000
+#define USB_OTG_CURR_LIMIT_HIGH  1700
+#define USB_OTG_REAL_SOC_MIN     10
 #endif
 
 /* Generic definitions */
@@ -104,6 +109,8 @@
 #define WLS_FW_UPDATE_TIME_MS		1000
 #define WLS_FW_BUF_SIZE			128
 #define DEFAULT_RESTRICT_FCC_UA		1000000
+
+#define BATTMNGR_EFAILED		512 /*Error: i2c Operation Failed*/
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 struct oem_read_buffer_req_msg {
@@ -196,6 +203,9 @@ enum battery_property_id {
 	BATT_UPDATE_SOC_SMOOTH_PARAM,
 	BATT_BATTERY_HMAC,
 	BATT_SET_BCC_CURRENT,
+	BATT_ZY0603_CHECK_RC_SFR,
+	BATT_ZY0603_SOFT_RESET,
+	BATT_AFI_UPDATE_DONE,
 #endif
 	BATT_PROP_MAX,
 };
@@ -250,6 +260,7 @@ enum usb_property_id {
 	USB_PPS_GET_DISCONNECT_STATUS,
 	USB_PPS_VOOCPHY_ENABLE,
 	USB_IN_STATUS,
+	USB_GET_BATT_CURR,
 	/*USB_ADSP_TRACK_DEBUG,*/
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
 	USB_TEMP,
@@ -431,7 +442,8 @@ struct oplus_chg_iio {
 	struct iio_channel	*usbtemp_v_chan;
 	struct iio_channel	*usbtemp_sup_v_chan;
 	struct iio_channel	*subboard_temp_v_chan;
-	struct iio_channel	*battcon_btb_chan;
+	struct iio_channel	*batt0_con_btb_chan;
+	struct iio_channel      *batt1_con_btb_chan;
 	struct iio_channel	*usbcon_btb_chan;
 };
 #endif
@@ -543,6 +555,10 @@ struct battery_chg_dev {
 	struct oem_read_buffer_resp_msg  bcc_read_buffer_dump;
 	int otg_scheme;
 	int otg_boost_src;
+	int otg_curr_limit_max;
+	int otg_curr_limit_high;
+	int otg_real_soc_min;
+	int usbtemp_thread_100w_support;
 	bool otg_prohibited;
 	struct notifier_block	ssr_nb;
 	void			*subsys_handle;
@@ -564,6 +580,11 @@ struct battery_chg_dev {
 	struct completion adsp_track_read_ack;
 	struct adsp_track_read_resp_msg adsp_track_read_buffer;
 	struct delayed_work adsp_track_notify_work;
+#endif
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct mutex	pps_read_buffer_lock;
+	struct completion	 pps_read_ack;
+	struct oem_read_buffer_resp_msg  pps_read_buffer_dump;
 #endif
 	/* To track the driver initialization status */
 	bool				initialized;

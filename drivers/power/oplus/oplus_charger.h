@@ -90,6 +90,9 @@
 #ifdef CONFIG_OPLUS_CHARGER_MTK6985S
 #include "charger_ic/oplus_battery_mtk6985S.h"
 #endif
+#ifdef CONFIG_OPLUS_CHARGER_MTK6895S
+#include "charger_ic/oplus_battery_mtk6895S.h"
+#endif
 #else /* CONFIG_OPLUS_CHARGER_MTK */
 #include <linux/regulator/driver.h>
 #include <linux/regulator/of_regulator.h>
@@ -265,6 +268,28 @@ static inline void getnstimeofday(struct timespec *ts)
 #define OPCHG_INPUT_CURRENT_LIMIT_CALLING_MA	1200
 #define OPCHG_FAST_CHG_MAX_MA			2000
 
+#define OPCHG_USBTEMP_BATT_TEMP_LOW 50
+#define OPCHG_USBTEMP_BATT_TEMP_HIGH 50
+#define OPCHG_USBTEMP_NTC_TEMP_LOW 57
+#define OPCHG_USBTEMP_NTC_TEMP_HIGH 69
+#define OPCHG_USBTEMP_GAP_LOW_WITH_BATT_TEMP 7
+#define OPCHG_USBTEMP_GAP_HIGH_WITH_BATT_TEMP 12
+#define OPCHG_USBTEMP_GAP_LOW_WITHOUT_BATT_TEMP 12
+#define OPCHG_USBTEMP_GAP_HIGH_WITHOUT_BATT_TEMP 24
+#define OPCHG_USBTEMP_RISE_FAST_TEMP_LOW 3
+#define OPCHG_USBTEMP_RISE_FAST_TEMP_HIGH 3
+#define OPCHG_USBTEMP_RISE_FAST_TEMP_COUNT_LOW 30
+#define OPCHG_USBTEMP_RISE_FAST_TEMP_COUNT_HIGH 20
+
+#define OPCHG_USBTEMP_COOL_DOWN_NTC_LOW 54
+#define OPCHG_USBTEMP_COOL_DOWN_NTC_HIGH 65
+#define OPCHG_USBTEMP_COOL_DOWN_GAP_LOW 12
+#define OPCHG_USBTEMP_COOL_DOWN_GAP_HIGH 20
+#define OPCHG_USBTEMP_COOL_DOWN_RECOVER_NTC_LOW 48
+#define OPCHG_USBTEMP_COOL_DOWN_RECOVER_NTC_HIGH 60
+#define OPCHG_USBTEMP_COOL_DOWN_RECOVER_GAP_LOW 6
+#define OPCHG_USBTEMP_COOL_DOWN_RECOVER_GAP_HIGH 15
+
 #define FEATURE_PRINT_CHGR_LOG
 #define FEATURE_PRINT_BAT_LOG
 #define FEATURE_PRINT_GAUGE_LOG
@@ -293,7 +318,10 @@ static inline void getnstimeofday(struct timespec *ts)
 #define NOTIFY_SHORT_C_BAT_DYNAMIC_ERR_CODE5	19
 #define	NOTIFY_CHARGER_TERMINAL			20
 #define NOTIFY_GAUGE_I2C_ERR			21
-#define NOTIFY_CHARGER_BATT_TERMINAL	22
+#define NOTIFY_CHARGER_BATT_TERMINAL		22
+#define NOTIFY_FAST_CHG_END_ERROR		23
+#define NOTIFY_MOS_OPEN_ERROR			24
+#define NOTIFY_CURRENT_UNBALANCE		25
 
 #define OPLUS_CHG_500_CHARGING_CURRENT	500
 #define OPLUS_CHG_900_CHARGING_CURRENT	900
@@ -332,6 +360,9 @@ static inline void getnstimeofday(struct timespec *ts)
 #define OPLUS_CHG_GET_SUB_TEMPERATURE      _IOWR('M', 4, char[256])
 
 #define TEMPERATURE_INVALID	-2740
+#define SUB_BATT_CURRENT_50_MA	50
+#define MOS_OPEN 0
+#define MOS_TEST_DEFAULT_COOL_DOWN 1
 
 #define PDO_9V         9000
 #define PDO_5V         5000
@@ -340,6 +371,8 @@ static inline void getnstimeofday(struct timespec *ts)
 
 #define FG_I2C_ERROR   -400
 
+#define OPLUS_PDQC_5VTO9V	1
+#define OPLUS_PDQC_9VTO5V	2
 #define chg_debug(fmt, ...) \
         printk(KERN_NOTICE "[OPLUS_CHG][%s]"fmt, __func__, ##__VA_ARGS__)
 
@@ -351,6 +384,26 @@ enum {
 	PD_ACTIVE,
 	PD_PPS_ACTIVE,
 };
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+enum oplus_power_supply_type {
+	POWER_SUPPLY_TYPE_USB_HVDCP = 13,		/* High Voltage DCP */
+	POWER_SUPPLY_TYPE_USB_HVDCP_3,		/* Efficient High Voltage DCP */
+	POWER_SUPPLY_TYPE_USB_HVDCP_3P5,	/* Efficient High Voltage DCP */
+	POWER_SUPPLY_TYPE_USB_FLOAT,		/* Floating charger */
+	POWER_SUPPLY_TYPE_USB_PD_SDP,		/* USB With PD Port*/
+};
+enum oplus_power_supply_usb_type {
+	POWER_SUPPLY_USB_TYPE_PD_SDP = 17,		/* USB With PD Port*/
+};
+#else
+enum oplus_power_supply_type {
+	POWER_SUPPLY_TYPE_USB_PD_SDP = 17,		/* USB With PD Port*/
+};
+enum oplus_power_supply_usb_type {
+	POWER_SUPPLY_USB_TYPE_PD_SDP = 17,		/* USB With PD Port*/
+};
+#endif
 
 typedef enum {
 	CHG_NONE = 0,
@@ -395,6 +448,11 @@ typedef enum {
 	BATTERY_STATUS__INVALID
 }
 OPLUS_CHG_TBATT_STATUS;
+
+typedef enum {
+	BATTERY_STATUS__COLD_PHASE1,	/* -20 ~ -10C */
+	BATTERY_STATUS__COLD_PHASE2,	/* -10 ~ 0C */
+} OPLUS_CHG_TBATT_COLD_STATUS;
 
 typedef enum {
         BATTERY_STATUS__NORMAL_PHASE1,	/*16~22C*/
@@ -515,6 +573,7 @@ struct tbatt_normal_anti_shake {
 
 struct tbatt_anti_shake {
 	int cold_bound;
+	int freeze_bound;
 	int little_cold_bound;
 	int cool_bound;
 	int little_cool_bound;
@@ -558,7 +617,7 @@ struct oplus_chg_limits {
 	int recharge_mv;
 	int usb_high_than_bat_decidegc;				/*10C*/
 	int removed_bat_decidegc;						/*-19C*/
-	int cold_bat_decidegc;							/*-3C*/
+	int cold_bat_decidegc;							/*-20C*/
 	int temp_cold_vfloat_mv;
 	int temp_cold_fastchg_current_ma;
 	int temp_cold_fastchg_current_ma_high;
@@ -567,6 +626,16 @@ struct oplus_chg_limits {
 	int pd_temp_cold_fastchg_current_ma_low;
 	int qc_temp_cold_fastchg_current_ma_high;
 	int qc_temp_cold_fastchg_current_ma_low;
+
+	int freeze_bat_decidegc;							/*-10C*/
+	int temp_freeze_fastchg_current_ma;
+	int temp_freeze_fastchg_current_ma_high;
+	int temp_freeze_fastchg_current_ma_low;
+	int pd_temp_freeze_fastchg_current_ma_high;
+	int pd_temp_freeze_fastchg_current_ma_low;
+	int qc_temp_freeze_fastchg_current_ma_high;
+	int qc_temp_freeze_fastchg_current_ma_low;
+
 	int little_cold_bat_decidegc;					/*0C*/
 	int temp_little_cold_vfloat_mv;
 	int temp_little_cold_fastchg_current_ma;
@@ -881,8 +950,11 @@ struct oplus_chg_chip {
 	struct delayed_work  mmi_adapter_in_work;
 	struct delayed_work  reset_adapter_work;
 	struct delayed_work  turn_on_charging_work;
+	struct delayed_work fg_soft_reset_work;
+	struct delayed_work  parallel_batt_chg_check_work;
 	struct alarm usbtemp_alarm_timer;
 	struct work_struct usbtemp_restart_work;
+	struct delayed_work  parallel_chg_mos_test_work;
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0))
 	struct wake_lock suspend_lock;
 #else
@@ -893,6 +965,9 @@ struct oplus_chg_chip {
 	struct tbatt_normal_anti_shake tbatt_normal_anti_shake_bound;
 	struct short_c_batt_data short_c_batt;
 	atomic_t			file_opened;
+	atomic_t mos_lock;
+	int mos_test_result;
+	bool mos_test_started;
 
 	int alarm_clockid;
 	bool usbtemp_wq_init_finished;
@@ -917,6 +992,9 @@ struct oplus_chg_chip {
 	int qc_abnormal_check_count;
 	int tbatt_temp;
 	int shell_temp;
+	int subboard_temp;
+	int tbatt_power_off_cali_temp;
+	bool tbatt_use_subboard_temp;
 	bool tbatt_shell_status;
 	bool support_tbatt_shell;
 	int offset_temp;
@@ -925,6 +1003,7 @@ struct oplus_chg_chip {
 	int batt_volt_max;
 	int batt_volt_min;
 	int vbatt_power_off;
+	int sub_vbatt_power_off;
 	int vbatt_soc_1;
 	int soc_to_0_withchg;
 	int soc_to_0_withoutchg;
@@ -953,6 +1032,7 @@ struct oplus_chg_chip {
 	int batt_capacity_mah;
 	int tbatt_pre_shake;
 	int tbatt_normal_pre_shake;
+	int tbatt_cold_pre_shake;
 	bool batt_exist;
 	bool batt_full;
 	bool real_batt_full;
@@ -970,6 +1050,7 @@ struct oplus_chg_chip {
 	int vchg_status;
 	int tbatt_status;
 	int tbatt_normal_status;
+	int tbatt_cold_status;
 	int prop_status;
 	int stop_voter;
 	int notify_code;
@@ -1075,6 +1156,8 @@ struct oplus_chg_chip {
 	int *con_temp;
 	int len_array;
 	wait_queue_head_t oplus_usbtemp_wq;
+	wait_queue_head_t oplus_usbtemp_wq_new_method;
+	wait_queue_head_t oplus_bcc_wq;
 	int usbtemp_batttemp_gap;
 	int usbtemp_batttemp_recover_gap;
 	int usbtemp_batttemp_current_gap;
@@ -1134,9 +1217,14 @@ struct oplus_chg_chip {
 	int balancing_bat_status;
 	int sub_batt_volt;
 	int sub_batt_icharging;
+	int main_batt_soc;
 	int sub_batt_soc;
+	int main_batt_temperature;
 	int sub_batt_temperature;
 	int wls_set_boost_vol;
+	int batt_target_curr;
+	int pre_charging_current;
+	bool aicl_done;
 
 	bool support_low_soc_unlimit;
 	int unlimit_soc;
@@ -1147,7 +1235,9 @@ struct oplus_chg_chip {
 	bool pd_adapter_support_9v;
 	OPLUS_USBTEMP_TIMER_STAGE usbtemp_timer_stage;
 
+	bool pps_svooc_enable;
 	bool smart_chg_bcc_support;
+	bool smart_chg_soh_support;
 	int bcc_current;
 	int bcc_cool_down;
 	struct mutex bcc_curr_done_mutex;
@@ -1161,6 +1251,7 @@ struct oplus_chg_chip {
 	int pd_authentication;
 	bool pps_force_svooc;
 	bool support_3p6_standard;
+	bool pdqc_9v_voltage_adaptive;
 	bool suport_pd_9v2a;
 	struct timespec quick_mode_time;
 	int start_time;
@@ -1198,7 +1289,50 @@ struct oplus_chg_chip {
 	struct delayed_work cool_down_match_err_load_trigger_work;
 	struct reserve_soc_data rsd;
 	bool is_gauge_ready;
+
+	bool pd_disable;
+	bool support_wd0;
+
+	bool support_usbtemp_protect_v2;
+	int usbtemp_curr_status;
+	int usbtemp_batt_current;
+	int usbtemp_pre_batt_current;
+	int usbtemp_batt_temp_low;
+	int usbtemp_batt_temp_high;
+	int usbtemp_ntc_temp_low;
+	int usbtemp_ntc_temp_high;
+	int usbtemp_temp_gap_low_with_batt_temp;
+	int usbtemp_temp_gap_high_with_batt_temp;
+	int usbtemp_temp_gap_low_without_batt_temp;
+	int usbtemp_temp_gap_high_without_batt_temp;
+	int usbtemp_rise_fast_temp_low;
+	int usbtemp_rise_fast_temp_high;
+	int usbtemp_rise_fast_temp_count_low;
+	int usbtemp_rise_fast_temp_count_high;
+
+	int usbtemp_cool_down_ntc_low;
+	int usbtemp_cool_down_ntc_high;
+	int usbtemp_cool_down_gap_low;
+	int usbtemp_cool_down_gap_high;
+	int usbtemp_cool_down_recover_ntc_low;
+	int usbtemp_cool_down_recover_ntc_high;
+	int usbtemp_cool_down_recover_gap_low;
+	int usbtemp_cool_down_recover_gap_high;
+	bool fg_soft_reset_done;
+	int fg_soft_reset_fail_cnt;
+	int fg_check_ibat_cnt;
+	int parallel_error_flag;
+	bool soc_not_full_report;
+	bool support_subboard_ntc;
+	bool full_pre_ffc_judge;
+	int full_pre_ffc_mv;
 };
+
+
+#define SOFT_REST_VOL_THRESHOLD			4300
+#define SOFT_REST_SOC_THRESHOLD			95
+#define SOFT_REST_CHECK_DISCHG_MAX_CUR		200
+#define SOFT_REST_RETRY_MAX_CNT			2
 
 struct oplus_chg_operations {
 	void(*get_props_from_adsp_by_buffer)(void);
@@ -1209,7 +1343,6 @@ struct oplus_chg_operations {
 	void (*really_suspend_charger)(bool en);
 	bool (*oplus_usbtemp_monitor_condition)(void);
 	int (*recovery_usbtemp)(void *data);
-	int (*set_dischg_enable)(bool en);
 	void (*dump_registers)(void);
 	int (*kick_wdt)(void);
 	int (*hardware_init)(void);
@@ -1349,6 +1482,7 @@ int __attribute__((weak)) get_boot_mode(void)
 }
 #endif
 
+int oplus_get_report_batt_temp(void);
 /*********************************************
  * power_supply usb/ac/battery functions
  **********************************************/
@@ -1422,6 +1556,9 @@ void oplus_chg_set_otg_online(bool online);
 bool oplus_chg_get_batt_full(void);
 bool oplus_chg_get_rechging_status(void);
 
+bool oplus_chg_check_pd_disable(void);
+
+int oplus_chg_check_ui_soc(void);
 bool oplus_chg_check_chip_is_null(void);
 void oplus_chg_set_charger_type_unknown(void);
 int oplus_chg_get_charger_voltage(void);
@@ -1471,6 +1608,7 @@ bool oplus_chg_get_boot_completed(void);
 int oplus_chg_match_temp_for_chging(void);
 void oplus_chg_reset_adapter(void);
 int oplus_chg_get_fast_chg_type(void);
+void oplus_chg_pdqc9v_vindpm_vol_switch(int val);
 
 struct oplus_chg_chip* oplus_chg_get_chip(void);
 int oplus_chg_get_voocphy_support(void);

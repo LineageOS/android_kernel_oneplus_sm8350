@@ -58,6 +58,18 @@ int __attribute__((weak)) oplus_pps_get_authentiate(void)
 {
 	return 0;
 }
+int __attribute__((weak)) oplus_sm8350_pps_get_authentiate(void)
+{
+	return 0;
+}
+int __attribute__((weak)) oplus_sm8350_read_vbat0_voltage(void)
+{
+	return 0;
+}
+int __attribute__((weak)) oplus_sm8350_check_btb_temp(void)
+{
+	return 0;
+}
 
 int pps_cp_id = PPS_CP_ID_SC8571;
 
@@ -397,60 +409,50 @@ int oplus_cp_slave_dump_registers(void)
 	pps_err("oplus_cp_slave_dump_registers\n");
 	return status;
 }
-
-static int oplus_sm8350_get_r_cool_down(void) {
-	int rc = 0;
-
-	pps_err("cool_down = 0,no limit\n");
-
-	return rc;
-}
-
-int oplus_default_pps_get_authentiate(void) {
-	pps_err("oplus_pps_get_authentiate  = 1\n");
-
-	return 1;
-}
-
-/*  not support now
+/*
+extern int oplus_sm8350_pps_get_authentiate(void);
+extern int oplus_sm8350_read_vbat0_voltage(void);
+extern int oplus_sm8350_check_btb_temp(void);
+*/
 extern int op10_read_input_voltage(void);
 extern int op10_read_vbat0_voltage(void);
 extern int op10_check_btb_temp(void);
-extern int oplus_chg_get_max_cur(int vbus_mv);
 extern void oplus_op10_set_mcu_pps_mode(bool pps);
 extern int oplus_op10_get_mcu_pps_mode(void);
-*/
+extern int oplus_chg_pps_get_max_cur(int vbus_mv);
 
 struct oplus_pps_operations oplus_cp_pps_ops = {
-/*	not support now
 	.set_mcu_pps_mode = oplus_op10_set_mcu_pps_mode,
 	.get_mcu_pps_mode = oplus_op10_get_mcu_pps_mode,
-	.get_input_volt = op10_read_input_voltage,
-	.get_vbat0_volt = op10_read_vbat0_voltage,
-	.check_btb_temp = op10_check_btb_temp,*/
-	.pps_mos_ctrl = oplus_cp_master_cp_enable,
+	/*.get_input_volt = op10_read_input_voltage,*/
+	.get_vbat0_volt = oplus_sm8350_read_vbat0_voltage,
+#ifdef CONFIG_OPLUS_CHARGER_MTK
+	.check_btb_temp = op10_check_btb_temp,
+#else
+	.check_btb_temp = oplus_sm8350_check_btb_temp,
+#endif
 	/*.pps_check_authentiate = oplus_sm8350_pps_check_authentiate,*/
-	.pps_get_authentiate = oplus_default_pps_get_authentiate,
-	.pps_cp_hardware_init = oplus_cp_hardware_init,
-	.pps_cp_reset = oplus_cp_reset,
-	.pps_cp_pmid2vout_enable = oplus_cp_pmid2vout_enable,
-	.pps_get_cp_master_vbus = oplus_cp_master_get_vbus,
-	.pps_get_cp_slave_vbus = oplus_cp_slave_get_vbus,
-	.pps_get_cp_master_ibus = oplus_cp_master_get_ibus,
-	.pps_get_cp_slave_ibus = oplus_cp_slave_get_ibus,
-	.pps_mos_slave_ctrl = oplus_cp_slave_cp_enable,
-	.pps_get_r_cool_down = oplus_sm8350_get_r_cool_down,
-	.pps_get_ucp_flag = oplus_cp_master_get_ucp_flag,
+	.pps_get_authentiate = oplus_sm8350_pps_get_authentiate,
 	.pps_pdo_select = oplus_chg_set_pps_config,
 	.get_pps_status = oplus_chg_get_pps_status,
-	/*  not support now
-	.get_pps_max_cur = oplus_chg_get_max_cur,*/
+	.get_pps_max_cur = oplus_chg_pps_get_max_cur,
+	.pps_cp_hardware_init = oplus_cp_hardware_init,
+	.pps_cp_reset = oplus_cp_reset,
 	.pps_cp_mode_init = oplus_cp_cfg_mode_init,
+	.pps_cp_pmid2vout_enable = oplus_cp_pmid2vout_enable,
+	.pps_mos_ctrl = oplus_cp_master_cp_enable,
+	.pps_get_cp_master_vbus = oplus_cp_master_get_vbus,
+	.pps_get_cp_master_ibus = oplus_cp_master_get_ibus,
+	.pps_get_ucp_flag = oplus_cp_master_get_ucp_flag,
 	.pps_get_cp_master_vac = oplus_cp_master_get_vac,
-	.pps_get_cp_slave_vac = oplus_cp_slave_get_vac,
 	.pps_get_cp_master_vout = oplus_cp_master_get_vout,
-	.pps_get_cp_slave_vout = oplus_cp_slave_get_vout,
 	.pps_get_cp_master_tdie = oplus_cp_master_get_tdie,
+
+	.pps_get_cp_slave_vbus = oplus_cp_slave_get_vbus,
+	.pps_get_cp_slave_ibus = oplus_cp_slave_get_ibus,
+	.pps_mos_slave_ctrl = oplus_cp_slave_cp_enable,
+	.pps_get_cp_slave_vac = oplus_cp_slave_get_vac,
+	.pps_get_cp_slave_vout = oplus_cp_slave_get_vout,
 	.pps_get_cp_slave_tdie = oplus_cp_slave_get_tdie,
 };
 
@@ -468,7 +470,6 @@ int oplus_pps_cp_init(void)
 		status = bq25980_slave_subsys_init();
 	}
 #endif
-	/*oplus_pps_register_ops(&oplus_cp_pps_ops);*/
 	oplus_pps_ops_register("cp-sc8571", &oplus_cp_pps_ops);
 	pps_err("<sc8571> Is Initialized.\n");
 

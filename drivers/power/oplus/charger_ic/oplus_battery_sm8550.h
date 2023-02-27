@@ -24,6 +24,7 @@
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
+#include "../oplus_chg_track.h"
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -35,7 +36,10 @@
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #define OEM_OPCODE_READ_BUFFER    0x10000
 #define BCC_OPCODE_READ_BUFFER    0x10003
+#define PPS_OPCODE_READ_BUFFER    0x10004
 #define OEM_READ_WAIT_TIME_MS    500
+#define TRACK_OPCODE_READ_BUFFER	0x10005
+#define TRACK_READ_WAIT_TIME_MS	2000
 #define MAX_OEM_PROPERTY_DATA_SIZE 128
 #endif
 
@@ -87,7 +91,7 @@
 #define USB_RESERVE3		0x08
 #define USB_RESERVE4		0x10
 #define USB_DONOT_USE		0x80000000
-#define PM8350B_BOOST_VOL_MIN_MV 4800
+#define PM8350B_BOOST_VOL_MIN_MV 9000
 #endif
 
 /* Generic definitions */
@@ -109,6 +113,16 @@ struct oem_read_buffer_resp_msg {
     struct pmic_glink_hdr hdr;
     u32 data_buffer[MAX_OEM_PROPERTY_DATA_SIZE];
     u32 data_size;
+};
+struct adsp_track_read_req_msg {
+	struct pmic_glink_hdr hdr;
+	u32 data_size;
+};
+
+struct adsp_track_read_resp_msg {
+	struct pmic_glink_hdr hdr;
+	u8 data_buffer[ADSP_TRACK_PROPERTY_DATA_SIZE_MAX];
+	u32 data_size;
 };
 #endif
 
@@ -382,6 +396,7 @@ struct oplus_custom_gpio_pinctrl {
 	int tx_boost_en_gpio;
 	int tx_ovp_en_gpio;
 	int wrx_ovp_off_gpio;
+	int wrx_otg_en_gpio;
 	struct mutex pinctrl_mutex;
 	struct pinctrl *vchg_trig_pinctrl;
 	struct pinctrl_state *vchg_trig_default;
@@ -409,6 +424,9 @@ struct oplus_custom_gpio_pinctrl {
 	struct pinctrl		*wrx_ovp_off_pinctrl;
 	struct pinctrl_state	*wrx_ovp_off_active;
 	struct pinctrl_state	*wrx_ovp_off_sleep;
+	struct pinctrl		*wrx_otg_en_pinctrl;
+	struct pinctrl_state	*wrx_otg_en_active;
+	struct pinctrl_state	*wrx_otg_en_sleep;
 };
 #endif
 
@@ -416,7 +434,11 @@ struct oplus_custom_gpio_pinctrl {
 struct oplus_chg_iio {
 	struct iio_channel	*usbtemp_v_chan;
 	struct iio_channel	*usbtemp_sup_v_chan;
-	struct iio_channel	*subboard_temp_chan;
+	struct iio_channel      *subboard_temp_chan;
+	struct iio_channel	*subboard_temp_v_chan;
+	struct iio_channel	*batt0_con_btb_chan;
+	struct iio_channel      *batt1_con_btb_chan;
+	struct iio_channel	*usbcon_btb_chan;
 };
 #endif
 
@@ -478,6 +500,7 @@ struct battery_chg_dev {
 	bool					cid_status;
 
 	struct delayed_work status_keep_clean_work;
+	struct delayed_work status_keep_delay_unlock_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
 #endif
@@ -523,6 +546,28 @@ struct battery_chg_dev {
 	struct notifier_block	ssr_nb;
 	void			*subsys_handle;
 	int usb_in_status;
+	int real_chg_type;
+
+	char dump_info[OPLUS_CHG_TRACK_CURX_INFO_LEN];
+	char chg_power_info[OPLUS_CHG_TRACK_CURX_INFO_LEN];
+	char err_reason[OPLUS_CHG_TRACK_DEVICE_ERR_NAME_LEN];
+	struct mutex track_upload_lock;
+
+	struct mutex track_icl_err_lock;
+	u32 debug_force_icl_err;
+	bool icl_err_uploading;
+	oplus_chg_track_trigger *icl_err_load_trigger;
+	struct delayed_work icl_err_load_trigger_work;
+
+	struct mutex adsp_track_read_buffer_lock;
+	struct completion adsp_track_read_ack;
+	struct adsp_track_read_resp_msg adsp_track_read_buffer;
+	struct delayed_work adsp_track_notify_work;
+#endif
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	struct mutex	pps_read_buffer_lock;
+	struct completion	 pps_read_ack;
+	struct oem_read_buffer_resp_msg  pps_read_buffer_dump;
 #endif
 	/* To track the driver initialization status */
 	bool				initialized;
@@ -553,6 +598,46 @@ struct qcom_pmic {
 	int    		usb_hc_count;
 	bool			hc_mode_flag;
 	/* copy form msm8976_pmic end */
+};
+
+enum {
+	ADAPTER_ID_20W_0X13 = 0x13,
+	ADAPTER_ID_20W_0X34 = 0x34,
+	ADAPTER_ID_20W_0X45 = 0x45,
+	ADAPTER_ID_30W_0X19 = 0x19,
+	ADAPTER_ID_30W_0X29 = 0x29,
+	ADAPTER_ID_30W_0X41 = 0x41,
+	ADAPTER_ID_30W_0X42 = 0x42,
+	ADAPTER_ID_30W_0X43 = 0x43,
+	ADAPTER_ID_30W_0X44 = 0x44,
+	ADAPTER_ID_30W_0X46 = 0x46,
+	ADAPTER_ID_33W_0X49 = 0x49,
+	ADAPTER_ID_33W_0X4A = 0x4A,
+	ADAPTER_ID_33W_0X61 = 0x61,
+	ADAPTER_ID_50W_0X11 = 0x11,
+	ADAPTER_ID_50W_0X12 = 0x12,
+	ADAPTER_ID_50W_0X21 = 0x21,
+	ADAPTER_ID_50W_0X31 = 0x31,
+	ADAPTER_ID_50W_0X33 = 0x33,
+	ADAPTER_ID_50W_0X62 = 0x62,
+	ADAPTER_ID_65W_0X14 = 0x14,
+	ADAPTER_ID_65W_0X35 = 0x35,
+	ADAPTER_ID_65W_0X63 = 0x63,
+	ADAPTER_ID_65W_0X66 = 0x66,
+	ADAPTER_ID_65W_0X6E = 0x6E,
+	ADAPTER_ID_66W_0X36 = 0x36,
+	ADAPTER_ID_66W_0X64 = 0x64,
+	ADAPTER_ID_67W_0X6C = 0x6C,
+	ADAPTER_ID_67W_0X6D = 0x6D,
+	ADAPTER_ID_80W_0X4B = 0x4B,
+	ADAPTER_ID_80W_0X4C = 0x4C,
+	ADAPTER_ID_80W_0X4D = 0x4D,
+	ADAPTER_ID_80W_0X4E = 0x4E,
+	ADAPTER_ID_80W_0X65 = 0x65,
+	ADAPTER_ID_100W_0X69 = 0x69,
+	ADAPTER_ID_100W_0X6A = 0x6A,
+	ADAPTER_ID_120W_0X32 = 0x32,
+	ADAPTER_ID_120W_0X6B = 0x6B,
 };
 
 #endif /*__SM8550_CHARGER_H*/

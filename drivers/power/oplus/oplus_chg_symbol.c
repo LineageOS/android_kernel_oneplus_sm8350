@@ -63,6 +63,9 @@ ADD_FUNC_BODY(oplus_chg_wake_update_work)
 DEF_SYMBOLE(bool, oplus_chg_check_chip_is_null, void)
 ADD_FUNC_BODY(oplus_chg_check_chip_is_null)
 
+DEF_SYMBOLE(int, oplus_chg_check_ui_soc, void)
+ADD_FUNC_BODY(oplus_chg_check_ui_soc)
+
 DEF_SYMBOLE(int, oplus_is_vooc_project, void)
 ADD_FUNC_BODY(oplus_is_vooc_project)
 
@@ -113,6 +116,9 @@ ADD_FUNC_BODY(is_meta_mode)
 
 DEF_SYMBOLE(bool, oplus_tchg_01c_precision, void)
 ADD_FUNC_BODY(oplus_tchg_01c_precision)
+
+DEF_SYMBOLE(int, oplus_force_get_subboard_temp, void)
+ADD_FUNC_BODY(oplus_force_get_subboard_temp)
 
 #endif /* CONFIG_OPLUS_CHARGER_MTK6895S */
 

@@ -70,6 +70,7 @@
 #include "../oplus_charger.h"
 #include "../oplus_gauge.h"
 #include "../oplus_vooc.h"
+#include "../voocphy/oplus_voocphy.h"
 #include "oplus_bq27541.h"
 #include "../oplus_debug_info.h"
 #include "../oplus_pps.h"
@@ -81,6 +82,8 @@
 
 static struct chip_bq27541 *gauge_ic = NULL;
 static struct chip_bq27541 *sub_gauge_ic = NULL;
+static struct oplus_external_auth_chip *external_auth_chip = NULL;
+
 static DEFINE_MUTEX(bq28z610_alt_manufacturer_access);
 static oplus_gauge_auth_result auth_data;
 static bool get_smem_batt_info(oplus_gauge_auth_result *auth, int kk);
@@ -88,10 +91,14 @@ static bool init_gauge_auth(oplus_gauge_auth_result *rst, struct bq27541_authent
 static int bq27411_write_soc_smooth_parameter(struct chip_bq27541 *chip, bool is_powerup);
 static int zy0603_unseal(struct chip_bq27541 *chip, u32 key);
 static int zy0603_seal(struct chip_bq27541 *chip, u32 key);
-
+static bool zy0603_afi_update_done(void);
 #define GAUGE_READ_ERR	0x01
 #define GAUGE_WRITE_ERR 0x02
 static int gauge_i2c_err = 0;
+
+int oplus_vooc_get_fast_chg_type(void);
+bool oplus_vooc_get_fastchg_ing(void);
+bool oplus_vooc_get_vooc_by_normal_path(void);
 
 int __attribute__((weak)) oplus_get_fg_device_type(void)
 {
@@ -367,14 +374,312 @@ static int bq27541_get_gauge_i2c_err(void)
 static void bq27541_clear_gauge_i2c_err(void)
 {
 	if (!gauge_ic) {
-		 pr_err("%s, gauge_ic is null\n", __func__);
+		pr_err("%s, gauge_ic is null\n", __func__);
 		return;
-        }
+	}
 
-        gauge_i2c_err = 0;
+	gauge_i2c_err = 0;
 
 	return;
 }
+
+static bool zy0603_fg_condition_check(void)
+{
+	if (gauge_ic == NULL || !gauge_ic->batt_zy0603) {
+		chg_err("%s gauge_ic is null or no batt_zy0603\n", __func__);
+		return false;
+	}
+
+	if (atomic_read(&gauge_ic->suspended) == 1) {
+		pr_info("%s gauge_ic->locked return\n", __func__);
+		return false;
+	}
+
+	if (!zy0603_afi_update_done()) {
+		pr_info("%s afi_update return\n", __func__);
+		return false;
+	}
+
+	if (oplus_vooc_get_fastchg_ing() &&
+	    oplus_vooc_get_vooc_by_normal_path() &&
+	    oplus_vooc_get_fast_chg_type() == CHARGER_SUBTYPE_FASTCHG_VOOC)
+		return true;
+
+	if (oplus_vooc_get_allow_reading() == false) {
+		pr_info("%s allow reading false or no mcu vooc return\n", __func__);
+		return false;
+	}
+
+	return true;
+}
+static int zy0603_read_altmac_block(struct chip_bq27541 *chip, u16 reg, u8* buf,
+						u8 offset, u8 length)
+{
+	if (!zy0603_fg_condition_check()) {
+		pr_info("%s zy0603_fg_condition_check fail\n", __func__);
+		return -1;
+	}
+
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	bq27541_i2c_txsubcmd(chip, ZYO603_CMD_ALTMAC, reg);
+	if (gauge_i2c_err)
+		goto fg_read_altmac_block_end;
+
+	bq27541_read_i2c_block(chip, ZYO603_CMD_ALTBLOCK + offset, length, buf);
+	if (gauge_i2c_err)
+		goto fg_read_altmac_block_end;
+
+fg_read_altmac_block_end:
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+	if (gauge_i2c_err)
+		return -1;
+
+	return 0;
+}
+static int zy0603_static_checksum_check(struct chip_bq27541 *chip);
+static int zy0603_QmaxFgStatus_check(struct chip_bq27541 *chip);
+bool zy0603_check_rc_sfr(void)
+{
+	s16 rc_sfr = 0;
+	s32 qmax1 = 0, qmax0 = 0;
+	u8 qmax_buf[ZYO603_QMAX_LEN] = {0};
+	u8 sfr_buf[ZYO603_SFRCC_LEN] = {0};
+	s32 ret;
+	bool is_need_reset_sfr;
+	struct chip_bq27541 *chip = gauge_ic;
+
+	if (!chip || !chip->b_soft_reset_for_zy)
+		return false;
+
+	if (chip && chip->batt_zy0603 &&
+	    zy0603_fg_condition_check()) {
+		if (zy0603_static_checksum_check(chip) ||
+		    zy0603_QmaxFgStatus_check(chip))
+			return false;
+	}
+
+	ret = zy0603_read_altmac_block(chip, ZY0603_READ_QMAX_CMD, qmax_buf,
+				ZY0603_QMAX_DATA_OFFSET, ZYO603_QMAX_LEN);
+	if (ret < 0) {
+		pr_err("%s: could not read CMD 0x0075, ret = %d\n",
+			__func__, ret);
+		is_need_reset_sfr = false;
+		goto check_end;
+	}
+	qmax0 = (qmax_buf[1] << 8) | qmax_buf[0];
+	qmax1 = (qmax_buf[3] << 8) | qmax_buf[2];
+	qmax0 = max(qmax0, qmax1) * 2;
+	if (qmax0 > ZY0603_MAX_QMAX_THRESHOLD)
+		qmax0 = ZY0603_MAX_QMAX_THRESHOLD;
+
+	ret = zy0603_read_altmac_block(chip, ZY0603_READ_SFRCC_CMD, sfr_buf,
+				ZY0603_SFRCC_DATA_OFFSET, ZYO603_SFRCC_LEN);
+	if (ret < 0) {
+		pr_err("%s: could not read CMD 0x0073, ret = %d\n",
+			__func__, ret);
+		is_need_reset_sfr = false;
+		goto check_end;
+	}
+
+	rc_sfr = (sfr_buf[1] << 8) | sfr_buf[0];
+	is_need_reset_sfr = !!(abs(rc_sfr) > qmax0);
+
+check_end:
+	pr_info("%s: RC_SFR=%d, qmax=%d, ret=%d is_need_reset_sfr = %s",
+		__func__, rc_sfr, qmax0, ret,
+		is_need_reset_sfr == true ?"true":"false");
+	return is_need_reset_sfr;
+}
+EXPORT_SYMBOL(zy0603_check_rc_sfr);
+
+static bool zy0603_check_modelratio(struct chip_bq27541 *chip)
+{
+	u8 r_buf[2] = {0};
+	u8 modelratio[2] = {0xF7, 0x1D};
+	zy0603_read_altmac_block(chip, ZY0603_MODELRATIO_REG, r_buf, 0, 2);
+	if (r_buf[0]!= modelratio[0] ||
+	    r_buf[1]!= modelratio[1])
+		return true;
+	else
+		return false;
+}
+
+static int zy0603_check_comm_gfconfig(struct chip_bq27541 *chip, int cmd, u8 target_val)
+{
+	u8 r_val;
+	int retry_cnt = 0;
+	int error_flag;
+
+	do {
+		error_flag = 0;
+		zy0603_read_altmac_block(chip, cmd, &r_val, 0, 1);
+		if (r_val != target_val) {
+			retry_cnt++;
+			error_flag = 1;
+		}
+	} while (error_flag == 1 && retry_cnt <= 3);
+
+	if (error_flag == 1 && retry_cnt > 3) {
+		pr_err("%s cmd %d FAILED, retried counts: %d \n",
+			__func__, cmd, retry_cnt);
+		return GAUGE_ERROR;
+	}
+	return GAUGE_OK;
+}
+
+static bool zy0603_get_fw_version(struct chip_bq27541 *chip, int *fwversion)
+{
+	u8 version_data[4] = {0};
+	u8 version_reg[2] = {0x02, 0x00};
+	bool ret;
+
+	if (!zy0603_fg_condition_check()) {
+		*fwversion = -1;
+		pr_info("%s zy0603_fg_condition_check fail\n", __func__);
+		return false;
+	}
+
+	bq27541_write_i2c_block(chip, ZYO603_CMD_ALTMAC, 2, version_reg);
+	if (gauge_i2c_err)
+		goto fg_read_altmac_block_end;
+	usleep_range(ZYO603_CMD_SBS_DELAY, ZYO603_CMD_SBS_DELAY);
+
+	bq27541_read_i2c_block(chip, ZYO603_CMD_ALTMAC, 4, version_data);
+fg_read_altmac_block_end:
+	if (gauge_i2c_err) {
+		ret = false;
+		*fwversion = -1;
+	} else {
+		*fwversion =  (version_data[3] << 8) | version_data[2];
+		ret = true;
+	}
+	pr_info("%s [0x%02x][0x%02x][0x%02x][0x%02x] fg_version %d %s\n",
+		__func__, version_data[0], version_data[1],
+		version_data[2], version_data[3], *fwversion,
+		ret == true ?"i2c ok":"i2c error");
+	return ret;
+}
+
+static int zy0603_full_access_mode(struct chip_bq27541 *chip)
+{
+	u8 full_access_cmd_1[2] = {0xEF, 0xCD};
+	u8 full_access_cmd_2[2] = {0xAB, 0x90};
+	u8 full_access_op_st[2] = {0x54, 0x00};
+	u8 read_buf[4] = {0};
+	int retry = 2;
+	int rc = 0;
+
+	if (!zy0603_fg_condition_check()) {
+		pr_info("%s zy0603_fg_condition_check fail\n", __func__);
+		return -1;
+	}
+
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	do {
+		bq27541_write_i2c_block(chip, ZYO603_CTRL_REG, 2,
+			full_access_cmd_1);
+		pr_err("%s write {0xEF, 0xCD} --> 0x00\n", __func__);
+		usleep_range(1000, 1000);
+
+		bq27541_write_i2c_block(chip, ZYO603_CTRL_REG, 2,
+			full_access_cmd_2);
+		pr_err("%s write {0xAB, 0x90} --> 0x00\n", __func__);
+		usleep_range(1000, 1000);
+
+		bq27541_write_i2c_block(chip, ZYO603_CMD_ALTMAC, 2,
+			full_access_op_st);
+		pr_err("%s write {0x54, 0x00} --> 0x3E\n", __func__);
+		usleep_range(1000, 1000);
+
+		bq27541_read_i2c_block(chip, ZYO603_CMD_ALTMAC, 4, read_buf);
+		pr_err("%s 0x3E -->read [0x%02x][0x%02x] [0x%02x][0x%02x]\n",
+			__func__, read_buf[0], read_buf[1], read_buf[2],
+			read_buf[3]);
+		if ((read_buf[3] & 0x02) == 0) {
+			retry = 0;
+			rc = 0;
+		} else {
+			retry--;
+			rc = -1;
+		}
+	} while (retry > 0);
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+	pr_err("%s full_access flag [%d]\n", __func__, rc);
+
+	return rc;
+}
+
+static bool zy0603_fg_softreset(struct chip_bq27541 *chip)
+{
+	bool is_reset_done = false;
+	int ret = -1;
+
+	if (!zy0603_fg_condition_check()) {
+		pr_info("%s zy0603_fg_condition_check fail\n", __func__);
+		return false;
+	}
+
+	pr_info("%s need soft  reset\n", __func__);
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	ret = zy0603_unseal(chip, 0);
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+
+	if (ret != 0) {
+		pr_info("%s zy0603_unseal fail\n", __func__);
+		return false;
+	}
+
+	ret = zy0603_full_access_mode(chip);
+	if (ret == 0) {
+		bq27541_i2c_txsubcmd(chip, ZYO603_CMD_ALTMAC, ZY0603_SOFT_RESET_CMD);
+		pr_info("%s w 0x3E \n", __func__);
+		if (gauge_i2c_err)
+			pr_info("%s soft reset fail", __func__);
+		else
+			is_reset_done = true;
+	}
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	zy0603_seal(chip, 0);
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+
+	return is_reset_done;
+}
+
+int zy0603_reset_rc_sfr(void)
+{
+	struct chip_bq27541 *chip = gauge_ic;
+
+	if (!chip || !chip->b_soft_reset_for_zy)
+		return -1;
+
+	if (!zy0603_fg_condition_check()) {
+		pr_info("%s zy0603_fg_condition_check fail\n", __func__);
+		return -1;
+	}
+
+	if (gauge_ic->fg_soft_version == -1) {
+		mutex_lock(&bq28z610_alt_manufacturer_access);
+		zy0603_get_fw_version(chip, &gauge_ic->fg_soft_version);
+		mutex_unlock(&bq28z610_alt_manufacturer_access);
+	}
+
+	if (gauge_ic->fg_soft_version  == -1) {
+		pr_info("%s check_fw_version fail!", __func__);
+		return -1;
+	}
+
+	pr_info("%s fwversion = 0x%04X \n",
+		__func__, gauge_ic->fg_soft_version);
+	if (gauge_ic->fg_soft_version < ZY0603_SOFT_RESET_VERSION_THRESHOLD)
+		return -1;
+
+	if (zy0603_fg_softreset(chip))
+		return 0;
+	else
+		return 1;
+}
+EXPORT_SYMBOL(zy0603_reset_rc_sfr);
+
 /* OPLUS 2021-06-20 Add begin for zy0603 bad battery. */
 static int zy0603_start_checksum_cal(struct chip_bq27541 *chip)
 {
@@ -392,6 +697,10 @@ static int zy0603_disable_ssdf_and_pf(struct chip_bq27541 *chip)
 	u8 write_protectioncfgb[5] = {0x0F, 0x41, 0x00, 0xAF, 0x05}; /*zy 20211227*/
 	u8 write_ssdftime[5] = {0x29, 0x41, 0x00, 0x95, 0x05};
 	u8 write_static_df_cheksum[6] = {0x7A, 0x42};
+	u8 w_modelratio[6] = {0x14, 0x47, 0xF7, 0x1D, 0x90, 0x06};
+	u8 w_cfconfig_chgp[5] = {0x52, 0x47, 0xF7, 0x6F, 0x05};
+	u8 w_cfconfig_r2d[5] = {0x5A, 0x47, 0xBB, 0xA3, 0x05};
+	u8 w_FGMAXDELTA[5] = {0x9B, 0x47, 0x9B, 0x82, 0x05};
 	u8 pf_en_cmd[2] = {0x24, 0x00};
 	u8 mfg_status_cm[2]={0x57, 0x00};
 	u8 read_buf[4] = {0};
@@ -399,7 +708,7 @@ static int zy0603_disable_ssdf_and_pf(struct chip_bq27541 *chip)
 	int retry_cnt = 0;
 
 	if(NULL == chip || (chip && chip->afi_count == 0))
-	return -1;
+		return -1;
 
 	write_static_df_cheksum[2] = chip->static_df_checksum_3e[0];
 	write_static_df_cheksum[3] = chip->static_df_checksum_3e[1];
@@ -440,6 +749,85 @@ static int zy0603_disable_ssdf_and_pf(struct chip_bq27541 *chip)
 			rc = -1;
 			return rc;
 		}
+
+		if (chip->b_soft_reset_for_zy) {
+			/* modelratio */
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 4, w_modelratio);
+			pr_err("%s modelratio write {0x14, 0x47, 0xF7, 0x1D} --> 0x3e\n", __func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL2, 2, w_modelratio+4);
+			pr_err("%s modelratio write {0x96, 0x06} --> 0x60\n", __func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_read_i2c_block(chip, BQ28Z610_REG_CNTL1, 4, read_buf);
+			pr_err("%s modelratio 0x3E -->read [0x%02x][0x%02x] [0x%02x] [0x%02x]\n", __func__,
+				read_buf[0], read_buf[1], read_buf[2], read_buf[3]);
+			if(!((read_buf[0] == w_modelratio[0]) && (read_buf[1] == w_modelratio[1])
+				&& (read_buf[2] == w_modelratio[2]) && (read_buf[3] == w_modelratio[3]))) {
+				rc = -1;
+				return rc;
+			}
+
+
+			/* w_cfconfig_chgp */
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 3, w_cfconfig_chgp);
+			pr_err("%s w_cfconfig_chgp write {0x52, 0x47, 0xF7} --> 0x3e\n",
+				__func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL2, 2, w_cfconfig_chgp+3);
+			pr_err("%s  w_cfconfig_chgp write {0xAF, 0x05} --> 0x60\n",
+				__func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_read_i2c_block(chip, BQ28Z610_REG_CNTL1, 3, read_buf);
+			pr_err("%s w_cfconfig_chgp 0x3E -->read [0x%02x][0x%02x] [0x%02x]\n",
+				__func__, read_buf[0], read_buf[1], read_buf[2]);
+			if(!((read_buf[0] == w_cfconfig_chgp[0]) && (read_buf[1] == w_cfconfig_chgp[1])
+				&& (read_buf[2] == w_cfconfig_chgp[2]))) {
+				rc = -1;
+				return rc;
+			}
+
+			/* w_cfconfig_r2d */
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 3, w_cfconfig_r2d);
+			pr_err("%s w_cfconfig_r2d write {0x5A, 0x47, 0xBB} --> 0x3e\n",
+				__func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL2, 2, w_cfconfig_r2d+3);
+			pr_err("%s w_cfconfig_r2d write {0xA3, 0x05} --> 0x60\n", __func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_read_i2c_block(chip, BQ28Z610_REG_CNTL1, 3, read_buf);
+			pr_err("%s w_cfconfig_r2d 0x3E -->read [0x%02x][0x%02x] [0x%02x]\n",
+				__func__, read_buf[0], read_buf[1], read_buf[2]);
+			if(!((read_buf[0] == w_cfconfig_r2d[0]) && (read_buf[1] == w_cfconfig_r2d[1])
+				&& (read_buf[2] == w_cfconfig_r2d[2]))) {
+				rc = -1;
+				return rc;
+			}
+
+			/* w_FGMAXDELTA */
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 3, w_FGMAXDELTA);
+			pr_err("%s w_FGMAXDELTA write {0x9B, 0x47, 0x9B} --> 0x3e\n", __func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL2, 2, w_FGMAXDELTA+3);
+			pr_err("%s w_FGMAXDELTA write {0x82, 0x05} --> 0x60\n", __func__);
+			usleep_range(U_DELAY_5_MS, U_DELAY_5_MS);
+
+			bq27541_read_i2c_block(chip, BQ28Z610_REG_CNTL1, 3, read_buf);
+			pr_err("%s w_FGMAXDELTA 0x3E -->read [0x%02x][0x%02x] [0x%02x]\n", __func__,
+				read_buf[0], read_buf[1], read_buf[2]);
+			if(!((read_buf[0] == w_FGMAXDELTA[0]) && (read_buf[1] == w_FGMAXDELTA[1])
+				&& (read_buf[2] == w_FGMAXDELTA[2]))) {
+				rc = -1;
+				return rc;
+			}
+		}
+
 		/* update StaticDFChecksum */
 		bq27541_write_i2c_block(chip, BQ28Z610_REG_CNTL1, 4, write_static_df_cheksum);
 		pr_err("%s write static_df_checksum_3e --> 0x3e\n", __func__);
@@ -494,9 +882,14 @@ static int zy0603_disable_ssdf_and_pf_check(struct chip_bq27541 *chip)
 	u8 ProtectionCfgB[3] = {0x0f, 0x41, 0x00};
 	u8 mfg_status_cm[2]={0x57, 0x00};
 	u8 read_buf[4] = {0};
+	int comm_cfconfig_cmd[3] = {ZY0603_GFCONFIG_CHGP_REG,
+				    ZY0603_GFCONFIG_R2D_REG,
+				    ZY0603_GFMAXDELTA_REG};
+	u8 comm_target_data[3] = {0xF7, 0XBB, 0x9B};
 	int rc = 0;
 	int error_flag = 0;
 	int retry_cnt = 0;
+	int i_index;
 
 	/* ssdf_en check in ProtectionCfgB */
 	do {
@@ -520,6 +913,32 @@ static int zy0603_disable_ssdf_and_pf_check(struct chip_bq27541 *chip)
 	if (error_flag == 1 && retry_cnt > 3) {
         pr_err("%s ssdf_en in ProtectionCfgB FAILED, retried counts: %d \n", __func__, retry_cnt);
 		return GAUGE_ERROR;
+	}
+
+	if (chip->b_soft_reset_for_zy) {
+		error_flag = 0;
+		retry_cnt = 0;
+		do {
+			error_flag = 0;
+			if (zy0603_check_modelratio(chip)) {
+				retry_cnt++;
+				error_flag = 1;
+			} else {
+				rc = GAUGE_OK;
+			}
+		} while (error_flag == 1 && retry_cnt <= 3);
+		if (error_flag == 1 && retry_cnt > 3) {
+			pr_err("%s modelratio FAILED, retried counts: %d \n", __func__,
+				retry_cnt);
+			return GAUGE_ERROR;
+		}
+
+		for (i_index = 0; i_index < 3; i_index++) {
+			rc = zy0603_check_comm_gfconfig(chip, comm_cfconfig_cmd[i_index],
+							comm_target_data[i_index]);
+			if (rc == GAUGE_ERROR)
+				return GAUGE_ERROR;
+		}
 	}
 
 	/* ssdf check */
@@ -788,8 +1207,8 @@ static int zy0603_afi_param_update(struct chip_bq27541 *chip)
 	return 0;
 }
 
-#define OPLUS_AFI_UPDATE_INTERVAL_SEC 		5
-#define OPLUS_AFI_UPDATE_INTERVAL	round_jiffies_relative(msecs_to_jiffies(OPLUS_AFI_UPDATE_INTERVAL_SEC*1000))
+#define OPPO_AFI_UPDATE_INTERVAL_SEC 		5
+#define OPPO_AFI_UPDATE_INTERVAL	round_jiffies_relative(msecs_to_jiffies(OPPO_AFI_UPDATE_INTERVAL_SEC*1000))
 extern bool oplus_check_afi_update_condition(void);
 static void zy0603_afi_update_work(struct work_struct *work)
 {
@@ -1004,6 +1423,34 @@ static int bq27541_get_battery_cc(void)    /*  sjc20150105  */
 	return cc;
 }
 
+static int bq27541_get_sub_battery_cc(void)
+{
+	int ret = 0;
+	int cc = 0;
+
+	if (!sub_gauge_ic) {
+		return 0;
+	}
+	if (atomic_read(&sub_gauge_ic->suspended) == 1) {
+		return sub_gauge_ic->cc_pre;
+	}
+	if (oplus_vooc_get_allow_reading() == true) {
+		ret = bq27541_read_i2c(sub_gauge_ic, sub_gauge_ic->cmd_addr.reg_cc, &cc);
+		if (ret) {
+			dev_err(sub_gauge_ic->dev, "error reading cc.\n");
+			return ret;
+		}
+	} else {
+		if (sub_gauge_ic->cc_pre) {
+			return sub_gauge_ic->cc_pre;
+		} else {
+			return 0;
+		}
+	}
+	sub_gauge_ic->cc_pre = cc;
+	return cc;
+}
+
 static int bq27541_get_battery_fcc(void)	/*  sjc20150105  */
 {
 	int ret = 0;
@@ -1089,7 +1536,7 @@ static int bq27541_get_battery_soh(void)	/*  sjc20150105  */
 	if (oplus_vooc_get_allow_reading() == true) {
 		ret = bq27541_read_i2c(gauge_ic, gauge_ic->cmd_addr.reg_soh, &soh);
 		if (ret) {
-			dev_err(gauge_ic->dev, "error reading fcc.\n");
+			dev_err(gauge_ic->dev, "error reading soh.\n");
 			return ret;
 		}
 	} else {
@@ -1100,6 +1547,34 @@ static int bq27541_get_battery_soh(void)	/*  sjc20150105  */
 		}
 	}
 	gauge_ic->soh_pre = soh;
+	return soh;
+}
+
+static int bq27541_get_sub_battery_soh(void)
+{
+	int ret = 0;
+	int soh = 0;
+
+	if (!sub_gauge_ic) {
+		return 0;
+	}
+	if (atomic_read(&sub_gauge_ic->suspended) == 1) {
+		return sub_gauge_ic->soh_pre;
+	}
+	if (oplus_vooc_get_allow_reading() == true) {
+		ret = bq27541_read_i2c(sub_gauge_ic, sub_gauge_ic->cmd_addr.reg_soh, &soh);
+		if (ret) {
+			dev_err(sub_gauge_ic->dev, "error reading soh.\n");
+			return ret;
+		}
+	} else {
+		if (sub_gauge_ic->soh_pre) {
+			return sub_gauge_ic->soh_pre;
+		} else {
+			return 0;
+		}
+	}
+	sub_gauge_ic->soh_pre = soh;
 	return soh;
 }
 
@@ -1245,7 +1720,7 @@ static int bq27541_get_battery_qm(void)
 	if (!gauge_ic) {
 		return 0;
 	}
-	if(gauge_ic->device_type == DEVICE_BQ27541 || gauge_ic->device_type == DEVICE_ZY0602){
+	if (gauge_ic->device_type == DEVICE_BQ27541 || gauge_ic->device_type == DEVICE_ZY0602) {
 		return -1;
 	}
 	if (atomic_read(&gauge_ic->suspended) == 1) {
@@ -1257,14 +1732,45 @@ static int bq27541_get_battery_qm(void)
 			dev_err(gauge_ic->dev, "error reading qm, ret:%d\n", ret);
 			return gauge_ic->qm_pre;
 		}
-		if(!gauge_ic->batt_bq28z610){
+		if (!gauge_ic->batt_bq28z610) {
 			gauge_ic->qm_pre = val;
 			return val;
-		}else{
+		} else {
 			return gauge_ic->qm_pre;
 		}
 	} else {
 		return gauge_ic->qm_pre;
+	}
+}
+
+static int bq27541_get_sub_battery_qm(void)
+{
+	int ret = 0;
+	int val = 0;
+
+	if (!sub_gauge_ic) {
+		return 0;
+	}
+	if (sub_gauge_ic->device_type == DEVICE_BQ27541 || sub_gauge_ic->device_type == DEVICE_ZY0602) {
+		return -1;
+	}
+	if (atomic_read(&sub_gauge_ic->suspended) == 1) {
+		return sub_gauge_ic->qm_pre;
+	}
+	if (oplus_vooc_get_allow_reading() == true) {
+		ret = bq27541_read_i2c(sub_gauge_ic, sub_gauge_ic->cmd_addr.reg_qm, &val);
+		if (ret) {
+			dev_err(sub_gauge_ic->dev, "error reading qm, ret:%d\n", ret);
+			return sub_gauge_ic->qm_pre;
+		}
+		if (!sub_gauge_ic->batt_bq28z610) {
+			sub_gauge_ic->qm_pre = val;
+			return val;
+		} else {
+			return sub_gauge_ic->qm_pre;
+		}
+	} else {
+		return sub_gauge_ic->qm_pre;
 	}
 }
 
@@ -1462,7 +1968,7 @@ static int bq27541_get_battery_do0(void)
 	if (!gauge_ic) {
 		return 0;
 	}
-	if(gauge_ic->device_type == DEVICE_BQ27541 || gauge_ic->device_type == DEVICE_ZY0602){
+	if (gauge_ic->device_type == DEVICE_BQ27541 || gauge_ic->device_type == DEVICE_ZY0602) {
 		return -1;
 	}
 	if (atomic_read(&gauge_ic->suspended) == 1) {
@@ -1474,14 +1980,45 @@ static int bq27541_get_battery_do0(void)
 			dev_err(gauge_ic->dev, "error reading do0, ret:%d\n", ret);
 			return gauge_ic->do0_pre;
 		}
-		if(!gauge_ic->batt_bq28z610){
+		if (!gauge_ic->batt_bq28z610) {
 			gauge_ic->do0_pre = val;
 			return val;
-		}else{
+		} else {
 			return gauge_ic->do0_pre;
 		}
 	} else {
 		return gauge_ic->do0_pre;
+	}
+}
+
+static int bq27541_get_sub_battery_do0(void)
+{
+	int ret = 0;
+	int val = 0;
+
+	if (!sub_gauge_ic)
+		return 0;
+
+	if (sub_gauge_ic->device_type == DEVICE_BQ27541 || sub_gauge_ic->device_type == DEVICE_ZY0602)
+		return -1;
+
+	if (atomic_read(&sub_gauge_ic->suspended) == 1)
+		return sub_gauge_ic->do0_pre;
+
+	if (oplus_vooc_get_allow_reading() == true) {
+		ret = bq27541_read_i2c(sub_gauge_ic, sub_gauge_ic->cmd_addr.reg_do0, &val);
+		if (ret) {
+			dev_err(sub_gauge_ic->dev, "error reading do0, ret:%d\n", ret);
+			return sub_gauge_ic->do0_pre;
+		}
+		if (!sub_gauge_ic->batt_bq28z610) {
+			sub_gauge_ic->do0_pre = val;
+			return val;
+		} else {
+			return sub_gauge_ic->do0_pre;
+		}
+	} else {
+		return sub_gauge_ic->do0_pre;
 	}
 }
 
@@ -2004,6 +2541,55 @@ static int bq27541_get_sub_gauge_batt_remaining_capacity(void)
 	}
 }
 
+static int zy602_get_dod0_parameters(int *batt_dod0_1)
+{
+	unsigned char dod0_buffer[ZY602_MAC_CELL_DOD0_SIZE] = {0};
+
+	if (!gauge_ic || (DEVICE_ZY0602 != gauge_ic->device_type) || !oplus_vooc_get_allow_reading()) {
+		dev_err(gauge_ic->dev, "gauge ic is NULL or is not zy602 or not allow_reading!\n");
+		return -1;
+	}
+
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	bq27541_i2c_txsubcmd(gauge_ic, ZY602_MAC_CELL_DOD0_EN_ADDR,
+		ZY602_MAC_CELL_DOD0_CMD);
+
+	usleep_range(1000, 1000);
+	bq27541_read_i2c_block(gauge_ic, ZY602_MAC_CELL_DOD0_ADDR,
+		ZY602_MAC_CELL_DOD0_SIZE, dod0_buffer);
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+	*batt_dod0_1 = (dod0_buffer[11] << 8) | dod0_buffer[10];
+
+	dev_err(gauge_ic->dev, "!!![zy602_get_dod0_parameters] dod0 1: %d", *batt_dod0_1);
+
+	return 0;
+}
+
+static int zy602_get_sub_dod0_parameters(int *batt_dod0_1)
+{
+	unsigned char dod0_buffer[ZY602_MAC_CELL_DOD0_SIZE] = {0};
+
+	if (!sub_gauge_ic || (DEVICE_ZY0602 != sub_gauge_ic->device_type)
+		|| !oplus_vooc_get_allow_reading()) {
+		dev_err(sub_gauge_ic->dev, "gauge ic is NULL or is not zy602 or not allow_reading!\n");
+		return -1;
+	}
+
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	bq27541_i2c_txsubcmd(sub_gauge_ic, ZY602_MAC_CELL_DOD0_EN_ADDR,
+		ZY602_MAC_CELL_DOD0_CMD);
+
+	usleep_range(1000, 1000);
+	bq27541_read_i2c_block(sub_gauge_ic, ZY602_MAC_CELL_DOD0_ADDR,
+		ZY602_MAC_CELL_DOD0_SIZE, dod0_buffer);
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+	*batt_dod0_1 = (dod0_buffer[11] << 8) | dod0_buffer[10];
+
+	dev_err(sub_gauge_ic->dev, "!!![zy602_get_dod0_parameters] dod0 1: %d", *batt_dod0_1);
+
+	return 0;
+}
+
 static int bq28z610_get_dod0_parameters(
 	int *batt_dod0_1, int *batt_dod0_2, int *batt_dod0_passed_q)
 {
@@ -2036,6 +2622,52 @@ static int bq28z610_get_dod0_parameters(
 	*batt_dod0_passed_q = dod0_passed_q_temp;
 	dev_err(gauge_ic->dev, "!!![bq28z610_get_dod0_parameters]dod0 passed q: %d, dod0 1: %d, dod0 2: %d",
 				*batt_dod0_passed_q, *batt_dod0_1, *batt_dod0_2);
+
+	return 0;
+}
+
+static int zy602_get_qmax_parameters(int *batt_qmax_1)
+{
+	unsigned char qmax_buffer_1[ZY602_MAC_CELL_QMAX_SIZE_A] = {0};
+
+	if (!gauge_ic || (DEVICE_ZY0602 != gauge_ic->device_type) || !oplus_vooc_get_allow_reading()) {
+		dev_err(gauge_ic->dev, "gauge ic is NULL or is not zy602 or not allow_reading!\n");
+		return -1;
+	}
+
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	bq27541_i2c_txsubcmd(gauge_ic, ZY602_MAC_CELL_QMAX_EN_ADDR,
+		ZY602_MAC_CELL_QMAX_CMD);
+	usleep_range(1000, 1000);
+	bq27541_read_i2c_block(gauge_ic, ZY602_MAC_CELL_QMAX_ADDR_A,
+		ZY602_MAC_CELL_QMAX_SIZE_A, qmax_buffer_1);
+
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+	*batt_qmax_1 = (qmax_buffer_1[17] << 8) | qmax_buffer_1[16];
+	dev_err(gauge_ic->dev, "!!![zy602_get_qmax_parameters] qmax 1: %d", *batt_qmax_1);
+
+	return 0;
+}
+
+static int zy602_get_sub_qmax_parameters(int *batt_qmax_1)
+{
+	unsigned char qmax_buffer_1[ZY602_MAC_CELL_QMAX_SIZE_A] = {0};
+
+	if (!sub_gauge_ic || (DEVICE_ZY0602 != sub_gauge_ic->device_type) || !oplus_vooc_get_allow_reading()) {
+		dev_err(sub_gauge_ic->dev, "gauge ic is NULL or is not zy602 or not allow_reading!\n");
+		return -1;
+	}
+
+	mutex_lock(&bq28z610_alt_manufacturer_access);
+	bq27541_i2c_txsubcmd(sub_gauge_ic, ZY602_MAC_CELL_QMAX_EN_ADDR,
+		ZY602_MAC_CELL_QMAX_CMD);
+	usleep_range(1000, 1000);
+	bq27541_read_i2c_block(sub_gauge_ic, ZY602_MAC_CELL_QMAX_ADDR_A,
+		ZY602_MAC_CELL_QMAX_SIZE_A, qmax_buffer_1);
+
+	mutex_unlock(&bq28z610_alt_manufacturer_access);
+	*batt_qmax_1 = (qmax_buffer_1[17] << 8) | qmax_buffer_1[16];
+	dev_err(sub_gauge_ic->dev, "!!![zy602_get_qmax_parameters] qmax 1: %d", *batt_qmax_1);
 
 	return 0;
 }
@@ -2113,6 +2745,35 @@ static int bq27541_get_sub_gauge_prev_batt_remaining_capacity(void)
 		return 0;
 	}
 	return sub_gauge_ic->rm_pre;
+}
+
+static int zy602_get_battery_passed_q(void)
+{
+	int ret = 0;
+	int passed_q = 0;
+
+	if ((!gauge_ic) || (DEVICE_ZY0602 != gauge_ic->device_type)) {
+		return 0;
+	}
+
+	if (atomic_read(&gauge_ic->suspended) == 1) {
+		return gauge_ic->passed_q_pre;
+	}
+	if (oplus_vooc_get_allow_reading() == true) {
+		ret = bq27541_read_i2c(gauge_ic, gauge_ic->cmd_addr.reg_logbuf, &passed_q);
+		if (ret) {
+			dev_err(gauge_ic->dev, "error reading passed_q.\n");
+			return ret;
+		}
+	} else {
+		if (gauge_ic->passed_q_pre) {
+			return gauge_ic->passed_q_pre;
+		} else {
+			return 0;
+		}
+	}
+	gauge_ic->passed_q_pre = passed_q;
+	return passed_q;
 }
 
 static int bq27541_get_battery_soc(void)
@@ -2278,39 +2939,64 @@ static int bq27541_get_sub_battery_average_current(void)
 
 static int bq27541_sha1_hmac_authenticate(struct bq27541_authenticate_data *authenticate_data);
 
+#define ZY0602_RETRY_MAX_COUNT    (3)
 static bool bq27541_get_battery_hmac(void)
 {
+	int i;
+	bool result = false;
+
 	if (!gauge_ic) {
 		return true;
 	}
 
-	if(gauge_ic->batt_bq28z610) {
-		//		return bq27541_is_authenticate_OK(gauge_ic);
+	if (oplus_is_rf_ftm_mode()) {
+		return true;
+	}
+
+	if (gauge_ic->batt_bq28z610) {
+		/*return bq27541_is_authenticate_OK(gauge_ic);*/
 		get_smem_batt_info(&auth_data, 1);
 		if (init_gauge_auth(&auth_data, gauge_ic->authenticate_data))
 			return true;
 		pr_info("%s:gauge authenticate failed, try again\n");
 		get_smem_batt_info(&auth_data, 0);
 		return init_gauge_auth(&auth_data, gauge_ic->authenticate_data);
+	} else if (gauge_ic->sha1_key_index == ZY0602_KEY_INDEX) {
+		for (i = 0; i < ZY0602_RETRY_MAX_COUNT; i++) {
+			if (get_smem_batt_info(&auth_data, ZY0602_KEY_INDEX)) {
+				if (init_gauge_auth(&auth_data, gauge_ic->authenticate_data)) {
+					result = true;
+					break;
+				}
+			}
+			msleep(10);
+		}
 	} else {
 		return true;
 	}
+
+	return result;
 }
 
+
+#define GET_BATTERY_AUTH_RETRY_COUNT     (5)
 static bool bq27541_get_battery_authenticate(void)
 {
-	static bool get_temp = false;
+	static int get_temp = 0;
 
 	if (!gauge_ic) {
 		return true;
 	}
 
-	if (gauge_ic->temp_pre == 0 && get_temp == false) {
+	pr_info("%s: temp_pre = %d, get_temp = %d.\n", __func__, gauge_ic->temp_pre, get_temp);
+
+	if (gauge_ic->temp_pre == 0 || get_temp < GET_BATTERY_AUTH_RETRY_COUNT) {
+		get_temp++;
 		bq27541_get_battery_temperature();
 		msleep(10);
 		bq27541_get_battery_temperature();
 	}
-	get_temp = true;
+
 	if (gauge_ic->temp_pre == (-400 - ZERO_DEGREE_CELSIUS_IN_TENTH_KELVIN)) {
 		return false;
 	} else {
@@ -2600,33 +3286,98 @@ static void bq28z610_bcc_set_buffer(int *buffer)
 	int batt_dod0_2 = 0;
 	int batt_dod0_passed_q = 0;
 	int btemp = 0;
-	int batt_current = 0;
+	int batt_current = 0, batt_current2 = 0;
 	int voltage_cell1 = 0, voltage_cell2 = 0;
 	int soc_ext_1 = 0, soc_ext_2 = 0;
 	int bcc_current_max = 0, bcc_current_min = 0;
 	int atl_last_gear_current = 0;
+
 	if (oplus_is_pps_charging()) {
 		bcc_current_max = oplus_pps_get_bcc_max_curr();
 		bcc_current_min = oplus_pps_get_bcc_min_curr();
 		atl_last_gear_current = oplus_pps_get_bcc_exit_curr();
+	} else if (true == oplus_is_voocphy_charging()) {
+		bcc_current_max = oplus_voocphy_get_bcc_max_curr();
+		bcc_current_min = oplus_voocphy_get_bcc_min_curr();
+		atl_last_gear_current = oplus_voocphy_get_bcc_exit_curr();
 	} else {
 		bcc_current_max = oplus_vooc_check_bcc_max_curr();
 		bcc_current_min = oplus_vooc_check_bcc_min_curr();
 		atl_last_gear_current = oplus_vooc_get_bcc_exit_curr();
 	}
-	bq28z610_get_qmax_parameters(&batt_qmax_1, &batt_qmax_2, &batt_qmax_passed_q);
-	bq28z610_get_dod0_parameters(&batt_dod0_1, &batt_dod0_2, &batt_dod0_passed_q);
-	voltage_cell1 = bq28z610_get_firstcell_voltage();
-	voltage_cell2 = bq28z610_get_secondcell_voltage();
-	batt_current = bq27541_get_average_current();
-	btemp = oplus_chg_match_temp_for_chging();
-	/*soc_ext_1 = (1 - (double)batt_dod0_passed_q / (double)batt_qmax_1 - (double)batt_dod0_1 / 16384) * 1000000;
-	soc_ext_2 = (1 - (double)batt_dod0_passed_q / (double)batt_qmax_2 - (double)batt_dod0_2 / 16384) * 1000000;*/
+
+	if ((true == gauge_ic->batt_zy0603) || (DEVICE_ZY0602 == gauge_ic->device_type)) {
+		buffer[17] = SW_GAUGE;
+	} else if ((DEVICE_BQ27411 == gauge_ic->device_type) || (DEVICE_BQ27541 == gauge_ic->device_type)
+		|| (true == gauge_ic->batt_bq28z610)) {
+		buffer[17] = TI_GAUGE;
+	} else {
+		buffer[17] = UNKNOWN_GAUGE_TYPE;
+	}
+
+	if (sub_gauge_ic) {
+		buffer[18] = DOUBLE_PARALLEL_WOUND_CELLS;
+	} else if ((DEVICE_ZY0602 == gauge_ic->device_type) || (DEVICE_BQ27411 == gauge_ic->device_type)) {
+		buffer[18] = SINGLE_CELL;
+	} else {
+		buffer[18] = DOUBLE_SERIES_WOUND_CELLS;
+	}
+
+	if (DOUBLE_SERIES_WOUND_CELLS == buffer[18]) {
+		bq28z610_get_qmax_parameters(&batt_qmax_1, &batt_qmax_2, &batt_qmax_passed_q);
+		bq28z610_get_dod0_parameters(&batt_dod0_1, &batt_dod0_2, &batt_dod0_passed_q);
+		voltage_cell1 = bq28z610_get_firstcell_voltage();
+		voltage_cell2 = bq28z610_get_secondcell_voltage();
+		batt_current = bq27541_get_average_current();
+		btemp = oplus_chg_match_temp_for_chging();
+	} else if (SINGLE_CELL == buffer[18]) {
+		if (DEVICE_ZY0602 == gauge_ic->device_type) {
+			zy602_get_qmax_parameters(&batt_qmax_1);
+			batt_qmax_2 = batt_qmax_1;
+			batt_qmax_passed_q = 0;
+			zy602_get_dod0_parameters(&batt_dod0_1);
+			batt_dod0_2 = batt_dod0_1;
+			batt_dod0_passed_q = zy602_get_battery_passed_q();
+		} else {
+			batt_qmax_1 = bq27541_get_battery_qm();
+			batt_qmax_2 = batt_qmax_1;
+			batt_qmax_passed_q = 0;
+			batt_dod0_1 = bq27541_get_battery_do0();
+			batt_dod0_2 = batt_dod0_1;
+			batt_dod0_passed_q = 0;
+		}
+		voltage_cell1 = bq27541_get_battery_mvolts();
+		voltage_cell2 = voltage_cell1;
+		batt_current = bq27541_get_average_current();
+		btemp = oplus_chg_match_temp_for_chging();
+	} else if (DOUBLE_PARALLEL_WOUND_CELLS == buffer[18]) {
+		if (DEVICE_ZY0602 == gauge_ic->device_type) {
+			zy602_get_qmax_parameters(&batt_qmax_1);
+			zy602_get_sub_qmax_parameters(&batt_qmax_2);
+			batt_qmax_passed_q = 0;
+			zy602_get_dod0_parameters(&batt_dod0_1);
+			zy602_get_sub_dod0_parameters(&batt_dod0_2);
+			batt_dod0_passed_q = 0;
+		} else {
+			batt_qmax_1 = bq27541_get_battery_qm();
+			batt_qmax_2 = bq27541_get_sub_battery_qm();
+			batt_qmax_passed_q = 0;
+			batt_dod0_1 = bq27541_get_battery_do0();
+			batt_dod0_2 = bq27541_get_sub_battery_do0();
+			batt_dod0_passed_q = 0;
+		}
+		voltage_cell1 = bq27541_get_battery_mvolts();
+		voltage_cell2 = bq27541_get_sub_battery_mvolts();
+		batt_current = bq27541_get_average_current();
+		batt_current2 = bq27541_get_sub_battery_average_current();
+		btemp = oplus_chg_match_temp_for_chging();
+	}
 
 	if (gauge_ic->batt_zy0603) {
 		batt_dod0_passed_q = 0;
 		buffer[17] = 1;
 	}
+
 	buffer[0] = batt_dod0_1;
 	buffer[1] = batt_dod0_2;
 	buffer[2] = batt_dod0_passed_q;
@@ -2667,7 +3418,7 @@ static int bq28z610_get_battery_bcc_parameters(char *buf)
 
 	if ((oplus_vooc_get_fastchg_ing() &&
 	    oplus_vooc_get_fast_chg_type() != CHARGER_SUBTYPE_FASTCHG_VOOC && !oplus_vooc_get_fastchg_dummy_started())
-	    || oplus_pps_get_pps_fastchg_started()) {
+	    || oplus_pps_get_pps_fastchg_started() || (true == oplus_voocphy_get_fastchg_ing())) {
 		buffer[15] = 1;
 	} else {
 		buffer[15] = 0;
@@ -2679,19 +3430,39 @@ static int bq28z610_get_battery_bcc_parameters(char *buf)
 
 	buffer[16] = oplus_chg_get_bcc_curr_done_status();
 
-	if (oplus_vooc_bcc_get_temp_range() == false
-			|| (oplus_pps_get_pps_fastchg_started() && oplus_pps_bcc_get_temp_range() == false)) {
-		buffer[9] = 0;
-		buffer[10] = 0;
-		buffer[14] = 0;
-		buffer[15] = 0;
+	if (oplus_pps_get_pps_fastchg_started()) {
+		if (oplus_pps_bcc_get_temp_range() == false) {
+			buffer[9] = 0;
+			buffer[10] = 0;
+			buffer[14] = 0;
+			buffer[15] = 0;
+		}
+	} else if (true == oplus_voocphy_get_fastchg_ing()) {
+		if (oplus_voocphy_bcc_get_temp_range() == false) {
+			buffer[9] = 0;
+			buffer[10] = 0;
+			buffer[14] = 0;
+			buffer[15] = 0;
+		}
+	} else {
+		if (oplus_vooc_bcc_get_temp_range() == false) {
+			buffer[9] = 0;
+			buffer[10] = 0;
+			buffer[14] = 0;
+			buffer[15] = 0;
+		}
 	}
+
+	chg_err(KERN_ERR "%s bcc_voocphy buf:%d,%d,%d,%d,%d,%d,%d,%d\n", __func__, oplus_vooc_get_fastchg_ing(),
+	(oplus_vooc_get_fast_chg_type() != CHARGER_SUBTYPE_FASTCHG_VOOC),
+	(!oplus_vooc_get_fastchg_dummy_started()), oplus_vooc_bcc_get_temp_range(), oplus_pps_get_pps_fastchg_started(),
+	oplus_pps_bcc_get_temp_range(), oplus_voocphy_get_fastchg_ing(), oplus_voocphy_bcc_get_temp_range());
 
 	printk(KERN_ERR "%s : ----dod0_1[%d], dod0_2[%d], dod0_passed_q[%d], qmax_1[%d], qmax_2[%d], qmax_passed_q[%d] \
 		voltage_cell1[%d], temperature[%d], batt_current[%d], max_current[%d], min_current[%d], voltage_cell2[%d], \
-		soc_ext_1[%d], soc_ext_2[%d], atl_last_geat_current[%d], charging_flag[%d], bcc_curr_done[%d], is_zy0603[%d]", __func__,
+		soc_ext_1[%d], soc_ext_2[%d], atl_last_geat_current[%d], charging_flag[%d], bcc_curr_done[%d], is_zy0603[%d], batt_type[%d]", __func__,
 		buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7],
-		buffer[8], buffer[9], buffer[10], buffer[11], buffer[12], buffer[13], buffer[14], buffer[15], buffer[16], buffer[17]);
+		buffer[8], buffer[9], buffer[10], buffer[11], buffer[12], buffer[13], buffer[14], buffer[15], buffer[16], buffer[17], buffer[18]);
 
 	for (i = 0; i < BCC_PARMS_COUNT - 1; i++) {
 		len = snprintf(tmpbuf, BCC_PAGE_SIZE - idx,
@@ -2726,7 +3497,7 @@ static int bq28z610_get_fastchg_battery_bcc_parameters(char *buf)
 
 	if ((oplus_vooc_get_fastchg_ing() &&
 		    oplus_vooc_get_fast_chg_type() != CHARGER_SUBTYPE_FASTCHG_VOOC && !oplus_vooc_get_fastchg_dummy_started())
-		    || oplus_pps_get_pps_fastchg_started()) {
+		    || oplus_pps_get_pps_fastchg_started() || (true == oplus_voocphy_get_fastchg_ing())) {
 		buffer[15] = 1;
 	} else {
 		buffer[15] = 0;
@@ -2740,9 +3511,9 @@ static int bq28z610_get_fastchg_battery_bcc_parameters(char *buf)
 
 	printk(KERN_ERR "%s : ----dod0_1[%d], dod0_2[%d], dod0_passed_q[%d], qmax_1[%d], qmax_2[%d], qmax_passed_q[%d] \
 		voltage_cell1[%d], temperature[%d], batt_current[%d], max_current[%d], min_current[%d], voltage_cell2[%d], \
-		soc_ext_1[%d], soc_ext_2[%d], atl_last_geat_current[%d], charging_flag[%d], bcc_curr_done[%d], is_zy0603[%d]", __func__,
+		soc_ext_1[%d], soc_ext_2[%d], atl_last_geat_current[%d], charging_flag[%d], bcc_curr_done[%d], is_zy0603[%d], batt_type[%d]", __func__,
 		buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7],
-		buffer[8], buffer[9], buffer[10], buffer[11], buffer[12], buffer[13], buffer[14], buffer[15], buffer[16], buffer[17]);
+		buffer[8], buffer[9], buffer[10], buffer[11], buffer[12], buffer[13], buffer[14], buffer[15], buffer[16], buffer[17], buffer[18]);
 
 	bq28z610_bcc_pre_calibration(buffer);
 
@@ -2764,12 +3535,16 @@ static int bq28z610_get_prev_battery_bcc_parameters(char *buf)
 	if (oplus_is_pps_charging()) {
 		gauge_ic->bcc_buf[9] = oplus_pps_get_bcc_max_curr();
 		gauge_ic->bcc_buf[10] = oplus_pps_get_bcc_min_curr();
+	} else if (true == oplus_is_voocphy_charging()) {
+		gauge_ic->bcc_buf[9] = oplus_voocphy_get_bcc_max_curr();
+		gauge_ic->bcc_buf[10] = oplus_voocphy_get_bcc_min_curr();
 	} else {
 		gauge_ic->bcc_buf[9] = oplus_vooc_check_bcc_max_curr();
 		gauge_ic->bcc_buf[10] = oplus_vooc_check_bcc_min_curr();
 	}
+
 	if ((oplus_vooc_get_fastchg_ing() && oplus_vooc_get_fast_chg_type() != CHARGER_SUBTYPE_FASTCHG_VOOC)
-			|| oplus_pps_get_pps_fastchg_started()) {
+			|| oplus_pps_get_pps_fastchg_started() || (true == oplus_voocphy_get_fastchg_ing())) {
 		gauge_ic->bcc_buf[15] = 1;
 	} else {
 		gauge_ic->bcc_buf[15] = 0;
@@ -2781,13 +3556,33 @@ static int bq28z610_get_prev_battery_bcc_parameters(char *buf)
 
 	gauge_ic->bcc_buf[16] = oplus_chg_get_bcc_curr_done_status();
 
-	if (oplus_vooc_bcc_get_temp_range() == false
-			|| (oplus_pps_get_pps_fastchg_started() && oplus_pps_bcc_get_temp_range() == false)) {
-		gauge_ic->bcc_buf[9] = 0;
-		gauge_ic->bcc_buf[10] = 0;
-		gauge_ic->bcc_buf[14] = 0;
-		gauge_ic->bcc_buf[15] = 0;
+	if (oplus_pps_get_pps_fastchg_started()) {
+		if (oplus_pps_bcc_get_temp_range() == false) {
+			gauge_ic->bcc_buf[9] = 0;
+			gauge_ic->bcc_buf[10] = 0;
+			gauge_ic->bcc_buf[14] = 0;
+			gauge_ic->bcc_buf[15] = 0;
+		}
+	} else if (true == oplus_voocphy_get_fastchg_ing()) {
+		if (oplus_voocphy_bcc_get_temp_range() == false) {
+			gauge_ic->bcc_buf[9] = 0;
+			gauge_ic->bcc_buf[10] = 0;
+			gauge_ic->bcc_buf[14] = 0;
+			gauge_ic->bcc_buf[15] = 0;
+		}
+	} else {
+		if (oplus_vooc_bcc_get_temp_range() == false) {
+			gauge_ic->bcc_buf[9] = 0;
+			gauge_ic->bcc_buf[10] = 0;
+			gauge_ic->bcc_buf[14] = 0;
+			gauge_ic->bcc_buf[15] = 0;
+		}
 	}
+
+	chg_err(KERN_ERR "%s bcc_voocphy buf:%d,%d,%d,%d,%d,%d,%d,%d\n", __func__, oplus_vooc_get_fastchg_ing(),
+	(oplus_vooc_get_fast_chg_type() != CHARGER_SUBTYPE_FASTCHG_VOOC),
+	(!oplus_vooc_get_fastchg_dummy_started()), oplus_vooc_bcc_get_temp_range(), oplus_pps_get_pps_fastchg_started(),
+	oplus_pps_bcc_get_temp_range(), oplus_voocphy_get_fastchg_ing(), oplus_voocphy_bcc_get_temp_range());
 
 	for (i = 0; i < BCC_PARMS_COUNT - 1; i++) {
 		len = snprintf(tmpbuf, BCC_PAGE_SIZE - idx,
@@ -2916,14 +3711,20 @@ static struct oplus_gauge_operations bq27541_gauge_ops = {
 	.get_update_bcc_parameters = bq28z610_get_fastchg_battery_bcc_parameters,
 	.set_bcc_parameters = bq28z610_set_bcc_debug_parameters,
 	.get_prev_bcc_parameters = bq28z610_get_prev_battery_bcc_parameters,
+	.check_rc_sfr = zy0603_check_rc_sfr,
+	.soft_reset_rc_sfr = zy0603_reset_rc_sfr,
 };
 
 static struct oplus_gauge_operations bq27541_sub_gauge_ops = {
 	.get_battery_mvolts = bq27541_get_sub_battery_mvolts,
+	.get_battery_qm = bq27541_get_sub_battery_qm,
+	.get_battery_do0 = bq27541_get_sub_battery_do0,
 	.get_battery_temperature = bq27541_get_sub_battery_temperature,
 	.get_battery_soc = bq27541_get_sub_battery_soc,
 	.get_average_current = bq27541_get_sub_battery_average_current,
 	.get_battery_fcc = bq27541_get_sub_gauge_battery_fcc,
+	.get_battery_cc = bq27541_get_sub_battery_cc,
+	.get_battery_soh = bq27541_get_sub_battery_soh,
 	.get_prev_batt_fcc = bq27541_get_sub_gauge_prev_batt_fcc,
 	.get_batt_remaining_capacity = bq27541_get_sub_gauge_batt_remaining_capacity,
 	.get_prev_batt_remaining_capacity   = bq27541_get_sub_gauge_prev_batt_remaining_capacity,
@@ -3151,6 +3952,7 @@ static void bq27541_parse_dt(struct chip_bq27541 *chip)
 	chip->batt_bq28z610 = of_property_read_bool(node, "qcom,batt_bq28z610");
 	chip->bq28z610_need_balancing = of_property_read_bool(node, "qcom,bq28z610_need_balancing");
 	chip->battery_full_param = of_property_read_bool(node, "qcom,battery-full-param");//only for wite battery full param in guage dirver probe on 7250 platform
+	chip->b_soft_reset_for_zy = of_property_read_bool(node, "zy,b_soft_reset_for_zy");
 	rc = of_property_read_u32(node, "qcom,gauge_num", &chip->gauge_num);
 	if(rc) {
 		chip->gauge_num = 0;
@@ -3353,11 +4155,11 @@ static int zy0603_seal(struct chip_bq27541 *chip, u32 key)
 		usleep_range(100000, 100000);
 		bq27541_write_i2c_block(chip, 0x00, 2, seal_cmd);
 		pr_err("%s write {0x30,0x00} --> 0x00\n", __func__);
-		usleep_range(5000, 5000);
+		usleep_range(1000, 1000);
 
 		bq27541_write_i2c_block(chip, 0x3E, 2, seal_op_st);
 		pr_err("%s write {0x54,0x00} --> 0x3E\n", __func__);
-		usleep_range(5000, 5000);
+		usleep_range(1000, 1000);
 
 		bq27541_read_i2c_block(chip, 0x3E, 6, read_buf);
 		pr_err("%s 0x3E -->read [0x%02x][0x%02x] [0x%02x][0x%02x] [0x%02x][0x%02x]\n", __func__,
@@ -3394,15 +4196,15 @@ static int zy0603_unseal(struct chip_bq27541 *chip, u32 key)
 	do {
 		bq27541_write_i2c_block(chip, 0x00, 2, seal_cmd_1);
 		pr_err("%s write {0x78,0x56} --> 0x00\n", __func__);
-		usleep_range(5000, 5000);
+		usleep_range(1000, 1000);
 
 		bq27541_write_i2c_block(chip, 0x00, 2, seal_cmd_2);
 		pr_err("%s write {0x34,0x12} --> 0x00\n", __func__);
-		usleep_range(5000, 5000);
+		usleep_range(1000, 1000);
 
 		bq27541_write_i2c_block(chip, 0x3E, 2, seal_op_st);
 		pr_err("%s write {0x54,0x00} --> 0x3E\n", __func__);
-		usleep_range(5000, 5000);
+		usleep_range(1000, 1000);
 
 		bq27541_read_i2c_block(chip, 0x3E, 6, read_buf);
 		pr_err("%s 0x3E -->read [0x%02x][0x%02x] [0x%02x][0x%02x] [0x%02x][0x%02x]\n", __func__,
@@ -4086,11 +4888,12 @@ static int bq27411_modify_soc_smooth_parameter
 	if(chip->batt_zy0603 && is_powerup == true) {
 		pr_err("%s batt_zy0603 begin\n", __func__);
 		zy0603_write_data_cmd(chip, false);
+		zy0603_get_fw_version(chip, &gauge_ic->fg_soft_version);
 		return GAUGE_OK;
 	} else {
 		if(chip->batt_bq28z610 && is_powerup == true && gauge_i2c_err == 0) {
 			pr_err("%s batt_bq28z610 powerup\n", __func__);
-			//power up disable sleep mode
+			/*power up disable sleep mode*/
 			bq28z610_set_sleep_mode(chip, false);
 			return GAUGE_OK;
 		}
@@ -4868,6 +5671,7 @@ static int get_auth_msg(u8 *source, u8 *rst) {
 #define DATAFLASHBLOCK	0X3F
 #define AUTHENDATA		0X40
 #define AUTHENCHECKSUM	0X54
+#define BQ27541_SHA_MAX_WAIT   10
 
 static int bq27541_sha1_hmac_authenticate(struct bq27541_authenticate_data *authenticate_data)
 {
@@ -4884,8 +5688,8 @@ static int bq27541_sha1_hmac_authenticate(struct bq27541_authenticate_data *auth
 		return -1;
 	}
 
-	// step 0: produce 20 bytes random data and checksum
-	for(i = 0;i < authenticate_data->message_len;i++) {
+	/* step 0: produce 20 bytes random data and checksum */
+	for (i = 0; i < authenticate_data->message_len; i++) {
 		checksum_buf[0] = checksum_buf[0] + authenticate_data->message[i];
 	}
 	checksum_buf[0] = 0xff - (checksum_buf[0]&0xff);
@@ -4896,23 +5700,59 @@ static int bq27541_sha1_hmac_authenticate(struct bq27541_authenticate_data *auth
 			i,authenticate_data->message[i],i+1,authenticate_data->message[i+1],i+2,authenticate_data->message[i+2],i+3,authenticate_data->message[i+3]);
 	}
 #endif
-	// step 1: seal mode->write 0x00 to dataflashblock
-	ret = bq27541_i2c_txsubcmd_onebyte(gauge_ic, DATAFLASHBLOCK, authen_cmd_buf[0]);
+	if (gauge_ic->sha1_key_index == ZY0602_KEY_INDEX) {
+		len = authenticate_data->message_len;
+		authenticate_data->message[len] = checksum_buf[0];
 
-	if(ret < 0) {
-		chg_err("%s i2c write error\n",__func__);
-		return -1;
+		/* step 1 */
+		ret = bq27541_i2c_txsubcmd_onebyte(gauge_ic, BLOCKDATACTRL, 01);
+		if (ret < 0) {
+			chg_err("%s i2c write error\n", __func__);
+			return -1;
+		}
+
+		/* step 2: write 20 bytes to authendata_reg and 1 bytes checksum */
+		msleep(1);
+		bq27541_write_i2c_block(gauge_ic, AUTHENDATA,
+			authenticate_data->message_len + 1,
+			authenticate_data->message);
+
+		/* step 3: read authendata */
+		/* Wait at most 100ms for the authendata is ready. */
+		i = BQ27541_SHA_MAX_WAIT;
+		while (i--) {
+			msleep(10);
+			bq27541_read_i2c_block(gauge_ic, AUTHENDATA,
+				authenticate_data->message_len, &recv_buf[0]);
+			if (strncmp(authenticate_data->message,
+			    recv_buf, authenticate_data->message_len)) {
+				pr_info("%s gauge authenticate read success, i = %d\n", __func__, i);
+				break;
+			}
+		}
+	} else {
+		/* step 1: seal mode->write 0x00 to dataflashblock */
+		ret = bq27541_i2c_txsubcmd_onebyte(gauge_ic,
+			DATAFLASHBLOCK, authen_cmd_buf[0]);
+		if (ret < 0) {
+			chg_err("%s i2c write error\n", __func__);
+			return -1;
+		}
+
+		/* step 2: write 20 bytes to authendata_reg */
+		bq27541_write_i2c_block(gauge_ic, AUTHENDATA,
+			authenticate_data->message_len, authenticate_data->message);
+		msleep(5);
+
+		/* step 3: write checksum to authenchecksum_reg for compute */
+		bq27541_i2c_txsubcmd_onebyte(gauge_ic,
+			AUTHENCHECKSUM, checksum_buf[0]);
+		msleep(10);
+
+		/* step 4: read authendata */
+		bq27541_read_i2c_block(gauge_ic, AUTHENDATA,
+			authenticate_data->message_len, &recv_buf[0]);
 	}
-	// step 2: write 20 bytes to authendata_reg
-
-	bq27541_write_i2c_block(gauge_ic, AUTHENDATA, authenticate_data->message_len, authenticate_data->message);
-	msleep(1);
-	// step 3: write checksum to authenchecksum_reg for compute
-	bq27541_i2c_txsubcmd_onebyte(gauge_ic, AUTHENCHECKSUM, checksum_buf[0]);
-	msleep(3);
-	// step 4: read authendata
-	bq27541_read_i2c_block(gauge_ic, AUTHENDATA, authenticate_data->message_len, &recv_buf[0]);
-
 	len = authenticate_data->message_len;
 	for(i = 0; i < len / 2; i++) {
 		t = recv_buf[i];
@@ -4969,7 +5809,12 @@ static bool get_smem_batt_info(oplus_gauge_auth_result *auth, int kk) {
 			if (0 == kk) {
 				memcpy(auth, &smem_data->rst_k0, sizeof(oplus_gauge_auth_result));
 			} else {
-				memcpy(auth, &smem_data->rst_k1, sizeof(oplus_gauge_auth_result));
+				if (ZY0602_KEY_INDEX == kk)
+					memcpy(auth, &smem_data->rst_k2,
+						sizeof(oplus_gauge_auth_result));
+				else
+					memcpy(auth, &smem_data->rst_k1,
+						sizeof(oplus_gauge_auth_result));
 				pr_info("%s: auth result=%d\n", __func__, auth->result);
 
 #ifdef XBL_AUTH_DEBUG
@@ -5166,6 +6011,61 @@ bool oplus_gauge_ic_chip_is_null(void)
 	}
 }
 
+static int oplus_start_extern_hmac_test(int count)
+{
+	struct oplus_external_auth_chip *chip = external_auth_chip;
+
+	if (!chip) {
+		return -1;
+	}
+
+	cancel_delayed_work_sync(&chip->test_work);
+	chip->test_result.test_count_now = 0;
+	chip->test_result.test_count_total = count;
+	chip->test_result.test_fail_count = 0;
+	chip->test_result.real_test_count_now = 0;
+	chip->test_result.real_test_fail_count = 0;
+	schedule_delayed_work_on(7, &chip->test_work, 0);
+
+	return 0;
+}
+
+static int oplus_get_extern_hmac_test_result(int *count_total, int *count_now, int *fail_count)
+{
+	struct oplus_external_auth_chip *chip = external_auth_chip;
+
+	if (!chip) {
+		return -1;
+	}
+
+	*count_total = chip->test_result.test_count_total;
+	*count_now = chip->test_result.test_count_now;
+	*fail_count = chip->test_result.test_fail_count;
+	chg_err("count_total:%d,count_now:%d,fail_count:%d,real_count:%d,real_fail:%d\n",
+			*count_total, *count_now, *fail_count,
+			chip->test_result.real_test_count_now,
+			chip->test_result.real_test_fail_count);
+	return 0;
+}
+
+static void oplus_extern_auth_test_func(struct work_struct *work)
+{
+	struct oplus_external_auth_chip *chip = external_auth_chip;
+	int ret = 0;
+
+	if (!chip) {
+		return;
+	}
+
+	while (chip->test_result.test_count_now < chip->test_result.test_count_total) {
+		chip->test_result.test_count_now++;
+		ret = bq27541_get_battery_hmac();
+		if (!ret) {
+			chip->test_result.test_fail_count++;
+		}
+	}
+}
+
 static int bq27541_driver_probe(struct i2c_client *client,
 		const struct i2c_device_id *id)
 {
@@ -5309,15 +6209,34 @@ rerun :
 			return -ENOMEM;
 		}
 	}
+
+	/*Add for support test the auth of hmac*/
+	if (gauge_ic
+		&& (gauge_ic->sha1_key_index == ZY0602_KEY_INDEX)
+		&& NULL == external_auth_chip) {
+		external_auth_chip = kzalloc(sizeof(struct oplus_external_auth_chip), GFP_KERNEL);
+		if (external_auth_chip) {
+			INIT_DELAYED_WORK(&external_auth_chip->test_work, oplus_extern_auth_test_func);
+			external_auth_chip->test_result.test_count_total = 0;
+			external_auth_chip->test_result.test_fail_count = 0;
+			external_auth_chip->test_result.test_count_now = 0;
+			external_auth_chip->test_result.real_test_count_now = 0;
+			external_auth_chip->test_result.real_test_fail_count = 0;
+			external_auth_chip->start_test_external_hmac = oplus_start_extern_hmac_test;
+			external_auth_chip->get_hmac_test_result = oplus_get_extern_hmac_test_result;
+			oplus_external_auth_init(external_auth_chip);
+		}
+	}
+
 	chg_debug("bq27541_driver_probe success\n");
 	return 0;
 }
+
 /**********************************************************
   *
   *   [platform_driver API]
   *
   *********************************************************/
-
 
 static const struct of_device_id bq27541_match[] = {
 	{ .compatible = "oplus,bq27541-battery"},

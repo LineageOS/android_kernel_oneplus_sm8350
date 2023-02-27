@@ -52,7 +52,7 @@ extern void oplus_chg_sc8547_error(int report_flag, int *buf, int len);
 
 static int sc8547_get_chg_enable(struct oplus_voocphy_manager *chip, u8 *data);
 static int sc8547_track_upload_i2c_err_info(
-	struct oplus_voocphy_manager *chip, int err_type, int reg);
+	struct oplus_voocphy_manager *chip, int err_type, u8 reg);
 static int sc8547_track_upload_cp_err_info(
 	struct oplus_voocphy_manager *chip, int err_type);
 
@@ -96,7 +96,7 @@ static int __sc8547_read_byte(struct i2c_client *client, u8 reg, u8 *data)
 	return 0;
 }
 
-static int __sc8547_write_byte(struct i2c_client *client, int reg, u8 val)
+static int __sc8547_write_byte(struct i2c_client *client, u8 reg, u8 val)
 {
 	s32 ret;
 	struct oplus_voocphy_manager *chip;
@@ -215,7 +215,7 @@ static int sc8547_track_get_local_time_s(void)
 }
 
 static int sc8547_track_upload_i2c_err_info(
-	struct oplus_voocphy_manager *chip, int err_type, int reg)
+	struct oplus_voocphy_manager *chip, int err_type, u8 reg)
 {
 	int index = 0;
 	int curr_time;
@@ -286,7 +286,7 @@ static int sc8547_track_upload_i2c_err_info(
 			OPLUS_CHG_TRACK_CURX_INFO_LEN - index, "%s", chip->chg_power_info);
 	index += snprintf(&(chip->i2c_err_load_trigger->crux_info[index]),
 			OPLUS_CHG_TRACK_CURX_INFO_LEN - index,
-			"$$access_reg@@0x%x", reg);
+			"$$access_reg@@0x%02x", reg);
 	schedule_delayed_work(&chip->i2c_err_load_trigger_work, 0);
 	mutex_unlock(&chip->track_upload_lock);
 	pr_info("success\n");
@@ -337,7 +337,7 @@ static int sc8547_dump_reg_info(
 
 	index += snprintf(
 		&(dump_info[index]), len - index,
-		"0x2x=0x%0x,0x2x=0x%0x", SC8547_REG_06, data[0],
+		"0x%02x=0x%02x,0x%02x=0x%02x", SC8547_REG_06, data[0],
 		SC8547_REG_0F, data[1]);
 
 	return 0;

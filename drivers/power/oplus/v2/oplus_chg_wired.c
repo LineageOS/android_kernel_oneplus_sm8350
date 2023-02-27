@@ -289,7 +289,7 @@ static int oplus_wired_set_err_code(struct oplus_chg_wired *chip,
 	chip->err_code = err_code;
 	pr_info("set err_code=%08x\n", err_code);
 
-	if (err_code & (BIT(OPLUS_IC_ERR_OVP) | BIT(OPLUS_IC_ERR_UVP)))
+	if (err_code & (BIT(OPLUS_ERR_CODE_OVP) | BIT(OPLUS_ERR_CODE_UVP)))
 		vote(chip->input_suspend_votable, UOVP_VOTER, true, 1, false);
 	else
 		vote(chip->input_suspend_votable, UOVP_VOTER, false, 0, false);
@@ -328,11 +328,11 @@ static void oplus_wired_vbus_check(struct oplus_chg_wired *chip)
 	else
 		vbus_type = OPLUS_VBUS_5V;
 
-	if (chip->err_code & BIT(OPLUS_IC_ERR_OVP))
+	if (chip->err_code & BIT(OPLUS_ERR_CODE_OVP))
 		ov_mv = spec->vbus_ov_thr_mv[vbus_type] - VBUS_OV_OFFSET;
 	else
 		ov_mv = spec->vbus_ov_thr_mv[vbus_type];
-	if (chip->err_code & BIT(OPLUS_IC_ERR_UVP))
+	if (chip->err_code & BIT(OPLUS_ERR_CODE_UVP))
 		uv_mv = spec->vbus_uv_thr_mv[vbus_type] + VBUS_UV_OFFSET;
 	else
 		uv_mv = spec->vbus_uv_thr_mv[vbus_type];
@@ -340,14 +340,14 @@ static void oplus_wired_vbus_check(struct oplus_chg_wired *chip)
 	if (chip->vbus_mv > ov_mv) {
 		uv_count = 0;
 		if (ov_count > VBUS_CHECK_COUNT) {
-			err_code |= BIT(OPLUS_IC_ERR_OVP);
+			err_code |= BIT(OPLUS_ERR_CODE_OVP);
 		} else {
 			ov_count++;
 		}
 	} else if (chip->vbus_mv < uv_mv) {
 		ov_count = 0;
 		if (uv_count > VBUS_CHECK_COUNT) {
-			err_code |= BIT(OPLUS_IC_ERR_UVP);
+			err_code |= BIT(OPLUS_ERR_CODE_UVP);
 		} else {
 			uv_count++;
 		}
@@ -1075,6 +1075,9 @@ static void oplus_wired_plugin_work(struct work_struct *work)
 			vote(chip->pd_svooc_votable, DEF_VOTER, false, 0, false);
 		oplus_wired_set_awake(chip, false);
 	}
+
+	if (chip->gauge_topic != NULL)
+		oplus_mms_topic_update(chip->gauge_topic, true);
 }
 
 static void oplus_wired_chg_type_change_work(struct work_struct *work)
