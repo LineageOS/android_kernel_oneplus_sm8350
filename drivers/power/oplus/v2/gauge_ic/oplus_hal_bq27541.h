@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only  */
 /*
- * Copyright (C) 2018-2021 Oplus. All rights reserved.
+ * Copyright (C) 2018-2022 Oplus. All rights reserved.
  */
 
 #ifndef __OPLUS_BQ27541_H__
@@ -38,7 +38,7 @@
 #define BQ27541_REG_TTECP 0x26
 #define BQ27541_REG_INTTEMP 0x28
 #define BQ27541_REG_CC 0x2a
-#define BQ27541_REG_SOH 0x28
+#define BQ27541_REG_SOH 0x2e
 #define BQ27541_REG_SOC 0x2c
 #define BQ27541_REG_NIC 0x2e
 #define BQ27541_REG_ICR 0x30
@@ -270,6 +270,27 @@
 #define U_DELAY_5_MS	5000
 #define M_DELAY_10_S	10000
 
+#define ZY0603_READ_QMAX_CMD			0x0075
+#define ZY0603_QMAX_DATA_OFFSET			0
+#define ZY0603_QMAX_LEN				4
+#define ZY0603_MAX_QMAX_THRESHOLD		32500
+
+#define ZY0603_READ_SFRCC_CMD			0x0073
+#define ZY0603_SFRCC_DATA_OFFSET		12
+#define ZY0603_SFRCC_LEN			2
+
+#define ZY0603_CTRL_REG				0x00
+#define ZY0603_CMD_ALTMAC			0x3E
+#define ZY0603_CMD_ALTBLOCK 			0x40
+#define ZY0603_U_DELAY_3_MS 			3000
+#define ZY0603_SOFT_RESET_VERSION_THRESHOLD	0x0015
+#define ZY0603_SOFT_RESET_CMD			0x21
+
+#define ZY0603_MODELRATIO_REG			0x4714
+#define ZY0603_GFCONFIG_CHGP_REG		0x4752
+#define ZY0603_GFCONFIG_R2D_REG			0x475A
+#define ZY0603_GFMAXDELTA_REG			0x479B
+
 struct cmd_address {
 	/*      bq27411 standard cmds     */
 	u8 reg_cntl;
@@ -442,7 +463,9 @@ struct chip_bq27541 {
 	bool batt_bq28z610;
 	bool batt_zy0603;
 	bool bq28z610_need_balancing;
+	bool zy0603_soc_opt;
 	int bq28z610_device_chem;
+	int fg_soft_version;
 	struct bq27541_authenticate_data *authenticate_data;
 	struct file_operations *authenticate_ops;
 	int bcc_buf[BCC_PARMS_COUNT];

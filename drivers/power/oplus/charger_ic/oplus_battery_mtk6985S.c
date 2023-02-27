@@ -57,6 +57,7 @@
 #include "../oplus_adapter.h"
 #include "../oplus_short.h"
 #include "../oplus_configfs.h"
+#include "../oplus_chg_track.h"
 
 #include "../oplus_chg_ops_manager.h"
 #include "../oplus_chg_module.h"
@@ -106,6 +107,7 @@ struct delayed_work wd0_detect_work;
 extern struct oplus_chg_operations * oplus_get_chg_ops(void);
 extern void oplus_usbtemp_recover_func(struct oplus_chg_chip *chip);
 extern int oplus_usbtemp_monitor_common(void *data);
+extern int oplus_usbtemp_monitor_common_new_method(void *data);
 extern int op10_subsys_init(void);
 extern int charge_pump_driver_init(void);
 extern int mp2650_driver_init(void);
@@ -3809,7 +3811,7 @@ uint32_t pd_svooc_abnormal_adapter[] = {
 
 int oplus_get_adapter_svid(void)
 {
-	int i = 0;
+	int i = 0, j = 0;
 	uint32_t vdos[VDO_MAX_NR] = {0};
 	struct tcpc_device *tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
 	struct tcpm_svid_list svid_list = {0, {0}};
@@ -3833,6 +3835,13 @@ int oplus_get_adapter_svid(void)
 	if ((vdos[0] & 0xFFFF) == OPLUS_SVID) {
 		g_oplus_chip->pd_svooc = true;
 		chg_err("match svid and this is oplus adapter 11\n");
+		for (j = 0; j < ARRAY_SIZE(pd_svooc_abnormal_adapter); j++) {
+			if (pd_svooc_abnormal_adapter[j] == vdos[2]) {
+				chg_err("This is oplus gnd abnormal adapter %x %x \n", vdos[1], vdos[2]);
+				g_oplus_chip->is_abnormal_adapter = true;
+				break;
+			}
+		}
 	}
 
 	return 0;
@@ -3920,6 +3929,8 @@ static void oplus_chg_pps_get_source_cap(struct mtk_charger *info)
 	return;
 }
 
+#define OPLUS_TRACK_CHG_PLUGIN 1
+#define OPLUS_TRACK_CHG_PLUGOUT 0
 static int pd_tcp_notifier_call(struct notifier_block *pnb,
 				unsigned long event, void *data)
 {
@@ -3964,18 +3975,21 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		case PD_CONNECT_PE_READY_SNK:
 			pinfo->pd_type = MTK_PD_CONNECT_PE_READY_SNK;
 			chr_err("PD Notify fixe voltage ready\n");
+			oplus_chg_track_record_chg_type_info();
 			oplus_get_adapter_svid();
 			break;
 
 		case PD_CONNECT_PE_READY_SNK_PD30:
 			pinfo->pd_type = MTK_PD_CONNECT_PE_READY_SNK_PD30;
 			chr_err("PD Notify PD30 ready\r\n");
+			oplus_chg_track_record_chg_type_info();
 			oplus_get_adapter_svid();
 			break;
 
 		case PD_CONNECT_PE_READY_SNK_APDO:
 			pinfo->pd_type = MTK_PD_CONNECT_PE_READY_SNK_APDO;
 			chr_err("PD Notify APDO Ready\n");
+			oplus_chg_track_record_chg_type_info();
 			oplus_get_adapter_svid();
 			oplus_chg_pps_get_source_cap(pinfo);
 			break;
@@ -4020,6 +4034,7 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		if (pinfo->wd0_detect) {
 			oplus_ccdetect_enable();
 		} else {
+			oplus_chg_clear_abnormal_adapter_var();
 			if (oplus_get_otg_switch_status() == false)
 				oplus_ccdetect_disable();
 		}
@@ -4041,6 +4056,8 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 		pinfo->chrdet_state = noti->chrdet_state.chrdet;
 		pr_err("%s chrdet = %d\n", __func__, noti->chrdet_state.chrdet);
 
+		oplus_chg_check_break(pinfo->chrdet_state);
+
 		if (oplus_vooc_get_fastchg_started() == true
 			&& oplus_vooc_get_adapter_update_status() != 1) {
 			printk(KERN_ERR "[OPLUS_CHG] %s oplus_vooc_get_fastchg_started = true!\n", __func__);
@@ -4055,12 +4072,14 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 
 		if (pinfo->chrdet_state) {
 			oplus_wake_up_usbtemp_thread();
+			oplus_chg_track_check_wired_charging_break(OPLUS_TRACK_CHG_PLUGIN);
 		} else {
 			if (oplus_vooc_get_fastchg_started() == false) {
 				oplus_vooc_reset_fastchg_after_usbout();
 				oplus_chg_set_chargerid_switch_val(0);
 				oplus_chg_clear_chargerid_info();
 			}
+			oplus_chg_track_check_wired_charging_break(OPLUS_TRACK_CHG_PLUGOUT);
 		}
 
 		oplus_chg_wake_update_work();
@@ -4072,6 +4091,18 @@ static int pd_tcp_notifier_call(struct notifier_block *pnb,
 
 		if (pinfo->bc12_complete)
 			oplus_chg_wake_update_work();
+		break;
+	case TCP_NOTIFY_HARD_RESET_STATE:
+		switch (noti->hreset_state.state) {
+		case TCP_HRESET_SIGNAL_SEND:
+		case TCP_HRESET_SIGNAL_RECV:
+			pinfo->wait_hard_reset_complete = true;
+			break;
+		default:
+			pinfo->wait_hard_reset_complete = false;
+			break;
+		}
+		chg_debug("pd_wait_hard_reset_complete: %d\n", pinfo->wait_hard_reset_complete);
 		break;
 	}
 	return ret;
@@ -4715,8 +4746,12 @@ static bool oplus_ccdetect_check_is_wd0(struct oplus_chg_chip *chip)
 		return false;
 	}
 
-	if (of_property_read_bool(node, "qcom,ccdetect_by_wd0"))
+	if (chip->support_wd0)
 		return true;
+	if (of_property_read_bool(node, "qcom,ccdetect_by_wd0")) {
+		chip->support_wd0 = true;
+		return true;
+	}
 
 	return false;
 }
@@ -4988,7 +5023,7 @@ void oplus_set_otg_switch_status(bool value)
 		}
 
 		printk(KERN_ERR "[OPLUS_CHG][%s]: otg switch[%d]\n", __func__, value);
-		tcpm_typec_change_role_postpone(pinfo->tcpc, value ? TYPEC_ROLE_DRP : TYPEC_ROLE_SNK, true);
+		tcpm_typec_change_role_postpone(pinfo->tcpc, value ? TYPEC_ROLE_TRY_SNK : TYPEC_ROLE_SNK, true);
 	}
 }
 EXPORT_SYMBOL(oplus_set_otg_switch_status);
@@ -5050,7 +5085,7 @@ void oplus_ccdetect_enable(void)
 
 	/* set DRP mode */
 	if (pinfo != NULL && pinfo->tcpc != NULL) {
-		tcpm_typec_change_role_postpone(pinfo->tcpc, TYPEC_ROLE_DRP, true);
+		tcpm_typec_change_role_postpone(pinfo->tcpc, TYPEC_ROLE_TRY_SNK, true);
 		pr_err("%s: set drp", __func__);
 	}
 }
@@ -5243,7 +5278,11 @@ static bool oplus_chg_get_vbus_status(struct oplus_chg_chip *chip)
 
 static void oplus_usbtemp_thread_init(void)
 {
-	oplus_usbtemp_kthread =
+	if (g_oplus_chip->support_usbtemp_protect_v2)
+		oplus_usbtemp_kthread =
+			kthread_run(oplus_usbtemp_monitor_common_new_method, g_oplus_chip, "usbtemp_kthread");
+	else
+		oplus_usbtemp_kthread =
 			kthread_run(oplus_usbtemp_monitor_common, g_oplus_chip, "usbtemp_kthread");
 	if (IS_ERR(oplus_usbtemp_kthread)) {
 		chg_err("failed to cread oplus_usbtemp_kthread\n");
@@ -5254,8 +5293,12 @@ void oplus_wake_up_usbtemp_thread(void)
 {
 	if (oplus_usbtemp_check_is_support() == true) {
 		g_oplus_chip->usbtemp_check = oplus_usbtemp_condition();
-		if (g_oplus_chip->usbtemp_check)
-			wake_up_interruptible(&g_oplus_chip->oplus_usbtemp_wq);
+		if (g_oplus_chip->usbtemp_check) {
+			if (g_oplus_chip->support_usbtemp_protect_v2)
+				wake_up_interruptible(&g_oplus_chip->oplus_usbtemp_wq_new_method);
+			else
+				wake_up_interruptible(&g_oplus_chip->oplus_usbtemp_wq);
+		}
 	}
 }
 
@@ -6275,7 +6318,7 @@ bool oplus_mt_get_vbus_status(void)
 		return false;
 	}
 
-	if (pinfo->chrdet_state || mt6375_int_chrdet_attach()) {
+	if (pinfo->chrdet_state || mt6375_int_chrdet_attach() || info->wait_hard_reset_complete) {
 		return true;
 	} else if (oplus_wpc_get_wireless_charge_start() || oplus_chg_is_wls_present()) {
 		return true;
@@ -7327,8 +7370,8 @@ static int mtk_charger_probe(struct platform_device *pdev)
 		}
 	}
 
-	oplus_chip->con_volt = con_volt_20131;
-	oplus_chip->con_temp = con_temp_20131;
+	oplus_chip->con_volt = con_volt_21135;
+	oplus_chip->con_temp = con_temp_21135;
 	oplus_chip->len_array = ARRAY_SIZE(con_temp_20131);
 	if (oplus_usbtemp_check_is_support() == true)
 		oplus_usbtemp_thread_init();
@@ -7451,7 +7494,6 @@ module_exit(mtk_charger_exit);
 oplus_chg_module_register(mtk_charger);
 #endif
 
-MODULE_AUTHOR("wy.chuang <wy.chuang@mediatek.com>");
 MODULE_DESCRIPTION("MTK Charger Driver");
 MODULE_LICENSE("GPL");
 

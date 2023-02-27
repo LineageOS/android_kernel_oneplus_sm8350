@@ -35,7 +35,7 @@
 #define _BQ25890H_
 #include "oplus_bq2589x_reg.h"
 #include <linux/time.h>
-#include <soc/oplus/oplus_project.h>
+#include <soc/oppo/oppo_project.h>
 
 extern void set_charger_ic(int sel);
 extern unsigned int is_project(int project);

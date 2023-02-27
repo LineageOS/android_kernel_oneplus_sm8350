@@ -269,6 +269,18 @@ static int oplus_chg_wls_get_real_soc(struct oplus_chg_wls *wls_dev, int *soc)
 	return 0;
 }
 
+static int oplus_chg_wls_get_ui_soc(struct oplus_chg_wls *wls_dev, int *ui_soc)
+{
+	if (!g_oplus_chip) {
+		pr_err("g_oplus_chip is null\n");
+		return -ENODEV;
+	}
+
+	*ui_soc = min(g_oplus_chip->ui_soc, 100);
+
+	return 0;
+}
+
 static int oplus_chg_wls_get_batt_temp(struct oplus_chg_wls *wls_dev, int *temp)
 {
 	if (!g_oplus_chip) {
@@ -1739,6 +1751,7 @@ static void oplus_chg_wls_exchange_batt_mesg(struct oplus_chg_wls *wls_dev)
 	int soc = 0, temp = 0;
 	u8 buf[3];
 	struct oplus_chg_wls_status *wls_status;
+	int rc;
 
 	if (!wls_dev)
 		return;
@@ -1748,8 +1761,16 @@ static void oplus_chg_wls_exchange_batt_mesg(struct oplus_chg_wls *wls_dev)
 	    wls_status->adapter_id != WLS_ADAPTER_THIRD_PARTY)
 		return;
 
-	oplus_chg_wls_get_real_soc(wls_dev, &soc);
-	oplus_chg_wls_get_batt_temp(wls_dev, &temp);
+	rc = oplus_chg_wls_get_ui_soc(wls_dev, &soc);
+	if (rc < 0) {
+		pr_err("can't get ui soc, rc=%d\n", rc);
+		return;
+	}
+	rc = oplus_chg_wls_get_batt_temp(wls_dev, &temp);
+	if (rc < 0) {
+		pr_err("can't get batt temp, rc=%d\n", rc);
+		return;
+	}
 
 	buf[0] = (temp >> 8) & 0xff;
 	buf[1] = temp & 0xff;
@@ -4178,7 +4199,7 @@ static int oplus_chg_wls_fastchg_restart_check(struct oplus_chg_wls *wls_dev)
 		return -ENODEV;
 	}
 
-	if (wls_status->fastchg_disable || wls_status->switch_quiet_mode ||
+	if (!wls_status->fastchg_disable || wls_status->switch_quiet_mode ||
 	    !wls_dev->batt_charge_enable)
 		return -EPERM;
 
@@ -4385,8 +4406,16 @@ static int oplus_chg_wls_get_third_adapter_ext_cmd_p_id(struct oplus_chg_wls *wl
 		msleep(200);
 	}
 
-	oplus_chg_wls_get_real_soc(wls_dev, &soc);
-	oplus_chg_wls_get_batt_temp(wls_dev, &temp);
+	rc = oplus_chg_wls_get_ui_soc(wls_dev, &soc);
+	if (rc < 0) {
+		pr_err("can't get ui soc, rc=%d\n", rc);
+		return rc;
+	}
+	rc = oplus_chg_wls_get_batt_temp(wls_dev, &temp);
+	if (rc < 0) {
+		pr_err("can't get batt temp, rc=%d\n", rc);
+		return rc;
+	}
 
 	buf[0] = (temp >> 8) & 0xff;
 	buf[1] = temp & 0xff;
@@ -4596,6 +4625,8 @@ static int oplus_chg_wls_rx_handle_state_default(struct oplus_chg_wls *wls_dev)
 	}
 
 out:
+	if (is_comm_ocm_available(wls_dev))
+		oplus_chg_comm_update_config(wls_dev->comm_ocm);
 	oplus_chg_wls_config(wls_dev);
 	return 0;
 }
@@ -5433,7 +5464,7 @@ static int oplus_chg_wls_rx_enter_state_fast(struct oplus_chg_wls *wls_dev)
 		(void)oplus_chg_wls_fast_start(wls_dev->wls_fast);
 		rc = oplus_chg_wls_get_real_soc(wls_dev, &real_soc);
 		if (rc < 0) {
-			pr_err("can't get real soc, rc=%d\n");
+			pr_err("can't get real soc, rc=%d\n", rc);
 			goto err;
 		}
 		rc = oplus_chg_wls_get_batt_num(wls_dev, &batt_num);

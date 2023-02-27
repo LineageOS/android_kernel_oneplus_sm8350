@@ -513,6 +513,44 @@ bool oplus_gauge_afi_update_done(void)
 	return status;
 }
 
+bool oplus_gauge_check_reset_condition(void)
+{
+	int rc;
+	bool need_reset = false;
+
+	if (g_mms_gauge == NULL) {
+		chg_err("g_gauge_ic is NULL\n");
+		return true;
+	}
+
+	rc = oplus_chg_ic_func(g_mms_gauge->gauge_ic, OPLUS_IC_FUNC_GAUGE_CHECK_RESET, &need_reset);
+	if (rc < 0) {
+		chg_err("need_reset, rc=%d\n", rc);
+		return false;
+	}
+	return need_reset;
+}
+
+bool oplus_gauge_reset(void)
+{
+	int rc;
+	bool reset_done = false;
+
+	if (g_mms_gauge == NULL) {
+		chg_err("g_gauge_ic is NULL\n");
+		return true;
+	}
+
+	rc = oplus_chg_ic_func(g_mms_gauge->gauge_ic, OPLUS_IC_FUNC_GAUGE_SET_RESET, &reset_done);
+	if (rc < 0) {
+		chg_err("reset_done, rc=%d\n", rc);
+		return false;
+	}
+	chg_err("oplus_gauge_reset, reset_done=%d\n", reset_done);
+	return reset_done;
+}
+
+
 int oplus_gauge_get_batt_current(void)
 {
 	int rc;
@@ -1012,8 +1050,8 @@ static void oplus_mms_gauge_online_handler_work(struct work_struct *work)
 	int rc;
 
 	err_code = chip->err_code;
-	if (err_code & BIT(OPLUS_IC_ERR_I2C))
-		err_code &= ~BIT(OPLUS_IC_ERR_I2C);
+	if (err_code & BIT(OPLUS_ERR_CODE_I2C))
+		err_code &= ~BIT(OPLUS_ERR_CODE_I2C);
 	oplus_mms_gauge_set_err_code(chip, err_code);
 
 	msg = oplus_mms_alloc_msg(MSG_TYPE_ITEM, MSG_PRIO_HIGH,

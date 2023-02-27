@@ -159,6 +159,8 @@ enum oplus_chg_ic_func {
 	OPLUS_IC_FUNC_GAUGE_SET_BCC_PARMS,
 	OPLUS_IC_FUNC_GAUGE_SET_PROTECT_CHECK,
 	OPLUS_IC_FUNC_GAUGE_GET_AFI_UPDATE_DONE,
+	OPLUS_IC_FUNC_GAUGE_CHECK_RESET,
+	OPLUS_IC_FUNC_GAUGE_SET_RESET,
 
 	/* misc */
 	OPLUS_IC_FUNC_GET_CHARGER_CYCLE = 500,
@@ -245,13 +247,24 @@ enum oplus_chg_ic_virq_id {
 enum oplus_chg_ic_err {
 	OPLUS_IC_ERR_UNKNOWN = 0,
 	OPLUS_IC_ERR_I2C,
-	OPLUS_IC_ERR_OCP,
-	OPLUS_IC_ERR_OVP,
-	OPLUS_IC_ERR_UCP,
-	OPLUS_IC_ERR_UVP,
-	OPLUS_IC_ERR_TIMEOUT,
-	OPLUS_IC_ERR_OVER_HEAT,
-	OPLUS_IC_ERR_COLD,
+	OPLUS_IC_ERR_GPIO,
+	OPLUS_IC_ERR_PLAT_PMIC,
+	OPLUS_IC_ERR_BUCK_BOOST,
+	OPLUS_IC_ERR_GAUGE,
+	OPLUS_IC_ERR_WLS_RX,
+	OPLUS_IC_ERR_CP,
+	OPLUS_IC_ERR_CC_LOGIC,
+};
+
+enum oplus_chg_ic_plat_pmic_err {
+	PLAT_PMIC_ERR_UNKNOWN,
+	PLAT_PMIC_ERR_VCONN_OVP,
+	PLAT_PMIC_ERR_VCONN_UVP,
+	PLAT_PMIC_ERR_VCONN_RVP,
+	PLAT_PMIC_ERR_VCONN_OCP,
+	PLAT_PMIC_ERR_VCONN_OPEN,
+	PLAT_PMIC_ERR_VCONN_CLOSE,
+	PLAT_PMIC_ERR_VBUS_ABNORMAL,
 };
 
 #ifdef CONFIG_OPLUS_CHG_IC_DEBUG
@@ -337,11 +350,12 @@ struct oplus_chg_ic_dev {
 #endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
 };
 
-#define IC_ERR_MSG_MAX		64
+#define IC_ERR_MSG_MAX		1024
 struct oplus_chg_ic_err_msg {
 	struct oplus_chg_ic_dev *ic;
 	struct list_head list;
 	enum oplus_chg_ic_err type;
+	int sub_type;
 	char msg[IC_ERR_MSG_MAX];
 };
 
@@ -359,9 +373,9 @@ struct oplus_chg_ic_err_msg {
 	(void *)func;						\
 })
 
-#define oplus_print_ic_err(msg)					\
-	chg_err("[IC_ERR][%s]-[%s]:%s\n", msg->ic->name,	\
-		oplus_chg_ic_err_text(msg->type), msg->msg);
+#define oplus_print_ic_err(msg)						\
+	chg_err("[IC_ERR][%s]-[%s]-[%d]:%s\n", msg->ic->name,		\
+		oplus_chg_ic_err_text(msg->type), msg->sub_type, msg->msg);
 
 OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_INIT)(struct oplus_chg_ic_dev *);
 OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_EXIT)(struct oplus_chg_ic_dev *);
@@ -448,6 +462,8 @@ OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GAUGE_GET_PREV_BCC_PARMS)(struct oplus_chg_i
 OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GAUGE_SET_BCC_PARMS)(struct oplus_chg_ic_dev *, const char *);
 OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GAUGE_SET_PROTECT_CHECK)(struct oplus_chg_ic_dev *);
 OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GAUGE_GET_AFI_UPDATE_DONE)(struct oplus_chg_ic_dev *, bool *);
+OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GAUGE_CHECK_RESET)(struct oplus_chg_ic_dev *, bool *);
+OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GAUGE_SET_RESET)(struct oplus_chg_ic_dev *, bool *);
 
 /* misc */
 OPLUS_CHG_IC_FUNC_DEF(OPLUS_IC_FUNC_GET_CHARGER_CYCLE)(struct oplus_chg_ic_dev *, int *);
@@ -534,8 +550,8 @@ int oplus_chg_ic_virq_release(struct oplus_chg_ic_dev *ic_dev,
 int oplus_chg_ic_virq_trigger(struct oplus_chg_ic_dev *ic_dev,
 			      enum oplus_chg_ic_virq_id virq_id);
 int oplus_chg_ic_creat_err_msg(struct oplus_chg_ic_dev *ic_dev,
-			     enum oplus_chg_ic_err err_type, const char *format,
-			     ...);
+			       enum oplus_chg_ic_err err_type, int sub_err_type,
+			       const char *format, ...);
 int oplus_chg_ic_move_err_msg(struct oplus_chg_ic_dev *dest,
 			      struct oplus_chg_ic_dev *src);
 int oplus_chg_ic_clean_err_msg(struct oplus_chg_ic_dev *ic_dev,

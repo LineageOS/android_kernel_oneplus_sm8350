@@ -58,6 +58,20 @@ enum oplus_chg_track_cp_device_error {
 	TRACK_CP_ERR_IBUS_OCP,
 };
 
+#define OPLUS_CHG_TRACK_SCENE_MOS_ERR		"parallel_mos_err"
+enum oplus_chg_track_mos_device_error {
+	TRACK_MOS_ERR_DEFAULT,
+	TRACK_MOS_I2C_ERROR,
+	TRACK_MOS_OPEN_ERROR,
+	TRACK_MOS_SUB_BATT_FULL,
+	TRACK_MOS_VBAT_GAP_BIG,
+	TRACK_MOS_SOC_NOT_FULL,
+	TRACK_MOS_CURRENT_UNBALANCE,
+	TRACK_MOS_SOC_GAP_TOO_BIG,
+	TRACK_MOS_RECORD_SOC,
+};
+
+
 #define OPLUS_CHG_TRACK_SCENE_GAGUE_SEAL_ERR		"seal_err"
 #define OPLUS_CHG_TRACK_SCENE_GAGUE_UNSEAL_ERR	"unseal_err"
 enum oplus_chg_track_gague_device_error {
@@ -122,6 +136,8 @@ enum oplus_chg_track_info_flag {
 	TRACK_NOTIFY_FLAG_EXTERN_PMIC_ABNORMAL,
 	TRACK_NOTIFY_FLAG_GAGUE_ABNORMAL,
 	TRACK_NOTIFY_FLAG_DCHG_ABNORMAL,
+	TRACK_NOTIFY_FLAG_PARALLEL_UNBALANCE_ABNORMAL,
+	TRACK_NOTIFY_FLAG_MOS_ERROR_ABNORMAL,
 
 	TRACK_NOTIFY_FLAG_COOL_DOWN_MATCH_ERR,
 	TRACK_NOTIFY_FLAG_MAX_CNT,
@@ -137,7 +153,9 @@ enum oplus_chg_track_mcu_voocphy_break_code {
 	TRACK_MCU_VOOCPHY_LOW_TEMP_FULL,
 	TRACK_MCU_VOOCPHY_BAT_TEMP_EXIT,
 	TRACK_MCU_VOOCPHY_DATA_ERROR,
+	TRACK_MCU_VOOCPHY_HEAD_ERROR,
 	TRACK_MCU_VOOCPHY_OTHER,
+	TRACK_MCU_VOOCPHY_ADAPTER_FW_UPDATE,
 };
 
 enum oplus_chg_track_adsp_voocphy_break_code {
@@ -196,6 +214,7 @@ int oplus_chg_track_handle_adsp_info(u8 *crux_info, int len);
 int oplus_chg_track_upload_trigger_data(oplus_chg_track_trigger data);
 int oplus_chg_track_comm_monitor(void);
 int oplus_chg_track_check_wired_charging_break(int vbus_rising);
+int oplus_chg_track_parallel_mos_error(int reason);
 int oplus_chg_track_set_fastchg_break_code(int fastchg_break_code);
 int oplus_chg_track_check_wls_charging_break(int wls_connect);
 struct dentry* oplus_chg_track_get_debugfs_root(void);
@@ -213,6 +232,9 @@ int  oplus_chg_track_obtain_wls_general_crux_info(
 	char *crux_info, int len);
 int oplus_chg_track_get_cp_err_reason(
 	int err_type, char *err_reason, int len);
+int oplus_chg_track_get_mos_err_reason(
+	int err_type, char *err_reason, int len);
 void oplus_chg_track_record_chg_type_info(void);
-
+void oplus_chg_track_record_ffc_start_info(void);
+void oplus_chg_track_record_ffc_end_info(void);
 #endif

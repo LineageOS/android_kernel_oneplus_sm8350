@@ -102,6 +102,7 @@ struct oplus_nu1619 {
 	int adapter_type;
 	int rx_pwr_cap;
 	int tx_status;
+	bool support_epp_11w;
 
 	struct mutex i2c_lock;
 
@@ -488,7 +489,7 @@ static void nu1619_track_i2c_err_load_trigger_work(
 	struct oplus_nu1619 *chip =
 		container_of(dwork, struct oplus_nu1619, i2c_err_load_trigger_work);
 
-	if (!chip)
+	if (!chip->i2c_err_load_trigger)
 		return;
 
 	oplus_chg_track_upload_trigger_data(*(chip->i2c_err_load_trigger));
@@ -592,7 +593,7 @@ static void nu1619_track_rx_err_load_trigger_work(
 	struct oplus_nu1619 *chip =
 		container_of(dwork, struct oplus_nu1619, rx_err_load_trigger_work);
 
-	if (!chip)
+	if (!chip->rx_err_load_trigger)
 		return;
 
 	oplus_chg_track_upload_trigger_data(*(chip->rx_err_load_trigger));
@@ -695,7 +696,7 @@ static void nu1619_track_tx_err_load_trigger_work(
 	struct oplus_nu1619 *chip =
 		container_of(dwork, struct oplus_nu1619, tx_err_load_trigger_work);
 
-	if (!chip)
+	if (!chip->tx_err_load_trigger)
 		return;
 
 	oplus_chg_track_upload_trigger_data(*(chip->tx_err_load_trigger));
@@ -792,7 +793,7 @@ static void nu1619_track_update_err_load_trigger_work(
 	struct oplus_nu1619 *chip =
 		container_of(dwork, struct oplus_nu1619, update_err_load_trigger_work);
 
-	if (!chip)
+	if (!chip->update_err_load_trigger)
 		return;
 
 	oplus_chg_track_upload_trigger_data(*(chip->update_err_load_trigger));
@@ -1274,8 +1275,10 @@ static int nu1619_get_power_cap(struct oplus_nu1619 *chip)
 	if (temp[0] == (NU1619_REG_TX_PWR_CAP ^ 0x80)) {
 		val_buf[0] = temp[1];
 	}
-	if (val_buf[0] >= NU1619_RX_PWR_15W) {
+	if (!chip->support_epp_11w && val_buf[0] >= NU1619_RX_PWR_15W) {
 		chip->rx_pwr_cap = NU1619_RX_PWR_15W;
+	} else if (chip->support_epp_11w && val_buf[0] >= NU1619_RX_PWR_11W) {
+		chip->rx_pwr_cap = NU1619_RX_PWR_11W;
 	} else if (val_buf[0] < NU1619_RX_PWR_10W && val_buf[0] != 0) {
 		/*treat <10W as 5W*/
 		chip->rx_pwr_cap = NU1619_RX_PWR_5W;
@@ -1343,7 +1346,8 @@ static int nu1619_get_rx_mode(struct oplus_chg_ic_dev *dev, enum oplus_chg_wls_r
 	chip->adapter_type = nu1619_get_running_mode(chip);
 	chip->rx_pwr_cap = nu1619_get_power_cap(chip);
 	if (chip->adapter_type == NU1619_RX_MODE_EPP) {
-		if (chip->rx_pwr_cap == NU1619_RX_PWR_15W)
+		if (chip->rx_pwr_cap == NU1619_RX_PWR_15W ||
+		    chip->rx_pwr_cap == NU1619_RX_PWR_11W)
 			*rx_mode = OPLUS_CHG_WLS_RX_MODE_EPP_PLUS;
 		else if (chip->rx_pwr_cap == NU1619_RX_PWR_5W)
 			*rx_mode = OPLUS_CHG_WLS_RX_MODE_EPP_5W;
@@ -3249,6 +3253,8 @@ static int nu1619_driver_probe(struct i2c_client *client,
 		return -ENODEV;
 	chip->client = client;
 	i2c_set_clientdata(client, chip);
+
+	chip->support_epp_11w = of_property_read_bool(node, "oplus,support_epp_11w");
 
 	rc = of_property_read_u32(node, "oplus,ic_type", &ic_type);
 	if (rc < 0) {

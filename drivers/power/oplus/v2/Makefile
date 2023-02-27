@@ -1,5 +1,6 @@
 ccflags-y += -I$(srctree)/$(src)/include
 ccflags-$(CONFIG_OPLUS_PD_MANAGER_CHARGER) += -I$(srctree)/drivers/usb/typec/tcpc/inc
+ccflags-$(CONFIG_OPLUS_MT6375_CHARGER) += -I$(srctree)/drivers/misc/mediatek/typec/tcpc/inc
 
 oplus_chg_v2-y += oplus_chg_core.o
 oplus_chg_v2-y += oplus_chg_gki.o
@@ -51,6 +52,7 @@ oplus_chg_v2-$(CONFIG_OPLUS_MP2762_CHARGER) += charger_ic/oplus_hal_mp2650.o
 oplus_chg_v2-$(CONFIG_OPLUS_SGM41512_CHARGER) += charger_ic/oplus_hal_sgm41512.o
 oplus_chg_v2-$(CONFIG_OPLUS_PD_MANAGER_CHARGER) += charger_ic/oplus_hal_pd_manager.o
 oplus_chg_v2-$(CONFIG_OPLUS_CHARGER_MTK6895S) += charger_ic/oplus_hal_mtk6895S.o
+oplus_chg_v2-$(CONFIG_OPLUS_MT6375_CHARGER) += charger_ic/oplus_hal_mt6375.o
 
 KBUILD_LDS_MODULE_ATTACH = oplus_chg_module.lds
 

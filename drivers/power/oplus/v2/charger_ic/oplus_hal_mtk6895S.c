@@ -66,6 +66,7 @@ extern int mt6375_set_hvdcp_to_5v(void);
 extern int mt6375_set_hvdcp_to_9v(void);
 extern void oplus_notify_hvdcp_detect_stat(void);
 extern void oplus_set_hvdcp_flag_clear(void);
+extern bool mt6375_int_chrdet_attach(void);
 #endif
 
 /* TODO V2 */
@@ -80,6 +81,12 @@ bool oplus_chg_check_chip_is_null(void)
 	return true;
 }
 EXPORT_SYMBOL(oplus_chg_check_chip_is_null);
+
+int oplus_chg_check_ui_soc(void)
+{
+	return true;
+}
+EXPORT_SYMBOL(oplus_chg_check_ui_soc);
 
 int oplus_is_vooc_project(void)
 {
@@ -132,7 +139,7 @@ int oplus_get_prop_status(void)
 	union mms_msg_data data = { 0 };
 	int rc;
 
-	comm_topic = oplus_mms_get_by_name("comm");
+	comm_topic = oplus_mms_get_by_name("common");
 	if (!comm_topic)
 		return 0;
 
@@ -158,11 +165,12 @@ bool oplus_mt_get_vbus_status(void)
 	if(tcpm_inquire_typec_attach_state(pinfo->tcpc) == TYPEC_ATTACHED_SRC)
 		return false;
 
-	if (is_charger_exist(pinfo) || pinfo->chrdet_state) {
+	if (pinfo->chrdet_state)
 		return true;
-	} else {
+	else if (mt6375_int_chrdet_attach() == true)
+		return true;
+	else
 		return false;
-	}
 }
 EXPORT_SYMBOL(oplus_mt_get_vbus_status);
 

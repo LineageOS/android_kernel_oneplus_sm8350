@@ -3360,6 +3360,9 @@ EXPORT_SYMBOL(oplus_chg_get_mmi_status);
 static int oplus_mt6370_get_pd_type(void)
 {
 	if (pinfo != NULL) {
+		if (oplus_chg_check_pd_disable())
+			return PD_INACTIVE;
+
 		if (pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK ||
 			pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
 			pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO)
@@ -3456,8 +3459,12 @@ int oplus_chg_get_charger_subtype(void)
 
 	if (pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK ||
 		pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
-		pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO)
-		return CHARGER_SUBTYPE_PD;
+		pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO) {
+			if (oplus_chg_check_pd_disable())
+				return CHARGER_SUBTYPE_DEFAULT;
+			else
+				return CHARGER_SUBTYPE_PD;
+		}
 
 	if (mt6370_get_hvdcp_type() == POWER_SUPPLY_TYPE_USB_HVDCP)
 		return CHARGER_SUBTYPE_QC;
@@ -4115,6 +4122,5 @@ static void __exit mtk_charger_exit(void)
 module_exit(mtk_charger_exit);
 
 
-MODULE_AUTHOR("LiYue");
 MODULE_DESCRIPTION("OPLUS Charger Driver");
 MODULE_LICENSE("GPL");

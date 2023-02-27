@@ -24,11 +24,21 @@ struct oplus_plat_gauge_operations {
 	int (*get_plat_battery_current)(void);
 };
 
+struct oplus_test_result {
+	int test_count_total;
+	int test_count_now;
+	int test_fail_count;
+	int real_test_count_now;
+	int real_test_fail_count;
+};
+
 struct oplus_external_auth_chip {
 	int (*get_external_auth_hmac)(void);
 	int (*start_test_external_hmac)(int count);
 	int (*get_hmac_test_result)(int *count_total, int *count_now, int *fail_count);
 	int (*get_hmac_status) (int *status, int *fail_count, int *total_count, int *real_fail_count, int *real_total_count);
+	struct oplus_test_result test_result;
+	struct delayed_work test_work;
 };
 
 struct oplus_gauge_operations {
@@ -85,6 +95,8 @@ struct oplus_gauge_operations {
 	int (*get_prev_bcc_parameters)(char *buf);
 	int (*set_bcc_parameters)(const char *buf);
 	bool (*set_gauge_power_sel)(int sel);
+	bool (*check_rc_sfr)(void);
+	int (*soft_reset_rc_sfr)(void);
 };
 
 /****************************************
@@ -160,10 +172,12 @@ void oplus_gauge_set_float_uv_ma(int iterm_ma,int float_volt_uv);
 int oplus_gauge_dump_register(void);
 int oplus_gauge_get_sub_batt_mvolts(void);
 int oplus_gauge_get_sub_batt_current(void);
+int oplus_gauge_get_main_batt_soc(void);
 int oplus_gauge_get_sub_batt_soc(void);
 int oplus_gauge_get_sub_batt_temperature(void);
 bool oplus_gauge_get_sub_batt_authenticate(void);
 void exfg_information_register(struct oplus_gauge_operations *exfg);
+bool oplus_gauge_set_power_sel(int sel);
 int oplus_gauge_get_bcc_parameters(char *buf);
 int oplus_gauge_fastchg_update_bcc_parameters(char *buf);
 int oplus_gauge_get_prev_bcc_parameters(char *buf);
@@ -173,6 +187,8 @@ int oplus_gauge_get_bcc_parameters(char *buf);
 int oplus_gauge_fastchg_update_bcc_parameters(char *buf);
 int oplus_gauge_get_prev_bcc_parameters(char *buf);
 int oplus_gauge_set_bcc_parameters(const char *buf);
+bool oplus_gauge_check_rc_sfr(void);
+int oplus_gauge_soft_reset_rc_sfr(void);
 
 #if defined(CONFIG_OPLUS_CHARGER_MTK6763) || defined(CONFIG_OPLUS_CHARGER_MTK6771)
 extern int oplus_fuelgauged_init_flag;

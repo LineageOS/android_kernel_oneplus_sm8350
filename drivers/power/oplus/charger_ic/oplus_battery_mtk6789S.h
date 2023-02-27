@@ -503,6 +503,8 @@ struct mtk_charger {
 	struct delayed_work status_keep_clean_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
+/*.add for doki disable hvdcp func .*/
+	bool hvdcp_disabled;
 #endif
 };
 

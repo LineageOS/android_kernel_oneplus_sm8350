@@ -34,7 +34,7 @@ int oplus_cp_slave_get_tdie(void);
 void oplus_cp_pmid2vout_enable(bool enable);
 
 void oplus_cp_hardware_init(void);
-extern int oplus_pps_get_authenticate(void);
+int oplus_pps_get_authenticate(void);
 void oplus_cp_reset(void);
 int oplus_cp_cfg_mode_init(int mode);
 #endif /*_OPLUS_PPS_CP_H_*/

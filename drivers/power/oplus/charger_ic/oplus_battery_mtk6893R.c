@@ -5040,6 +5040,7 @@ static __s16 oplus_res_to_temp(struct ntc_temp *ntc_param)
 int oplus_force_get_battery_temp(void)
 {
 	int battery_temp = 0;
+	u32 pull_up_r = 0;
 	static bool is_param_init = false;
 	static struct ntc_temp ntc_param = {0};
 
@@ -5059,9 +5060,15 @@ int oplus_force_get_battery_temp(void)
 		ntc_param.pst_temp_table = battery_temp_table;
 		ntc_param.i_table_size = (sizeof(battery_temp_table) / sizeof(struct temp_param));
 		is_param_init = true;
-				chg_err("ntc_type:%d,critical_low:%d,pull_up_r=%d,pull_up_voltage=%d,tap_min=%d,tap_max=%d,table_size=%d\n",
-					ntc_param.e_ntc_type, ntc_param.i_tap_over_critical_low, ntc_param.i_rap_pull_up_r,
-					ntc_param.i_rap_pull_up_voltage, ntc_param.i_tap_min, ntc_param.i_tap_max, ntc_param.i_table_size);
+
+		if (of_property_read_bool(g_oplus_chip->dev->of_node, "qcom,sub_board_pull_up_r_support")) {
+			if (of_property_read_u32(g_oplus_chip->dev->of_node, "qcom,sub_board_pull_up_r", &pull_up_r) >= 0) {
+				ntc_param.i_rap_pull_up_r = pull_up_r;
+			}
+		}
+		chg_err("ntc_type:%d,critical_low:%d,pull_up_r=%d,pull_up_voltage=%d,tap_min=%d,tap_max=%d,table_size=%d\n",
+			ntc_param.e_ntc_type, ntc_param.i_tap_over_critical_low, ntc_param.i_rap_pull_up_r,
+			ntc_param.i_rap_pull_up_voltage, ntc_param.i_tap_min, ntc_param.i_tap_max, ntc_param.i_table_size);
 	}
 	ntc_param.ui_dwvolt = oplus_get_temp_volt(&ntc_param);
 	battery_temp = oplus_res_to_temp(&ntc_param);
@@ -6137,6 +6144,9 @@ int oplus_mt6360_pd_setup_forsvooc(void)
 	if (!chip->calling_on && chip->charger_volt < 6500 && chip->soc < 90
 		&& chip->temperature <= 530 && chip->cool_down_force_5v == false
 		&& (chip->batt_volt < chip->limits.vbatt_pdqc_to_9v_thr)) {
+		if (is_vooc_support_single_batt_svooc() == true) {
+			vooc_enable_cp_for_pdqc();
+		}
 		if (pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO) {
 			adapter_dev_get_cap(pinfo->pd_adapter, MTK_PD_APDO, &cap);
 			for (i = 0; i < cap.nr; i++) {
@@ -6175,28 +6185,37 @@ int oplus_mt6360_pd_setup_forsvooc(void)
 			vbus_mv = VBUS_5V;
 			ibus_ma = IBUS_2A;
 		}
-		oplus_chg_suspend_charger();
-		oplus_chg_config_charger_vsys_threshold(0x02);//set Vsys Skip threshold 104%
-		oplus_chg_enable_burst_mode(false);
-		ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
-		printk(KERN_ERR "%s: PD request: vbus[%d], ibus[%d], ret[%d]\n", __func__, vbus_mv, ibus_ma, ret);
-		msleep(300);
-		oplus_chg_unsuspend_charger();
+		if (is_vooc_support_single_batt_svooc() == true) {
+			printk(KERN_ERR "PD request: %dmV, %dmA\n", vbus_mv, ibus_ma);
+			ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
+		} else {
+			oplus_chg_suspend_charger();
+			oplus_chg_config_charger_vsys_threshold(0x02);/*set Vsys Skip threshold 104%*/
+			oplus_chg_enable_burst_mode(false);
+			ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
+			printk(KERN_ERR "%s: PD request: vbus[%d], ibus[%d], ret[%d]\n", __func__, vbus_mv, ibus_ma, ret);
+			msleep(300);
+			oplus_chg_unsuspend_charger();
+		}
 	} else {
 		if (chip->charger_volt > 7500 &&
 			(chip->calling_on || chip->soc >= 90 || chip->batt_volt >= chip->limits.vbatt_pdqc_to_5v_thr
 			|| chip->temperature > 530 || chip->cool_down_force_5v == true)) {
 			vbus_mv = VBUS_5V;
 			ibus_ma = IBUS_3A;
-
-			chip->chg_ops->input_current_write(500);
-			oplus_chg_suspend_charger();
-			oplus_chg_config_charger_vsys_threshold(0x03);//set Vsys Skip threshold 101%
-			ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
-			printk(KERN_ERR "%s: PD request:vbus[%d], ibus[%d], ret[%d]\n", __func__, vbus_mv, ibus_ma, ret);
-			msleep(300);
-			printk(KERN_ERR "%s: charger voltage=%d", __func__, chip->charger_volt);
-			oplus_chg_unsuspend_charger();
+			if (is_vooc_support_single_batt_svooc() == true) {
+				printk(KERN_ERR "PD request: %dmV, %dmA\n", vbus_mv, ibus_ma);
+				ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
+			} else {
+				chip->chg_ops->input_current_write(500);
+				oplus_chg_suspend_charger();
+				oplus_chg_config_charger_vsys_threshold(0x03);/*set Vsys Skip threshold 101%*/
+				ret = oplus_pdc_setup(&vbus_mv, &ibus_ma);
+				printk(KERN_ERR "%s: PD request:vbus[%d], ibus[%d], ret[%d]\n", __func__, vbus_mv, ibus_ma, ret);
+				msleep(300);
+				printk(KERN_ERR "%s: charger voltage=%d", __func__, chip->charger_volt);
+				oplus_chg_unsuspend_charger();
+			}
 		}
 
 		printk(KERN_ERR "%s: pd9v svooc  default[%d %d]", __func__, em_mode, chip->batt_volt);
@@ -6616,32 +6635,42 @@ int oplus_chg_set_qc_config_forsvooc(void)
 
 	if (!chip->calling_on && chip->charger_volt < 6500 && chip->soc < 90
 		&& chip->temperature <= 530 && chip->cool_down_force_5v == false
-		&& (chip->batt_volt < chip->limits.vbatt_pdqc_to_9v_thr)) {	//
+		&& (chip->batt_volt < chip->limits.vbatt_pdqc_to_9v_thr)) {
 		printk(KERN_ERR "%s: set qc to 9V", __func__);
-		mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x15);	//Before request 9V, need to force 5V first.
-		msleep(300);
-		oplus_chg_suspend_charger();
-		oplus_chg_config_charger_vsys_threshold(0x02);//set Vsys Skip threshold 104%
-		oplus_chg_enable_burst_mode(false);
-		mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x18);
+		if (is_vooc_support_single_batt_svooc() == true) {
+			vooc_enable_cp_for_pdqc();
+			mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x18);
+			oplus_notify_hvdcp_detect_stat();
+		} else {
+			mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x15);	/*Before request 9V, need to force 5V first.*/
+			msleep(300);
+			oplus_chg_suspend_charger();
+			oplus_chg_config_charger_vsys_threshold(0x02);/*set Vsys Skip threshold 104%*/
+			oplus_chg_enable_burst_mode(false);
+			mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x18);
 #ifdef CONFIG_OPLUS_HVDCP_SUPPORT
-		oplus_notify_hvdcp_detect_stat();
+			oplus_notify_hvdcp_detect_stat();
 #endif
-		msleep(300);
-		oplus_chg_unsuspend_charger();
+			msleep(300);
+			oplus_chg_unsuspend_charger();
+		}
 		ret = 0;
 	} else {
 		if (chip->charger_volt > 7500 &&
 			(chip->calling_on || chip->soc >= 90
 			|| chip->batt_volt >= chip->limits.vbatt_pdqc_to_5v_thr || chip->temperature > 530 || chip->cool_down_force_5v == true)) {
 			printk(KERN_ERR "%s: set qc to 5V", __func__);
-			chip->chg_ops->input_current_write(500);
-			oplus_chg_suspend_charger();
-			oplus_chg_config_charger_vsys_threshold(0x03);//set Vsys Skip threshold 101%
-			mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x15);
-			msleep(400);
-			printk(KERN_ERR "%s: charger voltage=%d", __func__, chip->charger_volt);
-			oplus_chg_unsuspend_charger();
+			if (is_vooc_support_single_batt_svooc() == true) {
+				mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x15);
+			} else {
+				chip->chg_ops->input_current_write(500);
+				oplus_chg_suspend_charger();
+				oplus_chg_config_charger_vsys_threshold(0x03);/*set Vsys Skip threshold 101%*/
+				mt6360_set_register(MT6360_PMU_DPDM_CTRL, 0x1F, 0x15);
+				msleep(400);
+				printk(KERN_ERR "%s: charger voltage=%d", __func__, chip->charger_volt);
+				oplus_chg_unsuspend_charger();
+			}
 			ret = 0;
 		}
 		printk(KERN_ERR "%s: qc9v svooc  default[%d %d]", __func__, em_mode, chip->batt_volt);
@@ -7663,9 +7692,9 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	chg_err("oplus_chg_init!\n");
 	oplus_chg_init(oplus_chip);
 
-	if(oplus_chg_get_voocphy_support()) {
+	if (oplus_chg_get_voocphy_support() == true || is_vooc_support_single_batt_svooc() == true) {
 		is_mtksvooc_project = true;
-		chg_err("support voocphy, is_mtksvooc_project is true!\n");
+		chg_err("support voocphy or is mcu vooc support, is_mtksvooc_project is true!\n");
 	}
 
 	if (get_boot_mode() != KERNEL_POWER_OFF_CHARGING_BOOT) {
