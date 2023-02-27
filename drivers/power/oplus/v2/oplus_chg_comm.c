@@ -138,6 +138,7 @@ struct oplus_chg_comm {
 	struct delayed_work ui_soc_update_work;
 	struct delayed_work ui_soc_decimal_work;
 	struct delayed_work lcd_notify_reg_work;
+	struct delayed_work fg_soft_reset_work;
 
 	struct votable *fv_max_votable;
 	struct votable *fv_min_votable;
@@ -232,6 +233,9 @@ struct oplus_chg_comm {
 	bool unwakelock_chg;
 	bool chg_powersave;
 	bool lcd_notify_reg;
+	bool fg_soft_reset_done;
+	int fg_soft_reset_fail_cnt;
+	int fg_check_ibat_cnt;
 };
 
 static struct oplus_comm_spec_config default_spec = {};
@@ -241,6 +245,11 @@ static int noplug_batt_volt_max;
 static int noplug_batt_volt_min;
 static bool g_ui_soc_ready;
 static void oplus_comm_set_batt_full(struct oplus_chg_comm *chip, bool full);
+static void oplus_comm_fginfo_reset(struct oplus_chg_comm *chip);
+static bool fg_reset_test = false;
+module_param(fg_reset_test, bool, 0644);
+MODULE_PARM_DESC(fg_reset_test, "zy0603 fg reset test");
+
 
 static const char *const oplus_comm_temp_region_text[] = {
 	[TEMP_REGION_COLD] = "cold",
@@ -806,6 +815,7 @@ static void oplus_comm_check_rechg(struct oplus_chg_comm *chip)
 
 	if (chip->rechg_count > RECHG_COUNT_MAX) {
 		chg_info("rechg start\n");
+		oplus_comm_fginfo_reset(chip);
 		chip->rechg_count = 0;
 		chip->sw_full = false;
 		chip->hw_full_by_sw = false;
@@ -1855,6 +1865,51 @@ err:
 	oplus_comm_set_ffc_status(chip, FFC_DEFAULT);
 }
 
+static void oplus_comm_fginfo_reset(struct oplus_chg_comm *chip)
+{
+	chip->fg_soft_reset_done = false;
+	chip->fg_check_ibat_cnt = 0;
+	chip->fg_soft_reset_fail_cnt = 0;
+	cancel_delayed_work_sync(&chip->fg_soft_reset_work);
+}
+
+static void oplus_comm_check_fgreset(struct oplus_chg_comm *chip)
+{
+	bool is_need_check = true;
+
+	if (oplus_wired_get_chg_type() == OPLUS_CHG_USB_TYPE_UNKNOWN ||
+	    oplus_wired_get_chg_type() == OPLUS_CHG_USB_TYPE_SDP ||
+	    chip->temp_region != TEMP_REGION_NORMAL ||
+	    chip->vbat_min_mv < SOFT_REST_VOL_THRESHOLD ||
+	    chip->fg_soft_reset_done)
+		is_need_check = false;
+
+	if (!chip->fg_soft_reset_done &&
+	    chip->fg_soft_reset_fail_cnt > SOFT_REST_RETRY_MAX_CNT)
+		is_need_check = false;
+
+	if (fg_reset_test)
+		is_need_check = true;
+
+	if (!chip->sw_full && !chip->hw_full_by_sw)
+		is_need_check = false;
+
+	if (!chip->wired_online && !chip->wls_online)
+		is_need_check = false;
+
+	if (oplus_gauge_afi_update_done() == false) {
+		chg_info("zy gauge afi_update_done ing...\n");
+		is_need_check = false;
+	}
+
+	if (!is_need_check) {
+		chip->fg_check_ibat_cnt = 0;
+		return;
+	}
+
+	schedule_delayed_work(&chip->fg_soft_reset_work, 0);
+}
+
 static int oplus_comm_charging_disable(struct oplus_chg_comm *chip, bool en)
 {
 	struct mms_msg *msg;
@@ -2060,14 +2115,14 @@ static void oplus_comm_battery_notify_check(struct oplus_chg_comm *chip)
 	if (!chip->hmac)
 		notify_code |= BIT(NOTIFY_BAT_FULL_THIRD_BATTERY);
 	if (chip->wired_online) {
-		if (chip->wired_err_code & BIT(OPLUS_IC_ERR_OVP))
+		if (chip->wired_err_code & BIT(OPLUS_ERR_CODE_OVP))
 			notify_code |= BIT(NOTIFY_CHARGER_OVER_VOL);
-		if (chip->wired_err_code & BIT(OPLUS_IC_ERR_UVP))
+		if (chip->wired_err_code & BIT(OPLUS_ERR_CODE_UVP))
 			notify_code |= BIT(NOTIFY_CHARGER_LOW_VOL);
 	} else if (chip->wls_online) {
-		if (chip->wls_err_code & BIT(OPLUS_IC_ERR_OVP))
+		if (chip->wls_err_code & BIT(OPLUS_ERR_CODE_OVP))
 			notify_code |= BIT(NOTIFY_CHARGER_OVER_VOL);
-		if (chip->wls_err_code & BIT(OPLUS_IC_ERR_UVP))
+		if (chip->wls_err_code & BIT(OPLUS_ERR_CODE_UVP))
 			notify_code |= BIT(NOTIFY_CHARGER_LOW_VOL);
 	}
 
@@ -2077,7 +2132,7 @@ static void oplus_comm_battery_notify_check(struct oplus_chg_comm *chip)
 		notify_code |= BIT(NOTIFY_CHGING_OVERTIME);
 	if (chip->batt_full)
 		notify_code |= BIT(NOTIFY_CHARGER_TERMINAL);
-	if (chip->gauge_err_code & BIT(OPLUS_IC_ERR_I2C))
+	if (chip->gauge_err_code & BIT(OPLUS_ERR_CODE_I2C))
 		notify_code |= BIT(NOTIFY_GAUGE_I2C_ERR);
 
 	if (notify_code &
@@ -2251,6 +2306,7 @@ static void oplus_comm_gauge_check_work(struct work_struct *work)
 			oplus_comm_check_sw_full(chip);
 			oplus_comm_check_rechg(chip);
 			oplus_comm_check_ffc(chip);
+			oplus_comm_check_fgreset(chip);
 		}
 	}
 #ifdef CONFIG_OPLUS_CHARGER_MTK
@@ -2669,6 +2725,7 @@ static void oplus_comm_plugin_work(struct work_struct *work)
 	chip->wired_online = data.intval;
 
 	if (chip->wired_online) {
+		oplus_comm_fginfo_reset(chip);
 		noplug_temperature = chip->batt_temp;
 		schedule_work(&chip->noplug_batt_volt_work);
 		oplus_comm_battery_notify_check(chip);
@@ -2703,6 +2760,7 @@ static void oplus_comm_plugin_work(struct work_struct *work)
 		}
 		cancel_delayed_work_sync(&chip->ffc_start_work);
 		cancel_work_sync(&chip->noplug_batt_volt_work);
+		chip->fg_soft_reset_done = true;
 		chip->ffc_charging = false;
 		chip->sw_full = false;
 		chip->hw_full_by_sw = false;
@@ -4005,7 +4063,7 @@ static ssize_t proc_ui_soc_decimal_read(struct file *file,
 		svooc_is_control_by_vooc =
 			(oplus_gauge_get_batt_num() == 2 &&
 			 oplus_wired_get_chg_type() == OPLUS_CHG_USB_TYPE_VOOC);
-		if (!svooc_is_control_by_vooc && soc_decimal->boot_completed &&
+		if (!svooc_is_control_by_vooc &&
 		    !soc_decimal->calculate_decimal_time &&
 		    !chip->wls_online && chip->vooc_online) {
 			cancel_delayed_work_sync(&chip->ui_soc_decimal_work);
@@ -4474,6 +4532,7 @@ static int oplus_comm_init_proc(struct oplus_chg_comm *chip)
 {
 	struct proc_dir_entry *pr_entry_tmp;
 	struct proc_dir_entry *pr_entry_da;
+	int eng_version = get_eng_version();
 
 	pr_entry_tmp = proc_create_data("ui_soc_decimal", 0664, NULL,
 					&ui_soc_decimal_ops, chip);
@@ -4502,11 +4561,15 @@ static int oplus_comm_init_proc(struct oplus_chg_comm *chip)
 		goto charger_fail;
 	}
 
-	pr_entry_tmp =
-		proc_create_data("charger_factorymode_test", 0666, pr_entry_da,
-				 &proc_charger_factorymode_test_ops, chip);
-	if (pr_entry_tmp == NULL)
-		chg_err("Couldn't create charger_factorymode_test proc entry\n");
+	if (eng_version != OEM_RELEASE) {
+		pr_entry_tmp =
+			proc_create_data("charger_factorymode_test",
+					 0666, pr_entry_da,
+					 &proc_charger_factorymode_test_ops,
+					 chip);
+		if (pr_entry_tmp == NULL)
+			chg_err("Couldn't create charger_factorymode_test proc entry\n");
+	}
 
 	pr_entry_tmp =
 		proc_create_data("integrate_gauge_fcc_flag", 0664, pr_entry_da,
@@ -4771,6 +4834,40 @@ static void oplus_comm_lcd_notify_reg_work(struct work_struct *work)
 	chip->lcd_notify_reg = true;
 }
 
+static void oplus_fg_soft_reset_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_chg_comm *chip =
+		container_of(dwork, struct oplus_chg_comm, fg_soft_reset_work);
+
+	if (chip->soc < SOFT_REST_SOC_THRESHOLD ||
+	    oplus_gauge_check_reset_condition() ||
+	    fg_reset_test) {
+		if (abs(chip->ibat_ma) < SOFT_REST_CHECK_DISCHG_MAX_CUR)
+			chip->fg_check_ibat_cnt++;
+		else
+			chip->fg_check_ibat_cnt = 0;
+
+		if (chip->fg_check_ibat_cnt < SOFT_REST_RETRY_MAX_CNT + 1)
+			return;
+
+		if(oplus_gauge_reset()) {
+			chip->fg_soft_reset_done = true;
+			chip->fg_soft_reset_fail_cnt = 0;
+		} else {
+			chip->fg_soft_reset_done = false;
+			chip->fg_soft_reset_fail_cnt++;
+		}
+		chip->fg_check_ibat_cnt = 0;
+	} else {
+		chip->fg_check_ibat_cnt = 0;
+	}
+
+	chg_info("reset_done [%s] ibat_cnt[%d] fail_cnt[%d] \n",
+		chip->fg_soft_reset_done == true ?"true":"false",
+		chip->fg_check_ibat_cnt, chip->fg_soft_reset_fail_cnt);
+}
+
 static void oplus_wired_chg_check_work(struct work_struct *work)
 {
 	struct oplus_chg_comm *chip =
@@ -4832,6 +4929,7 @@ static int oplus_comm_driver_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&comm_dev->ui_soc_update_work, oplus_comm_ui_soc_update_work);
 	INIT_DELAYED_WORK(&comm_dev->ui_soc_decimal_work, oplus_comm_show_ui_soc_decimal);
 	INIT_DELAYED_WORK(&comm_dev->lcd_notify_reg_work, oplus_comm_lcd_notify_reg_work);
+	INIT_DELAYED_WORK(&comm_dev->fg_soft_reset_work, oplus_fg_soft_reset_work);
 
 	spin_lock_init(&comm_dev->remuse_lock);
 

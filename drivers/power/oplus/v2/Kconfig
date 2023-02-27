@@ -32,3 +32,8 @@ config OPLUS_ADSP_CHARGER
 	bool "ADSP support"
 	help
 	  Say Y here to declare ADSP support
+
+config OPLUS_MT6375_CHARGER
+	bool "MT6375 debug support"
+	help
+	  Say Y here to declare MT6375 debug support

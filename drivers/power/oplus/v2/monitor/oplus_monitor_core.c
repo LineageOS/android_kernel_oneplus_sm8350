@@ -359,6 +359,7 @@ static void oplus_monitor_wired_subs_callback(struct mms_subscribe *subs,
 						false);
 			chip->wired_online = !!data.intval;
 			chip->notify_flag = 0;
+			schedule_work(&chip->charge_info_update_work);
 			schedule_work(&chip->wired_plugin_work);
 			break;
 		case WIRED_ITEM_ERR_CODE:
@@ -370,6 +371,7 @@ static void oplus_monitor_wired_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->wired_topic, id, &data,
 						false);
 			chip->wired_charge_type = data.intval;
+			oplus_chg_track_handle_wired_type_info(chip, TRACK_CHG_GET_THTS_TIME_TYPE);
 			break;
 		case WIRED_ITEM_CC_MODE:
 			oplus_mms_get_item_data(chip->wired_topic, id, &data,
@@ -480,6 +482,7 @@ static void oplus_monitor_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->temp_region = data.intval;
+			oplus_chg_track_cal_tbatt_status(chip);
 			break;
 		case COMM_ITEM_FFC_STATUS:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,

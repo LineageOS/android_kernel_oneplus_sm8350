@@ -2299,9 +2299,8 @@ static void oplus_mms_wired_plugin_handler_work(struct work_struct *work)
 			chg_err("publish wired present msg error, rc=%d\n", rc);
 			kfree(msg);
 		}
-		/* Make sure the charger type is updated to Unknown */
-		if (!chip->wired_present)
-			schedule_work(&chip->chg_type_change_handler_work);
+
+		schedule_work(&chip->chg_type_change_handler_work);
 	}
 
 	oplus_mms_wired_bcc_parms_reset(chip);

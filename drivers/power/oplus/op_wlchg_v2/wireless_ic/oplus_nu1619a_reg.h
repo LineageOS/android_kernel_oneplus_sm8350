@@ -7,6 +7,7 @@
 #define __OPLUS_NU1619_REG_H__
 
 #define NU1619_RX_PWR_15W		0x1e
+#define NU1619_RX_PWR_11W		0x16
 #define NU1619_RX_PWR_10W		0x14
 #define NU1619_RX_PWR_5W		0x0a
 #define NU1619_RX_MODE_EPP	0x31

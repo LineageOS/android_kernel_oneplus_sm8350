@@ -19,8 +19,7 @@
 #include "../../../../../kernel-5.15/drivers/gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
 #endif
 
-/*add for dx-2 bringup*/
-/*#include "../../../base/kernelFwUpdate/kernelFwUpdate.h"*/
+#include "../../../base/kernelFwUpdate/kernelFwUpdate.h"
 
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
@@ -447,6 +446,7 @@ struct mtk_charger {
 	bool chrdet_state;
 	bool wd0_detect;
 	bool bc12_complete;
+	bool wait_hard_reset_complete;
 	struct delayed_work status_keep_clean_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;

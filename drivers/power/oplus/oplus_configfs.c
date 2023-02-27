@@ -19,9 +19,11 @@
 #include "oplus_adapter.h"
 #include "oplus_wireless.h"
 #include "charger_ic/oplus_short_ic.h"
+#include "charger_ic/oplus_switching.h"
 #include "oplus_debug_info.h"
 #include "op_wlchg_v2/oplus_chg_wls.h"
 //#include "wireless_ic/oplus_p922x.h"
+#include "wireless_ic/oplus_nu1619.h"
 #include "voocphy/oplus_voocphy.h"
 
 static struct class *oplus_chg_class;
@@ -251,7 +253,9 @@ static ssize_t fast_chg_type_show(struct device *dev, struct device_attribute *a
 		return -EINVAL;
 	}
 
-	if (CHARGER_SUBTYPE_PD == type && chip->pd_svooc) {
+	if (chip->charger_type == POWER_SUPPLY_TYPE_USB_PD_SDP ||
+	    (CHARGER_SUBTYPE_PD == type && (chip->pd_svooc || chip->charger_type == POWER_SUPPLY_TYPE_USB ||
+					    chip->charger_type == POWER_SUPPLY_TYPE_USB_CDP))) {
 		type = CHARGER_SUBTYPE_DEFAULT;
 	}
 
@@ -403,6 +407,36 @@ static ssize_t battery_rm_show(struct device *dev, struct device_attribute *attr
 	return sprintf(buf, "%d\n", chip->batt_rm);
 }
 static DEVICE_ATTR_RO(battery_rm);
+
+static ssize_t design_capacity_show(struct device *dev, struct device_attribute *attr,
+	char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%d\n", chip->batt_capacity_mah);
+}
+static DEVICE_ATTR_RO(design_capacity);
+
+static ssize_t smartchg_soh_support_show(struct device *dev, struct device_attribute *attr,
+	char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%d\n", chip->smart_chg_soh_support);
+}
+static DEVICE_ATTR_RO(smartchg_soh_support);
 
 static ssize_t battery_soh_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
@@ -615,7 +649,10 @@ static ssize_t normal_current_now_store(struct device *dev, struct device_attrib
 	chg_err("val:%d\n", val);
 	if (!chip->led_on) {
 		if (chip->smart_normal_cool_down == 0) {
-			chip->normal_cool_down = oplus_convert_pps_current_to_level(chip, val);
+			if (oplus_pps_get_support_type() != PPS_SUPPORT_NOT)
+				chip->normal_cool_down = oplus_convert_pps_current_to_level(chip, val);
+			else
+				chip->normal_cool_down = oplus_convert_current_to_level(chip, val);
 			chg_err("set normal_cool_down:%d\n", val);
 		}
 	}
@@ -759,6 +796,7 @@ static ssize_t mmi_charging_enable_store(struct device *dev, struct device_attri
 			if (oplus_voocphy_get_bidirect_cp_support() && chip->chg_ops->check_chrdet_status()) {
 				oplus_voocphy_set_chg_auto_mode(true);
 			}
+			oplus_pps_set_mmi_status(false);
 		}
 	} else {
 		if (chip->unwakelock_chg == 1) {
@@ -778,6 +816,7 @@ static ssize_t mmi_charging_enable_store(struct device *dev, struct device_attri
 			if (oplus_chg_get_voocphy_support() == ADSP_VOOCPHY) {
 				oplus_adsp_voocphy_turn_on();
 			}
+			oplus_pps_set_mmi_status(true);
 		}
 	}
 
@@ -1506,6 +1545,52 @@ static ssize_t soc_ajust_store(struct device *dev, struct device_attribute *attr
 }
 static DEVICE_ATTR_RW(soc_ajust);
 
+static ssize_t parallel_chg_mos_test_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	if (oplus_switching_get_hw_enable() == MOS_OPEN
+			|| chip->balancing_bat_status == PARALLEL_BAT_BALANCE_ERROR_STATUS8
+			|| chip->balancing_bat_status == PARALLEL_BAT_BALANCE_ERROR_STATUS9) {
+			chg_err("mos: %d, test next time!\n", oplus_switching_get_hw_enable());
+			return 0;
+	}
+	if (!chip->mos_test_result) {
+		if (!chip->mos_test_started)
+			schedule_delayed_work(&chip->parallel_chg_mos_test_work, 0);
+	}
+	else {
+		chg_err("mos test success, use last result!\n");
+	}
+
+	return sprintf(buf, "%d\n", chip->mos_test_result);
+}
+static DEVICE_ATTR_RO(parallel_chg_mos_test);
+
+static ssize_t parallel_chg_mos_status_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+	int val;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_battery_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	val = oplus_switching_get_hw_enable();
+	return sprintf(buf, "%d\n", val);
+}
+static DEVICE_ATTR_RO(parallel_chg_mos_status);
+
 static struct device_attribute *oplus_battery_attributes[] = {
 	&dev_attr_authenticate,
 	&dev_attr_battery_cc,
@@ -1568,6 +1653,10 @@ static struct device_attribute *oplus_battery_attributes[] = {
 	&dev_attr_normal_current_now,
 	&dev_attr_get_quick_mode_time_gain,
 	&dev_attr_get_quick_mode_percent_gain,
+	&dev_attr_parallel_chg_mos_test,
+	&dev_attr_parallel_chg_mos_status,
+	&dev_attr_design_capacity,
+	&dev_attr_smartchg_soh_support,
 	NULL
 };
 
@@ -1905,6 +1994,14 @@ ssize_t  __attribute__((weak)) oplus_chg_comm_response_mutual_cmd(struct oplus_c
 {
 	return -EINVAL;
 }
+ssize_t  __attribute__((weak)) oplus_chg_send_mutual_cmd(char *buf)
+{
+	return -EINVAL;
+}
+ssize_t  __attribute__((weak)) oplus_chg_response_mutual_cmd(const char *buf, size_t count)
+{
+	return -EINVAL;
+}
 static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
 {
@@ -1919,6 +2016,8 @@ static ssize_t mutual_cmd_show(struct device *dev, struct device_attribute *attr
 
 	if (is_comm_ocm_available(chip))
 		ret = oplus_chg_comm_send_mutual_cmd(chip->comm_ocm, buf);
+	else
+		ret = oplus_chg_send_mutual_cmd(buf);
 
 	return ret;
 }
@@ -1936,19 +2035,49 @@ static ssize_t mutual_cmd_store(struct device *dev, struct device_attribute *att
 
 	if (is_comm_ocm_available(chip))
 		oplus_chg_comm_response_mutual_cmd(chip->comm_ocm, buf, count);
+	else
+		oplus_chg_response_mutual_cmd(buf, count);
 
 	return count;
 }
 static DEVICE_ATTR_RW(mutual_cmd);
+
+static ssize_t boot_completed_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = (struct oplus_chg_chip *)dev_get_drvdata(oplus_common_dir);
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -EINVAL;
+	}
+
+	return sprintf(buf, "%d\n", chip->boot_completed);
+}
+static DEVICE_ATTR_RO(boot_completed);
 
 static struct device_attribute *oplus_common_attributes[] = {
 #ifdef OPLUS_CHG_ADB_ROOT_ENABLE
 	&dev_attr_charge_parameter,
 #endif
 	&dev_attr_mutual_cmd,
+	&dev_attr_boot_completed,
 	NULL
 };
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+void __attribute__((weak)) oplus_pps_get_adapter_status(struct oplus_chg_chip *chip)
+{
+	return;
+}
+void __attribute__((weak)) oplus_get_pps_parameters_from_adsp(void)
+{
+	return;
+}
+int  __attribute__((weak)) oplus_pps_get_authenticate(void)
+{
+	return 0;
+}
+#endif
 
 /**********************************************************************
 * ac/usb/battery/wireless/common directory nodes create

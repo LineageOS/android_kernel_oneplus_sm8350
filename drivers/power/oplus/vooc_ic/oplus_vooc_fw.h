@@ -218,9 +218,9 @@ extern void reset_fastchg_after_usbout(struct oplus_vooc_chip *chip);
 void oplus_vooc_eint_register(struct oplus_vooc_chip *chip);
 void oplus_vooc_eint_unregister(struct oplus_vooc_chip *chip);
 
-void oplus_pps_eint_register(struct oplus_vooc_chip *chip);
-void oplus_pps_eint_unregister(struct oplus_vooc_chip *chip);
-int oplus_pps_get_gpio_value(struct oplus_vooc_chip *chip);
+void oplus_vooc_set_mcu_pps_mode(struct oplus_vooc_chip *chip, bool mode);
+int oplus_vooc_get_mcu_pps_mode(struct oplus_vooc_chip *chip);
+
 int oplus_mcu_bcc_svooc_batt_curves(struct oplus_vooc_chip *chip);
 int oplus_mcu_bcc_stop_curr_dt(struct oplus_vooc_chip *chip);
 int oplus_chg_bcc_get_stop_curr(struct oplus_vooc_chip *chip);

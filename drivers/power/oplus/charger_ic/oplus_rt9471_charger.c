@@ -39,7 +39,7 @@
 #define RT9471_DRV_VERSION	"1.0.6_MTK"
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
-#include <soc/oplus/oplus_project.h>
+#include <soc/oppo/oppo_project.h>
 extern unsigned int is_project(int project );
 #endif /*OPLUS_FEATURE_CHG_BASIC*/
 
@@ -1262,7 +1262,7 @@ static int rt9471_detach_irq_handler(struct rt9471_chip *chip)
 	dev_info(chip->dev, "%s\n", __func__);
 //#ifndef CONFIG_TCPC_CLASS
 #ifdef OPLUS_FEATURE_CHG_BASIC
-	if(is_project(OPLUS_19741)) {
+	if(is_project(OPPO_19741)) {
 		mutex_lock(&chip->bc12_lock);
 		atomic_set(&chip->vbus_gd, rt9471_is_vbusgd(chip));
 		rt9471_bc12_postprocess(chip);
@@ -1358,7 +1358,7 @@ static int rt9471_vbus_gd_irq_handler(struct rt9471_chip *chip)
 	dev_info(chip->dev, "%s\n", __func__);
 //#ifndef CONFIG_TCPC_CLASS
 #ifdef OPLUS_FEATURE_CHG_BASIC
-	if(is_project(OPLUS_19741)) {
+	if(is_project(OPPO_19741)) {
 		mutex_lock(&chip->bc12_lock);
 		atomic_set(&chip->vbus_gd, rt9471_is_vbusgd(chip));
 		rt9471_bc12_preprocess(chip);
@@ -2398,7 +2398,7 @@ static int rt9471_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 {
 	int ret = 0;
 #ifdef CONFIG_TCPC_CLASS
-if(is_project(OPLUS_19747)) {
+if(is_project(OPPO_19747)) {
 	struct rt9471_chip *chip = dev_get_drvdata(&chg_dev->dev);
 
 	dev_info(chip->dev, "%s en = %d\n", __func__, en);
@@ -3115,7 +3115,7 @@ static int rt9471_probe(struct i2c_client *client,
 		goto err_create_file;
 	}
 #ifdef OPLUS_FEATURE_CHG_BASIC
-	if(is_project(OPLUS_19741)) {
+	if(is_project(OPPO_19741)) {
 		if (strcmp(chip->desc->chg_name, "primary_chg") == 0)
 			schedule_work(&chip->init_work);
 	} else {
@@ -3255,7 +3255,7 @@ module_i2c_driver(rt9471_i2c_driver);
 
 
 MODULE_LICENSE("GPL");
-MODULE_AUTHOR("ShuFanLee <shufan_lee@richtek.com>");
+MODULE_AUTHOR("ShuFanLee");
 MODULE_DESCRIPTION("RT9471 Charger Driver");
 MODULE_VERSION(RT9471_DRV_VERSION);
 /*

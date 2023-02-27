@@ -57,8 +57,6 @@
 #include "oplus_vooc_fw.h"
 
 int g_hw_version = 0;
-int mcu_ctrl_cp_status = -1;
-struct oplus_vooc_chip *pps_chip;
 static const char * const strategy_soc[] = {
 	[BCC_BATT_SOC_0_TO_50]	= "strategy_soc_0_to_50",
 	[BCC_BATT_SOC_50_TO_75]	= "strategy_soc_50_to_75",
@@ -1303,8 +1301,6 @@ int oplus_vooc_gpio_dt_init(struct oplus_vooc_chip *chip)
 			chip->vooc_gpio.reset_gpio, chip->vooc_gpio.clock_gpio,
 			chip->vooc_gpio.data_gpio, chip->vooc_gpio.data_irq);
 
-	pps_chip = chip;
-
 	return rc;
 }
 
@@ -1476,25 +1472,9 @@ static void delay_reset_mcu_work_func(struct work_struct *work)
 	oplus_vooc_reset_mcu();
 }
 
-static void mcu_ctrl_cp_func(struct work_struct *work)
-{
-	struct delayed_work *dwork = to_delayed_work(work);
-	struct oplus_vooc_chip *chip = container_of(dwork,
-		struct oplus_vooc_chip, mcu_ctrl_cp_work);
-	int level;
-	level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-
-	if(level == 1){
-		printk("mcu_ctrl_cp_func level:%d\n",level);
-	}else {
-		printk("mcu_ctrl_cp_func level:%d\n",level);
-	}
-}
-
 void oplus_vooc_delay_reset_mcu_init(struct oplus_vooc_chip *chip)
 {
 	INIT_DELAYED_WORK(&chip->delay_reset_mcu_work, delay_reset_mcu_work_func);
-	INIT_DELAYED_WORK(&chip->mcu_ctrl_cp_work,mcu_ctrl_cp_func);
 }
 
 static void oplus_vooc_delay_reset_mcu(struct oplus_vooc_chip *chip)
@@ -1959,11 +1939,6 @@ static irqreturn_t irq_rx_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t irq_mcu_ctrl_cp_handler(int irq, void *dev_id)
-{
-	oplus_vooc_bypass_work();
-	return IRQ_HANDLED;
-}
 void oplus_vooc_data_irq_init(struct oplus_vooc_chip *chip)
 {
 #ifdef CONFIG_OPLUS_CHARGER_MTK
@@ -2045,53 +2020,25 @@ void oplus_vooc_eint_unregister(struct oplus_vooc_chip *chip)
 #endif
 }
 
-void oplus_pps_eint_register(struct oplus_vooc_chip *chip)
+void oplus_vooc_set_mcu_pps_mode(struct oplus_vooc_chip *chip, bool mode)
 {
-	int retval = 0;
-	int level = 0;
-	pinctrl_select_state(chip->vooc_gpio.pinctrl,chip->vooc_gpio.gpio_mcu_ctrl_cp_active);
-	retval = gpio_direction_input(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	printk("oplus_pps_eint_register retval:%d,level:%d\n",retval,level);
-
-	if(mcu_ctrl_cp_status != 0){
-		printk("oplus_pps_eint_register 222\n");
-	chip->vooc_gpio.mcu_ctrl_cp_irq = gpio_to_irq(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	retval = request_irq(chip->vooc_gpio.mcu_ctrl_cp_irq, irq_mcu_ctrl_cp_handler, IRQF_TRIGGER_FALLING
-			| IRQF_TRIGGER_RISING | IRQF_ONESHOT, "mcu_ctrl_cp", chip);
-	if (retval < 0) {
-		chg_err("request mcu_ctrl_cp irq failed.\n");
+	int retval = 0, level = 0;
+	mutex_lock(&chip->pinctrl_mutex);
+	if (mode) {
+		pinctrl_select_state(chip->vooc_gpio.pinctrl, chip->vooc_gpio.gpio_mcu_ctrl_cp_sleep);
+		/*retval = gpio_direction_input(chip->vooc_gpio.mcu_ctrl_cp_gpio);*/
+		retval = gpio_direction_output(chip->vooc_gpio.mcu_ctrl_cp_gpio, 1);
+		level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
+	} else {
+		pinctrl_select_state(chip->vooc_gpio.pinctrl, chip->vooc_gpio.gpio_mcu_ctrl_cp_active);
+		retval = gpio_direction_output(chip->vooc_gpio.mcu_ctrl_cp_gpio, 0);
+		level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
 	}
-	mcu_ctrl_cp_status = 0;
-	}
+	mutex_unlock(&chip->pinctrl_mutex);
+	chg_err(" mode = %d, level = %d, retval = %d\r\n", mode, level, retval);
 }
 
-void oplus_pps_eint_unregister(struct oplus_vooc_chip *chip)
-{
-	int retval = 0;
-	int level = 0;
-	printk("oplus_pps_eint_unregister\n");
-	if(mcu_ctrl_cp_status != 1){
-		printk("oplus_pps_eint_unregister222 \n");
-		free_irq(chip->vooc_gpio.mcu_ctrl_cp_irq, chip);
-		mcu_ctrl_cp_status = 1;
-	}
-
-set_gpio_fail:
-	usleep_range(1000, 1000);
-
-	pinctrl_select_state(chip->vooc_gpio.pinctrl,chip->vooc_gpio.gpio_mcu_ctrl_cp_sleep);
-	retval = gpio_direction_output(chip->vooc_gpio.mcu_ctrl_cp_gpio, 1);
-	printk("oplus_pps_eint_unregister mcu_ctrl_cp_gpio = 0x%x retval:%d\n",chip->vooc_gpio.mcu_ctrl_cp_gpio,retval);
-
-	level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	printk("oplus_pps_eint_unregister level:%d\n",level);
-	if (level != 1) {
-		goto set_gpio_fail;
-	}
-}
-
-int oplus_pps_get_gpio_value(struct oplus_vooc_chip *chip)
+int oplus_vooc_get_mcu_pps_mode(struct oplus_vooc_chip *chip)
 {
 	int level = 0;
 

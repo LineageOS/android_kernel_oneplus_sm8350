@@ -76,4 +76,6 @@ int oplus_gauge_set_bcc_parameters(const char *buf);
 int oplus_gauge_protect_check(void);
 bool oplus_gauge_afi_update_done(void);
 
+bool oplus_gauge_check_reset_condition(void);
+bool oplus_gauge_reset(void);
 #endif /* __OPLUS_MMS_GAUGE_H__ */

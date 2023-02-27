@@ -20,6 +20,7 @@
 
 #endif /* CONFIG_OPLUS_CHARGER_MTK */
 #include "../oplus_charger.h"
+#include "../oplus_pps.h"
 
 #define WPC_PRECHARGE_CURRENT								480
 #define NORMAL_CHECK_UPDATE_INTERVAL							5
@@ -583,6 +584,17 @@
 #define REG53_MP2650_ADDRESS                                 0x53
 #define REG3E_MP2650_ADDRESS                                 0x3E
 
+#define MP2762_AICL_POINT_VOL_9V		8500
+
+#define MP2762_AICL_POINT_VOL_PHASE1		4000
+#define MP2762_HW_AICL_POINT_5V_PHASE1		4440
+#define MP2762_SW_AICL_POINT_5V_PHASE1		4500
+
+#define MP2762_AICL_POINT_VOL_PHASE2		4140
+#define MP2762HW_AICL_POINT_5V_PHASE2		4520
+#define MP2762SW_AICL_POINT_5V_PHASE2		4535
+
+#define WAIT_RESUME_MAX_TRY_TIME                30
 
 enum {
 	OVERTIME_AC = 0,
@@ -691,7 +703,6 @@ extern int oplus_chg_pps_get_max_cur(int vbus_mv);
 extern bool oplus_mt_get_vbus_status(void);
 extern bool oplus_check_pdphy_ready(void);
 extern void oplus_set_typec_cc_open(void);
-extern int oplus_chg_set_dischg_enable(bool en);
 #else /* CONFIG_OPLUS_CHARGER_MTK */
 extern int qpnp_get_battery_voltage(void);
 extern int opchg_get_charger_type(void) ;
@@ -721,6 +732,7 @@ extern int mp2650_enable_async_mode(void);
 extern int mp2650_disable_async_mode(void);
 
 extern int mp2650_set_prochot_psys_cfg(void);
+extern int oplus_pps_get_support_type(void);
 #endif/* CONFIG_OPLUS_CHARGER_MTK */
 extern int mp2650_get_ibus_current(void);
 
