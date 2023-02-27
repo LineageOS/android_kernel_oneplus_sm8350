@@ -64,6 +64,7 @@ struct oplus_p9415 {
 	bool rx_connected;
 	int adapter_type;
 	int rx_pwr_cap;
+	bool support_epp_11w;
 
 	unsigned char *fw_data;
 	int fw_length;
@@ -724,14 +725,17 @@ static int p9415_get_rx_mode(struct oplus_chg_ic_dev *dev, enum oplus_chg_wls_rx
 				return rc;
 			}
 			pr_err("running mode epp-%d/2w\n", temp);
-			if (temp >= P9415_RX_PWR_15W)
+			if (!chip->support_epp_11w && temp >= P9415_RX_PWR_15W)
 				chip->rx_pwr_cap = P9415_RX_PWR_15W;
+			else if (chip->support_epp_11w && temp >= P9415_RX_PWR_11W)
+				chip->rx_pwr_cap = P9415_RX_PWR_11W;
 			else if (temp >= P9415_RX_PWR_10W)
 				chip->rx_pwr_cap = P9415_RX_PWR_10W;
 			else
 				chip->rx_pwr_cap = P9415_RX_PWR_5W;
 		}
-		if (chip->rx_pwr_cap == P9415_RX_PWR_15W) {
+		if (chip->rx_pwr_cap == P9415_RX_PWR_15W ||
+		    chip->rx_pwr_cap == P9415_RX_PWR_11W) {
 			*rx_mode = OPLUS_CHG_WLS_RX_MODE_EPP_PLUS;
 		} else if (chip->rx_pwr_cap == P9415_RX_PWR_10W) {
 			*rx_mode = OPLUS_CHG_WLS_RX_MODE_EPP;
@@ -1916,6 +1920,8 @@ static int p9415_driver_probe(struct i2c_client *client,
 		return -ENODEV;
 	chip->client = client;
 	i2c_set_clientdata(client, chip);
+
+	chip->support_epp_11w = of_property_read_bool(node, "oplus,support_epp_11w");
 
 	rc = of_property_read_u32(node, "oplus,ic_type", &ic_type);
 	if (rc < 0) {

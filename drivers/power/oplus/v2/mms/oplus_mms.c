@@ -431,8 +431,8 @@ int oplus_mms_publish_ic_err_msg(struct oplus_mms *topic, u32 item_id,
 
 	topic_msg =
 		oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_HIGH, item_id,
-					"[%s]-[%s]:%s", err_msg->ic->name,
-					oplus_chg_ic_err_text(err_msg->type),
+					"[%s]-[%d]-[%d]:%s", err_msg->ic->name,
+					err_msg->type, err_msg->sub_type,
 					err_msg->msg);
 	if (topic_msg == NULL) {
 		chg_err("alloc topic msg error\n");
@@ -446,6 +446,103 @@ int oplus_mms_publish_ic_err_msg(struct oplus_mms *topic, u32 item_id,
 	}
 
 	return rc;
+}
+
+int oplus_mms_analysis_ic_err_msg(char *buf, size_t buf_size, int *name_index,
+				  int *type, int *sub_type, int *msg_index)
+{
+	char *str;
+	int index = 0;
+	int type_index, sub_type_index;
+
+	if (buf == NULL) {
+		chg_err("buf is NULL\n");
+		return -EINVAL;
+	}
+	if (type == NULL) {
+		chg_err("type is NULL\n");
+		return -EINVAL;
+	}
+	if (sub_type == NULL) {
+		chg_err("sub_type is NULL\n");
+		return -EINVAL;
+	}
+	if (msg_index == NULL) {
+		chg_err("msg_index is NULL\n");
+		return -EINVAL;
+	}
+
+	str = buf;
+
+	/* name index */
+	if (*str != '[') {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	index++;
+	str = buf + index;
+	*name_index = index;
+
+	/* type */
+	while (*str != 0 && index < buf_size) {
+		if (strncmp("]-[", str, 3) == 0) {
+			index = index + 3;
+			type_index = index;
+			break;
+		}
+		index++;
+		str++;
+	}
+	if (*str == 0 || index >= buf_size) {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	*str = 0;
+	str = buf + index;
+
+	/* sub type */
+	while (*str != 0 && index < buf_size) {
+		if (strncmp("]-[", str, 3) == 0) {
+			index = index + 3;
+			sub_type_index = index;
+			break;
+		}
+		index++;
+		str++;
+	}
+	if (*str == 0 || index >= buf_size) {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	*str = 0;
+	str = buf + index;
+
+	/* msg index */
+	while (*str != 0 && index < buf_size) {
+		if (strncmp("]:", str, 2) == 0) {
+			index = index + 2;
+			*msg_index = index;
+			break;
+		}
+		index++;
+		str++;
+	}
+	if (*str == 0 || index >= buf_size) {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	*str = 0;
+
+	if(sscanf(buf + type_index, "%d", type) != 1) {
+		chg_err("get ic err type error\n");
+		return -EINVAL;
+	}
+	if(sscanf(buf + sub_type_index, "%d", sub_type) != 1) {
+		chg_err("get ic sub err type error\n");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 int oplus_mms_wait_topic(const char *name, mms_callback_t call, void *data)

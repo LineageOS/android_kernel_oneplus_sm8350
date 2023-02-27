@@ -5,6 +5,8 @@
 #include <linux/of.h>
 
 #define OPLUS_CHG_TRACK_CURX_INFO_LEN 1536
+#define TRACK_CHG_GET_THTS_TIME_TYPE 0
+#define TRACK_CHG_GET_LAST_TIME_TYPE 1
 
 struct oplus_chg_track;
 struct oplus_monitor;
@@ -18,16 +20,19 @@ enum oplus_chg_track_cmd_error {
 };
 
 enum oplus_chg_track_info_type {
+	TRACK_NOTIFY_TYPE_DEFAULT,
 	TRACK_NOTIFY_TYPE_SOC_JUMP,
 	TRACK_NOTIFY_TYPE_GENERAL_RECORD,
 	TRACK_NOTIFY_TYPE_NO_CHARGING,
 	TRACK_NOTIFY_TYPE_CHARGING_SLOW,
 	TRACK_NOTIFY_TYPE_CHARGING_BREAK,
 	TRACK_NOTIFY_TYPE_DEVICE_ABNORMAL,
+	TRACK_NOTIFY_TYPE_IC_ERROR,
 	TRACK_NOTIFY_TYPE_MAX,
 };
 
 enum oplus_chg_track_info_flag {
+	TRACK_NOTIFY_FLAG_DEFAULT,
 	TRACK_NOTIFY_FLAG_UI_SOC_LOAD_JUMP,
 	TRACK_NOTIFY_FLAG_SOC_JUMP,
 	TRACK_NOTIFY_FLAG_UI_SOC_JUMP,
@@ -56,6 +61,12 @@ enum oplus_chg_track_info_flag {
 	TRACK_NOTIFY_FLAG_WLS_CHARGING_BREAK,
 
 	TRACK_NOTIFY_FLAG_WLS_TRX_ABNORMAL,
+	TRACK_NOTIFY_FLAG_GPIO_ABNORMAL,
+	TRACK_NOTIFY_FLAG_CP_ABNORMAL,
+	TRACK_NOTIFY_FLAG_PLAT_PMIC_ABNORMAL,
+	TRACK_NOTIFY_FLAG_EXTERN_PMIC_ABNORMAL,
+	TRACK_NOTIFY_FLAG_GAGUE_ABNORMAL,
+	TRACK_NOTIFY_FLAG_DCHG_ABNORMAL,
 	TRACK_NOTIFY_FLAG_MAX_CNT,
 };
 
@@ -72,5 +83,7 @@ int oplus_chg_track_driver_init(struct oplus_monitor *monitor);
 int oplus_chg_track_driver_exit(struct oplus_monitor *monitor);
 int oplus_chg_track_set_uisoc_1_start(struct oplus_monitor *monitor);
 int oplus_chg_track_charge_full(struct oplus_monitor *monitor);
+int oplus_chg_track_cal_tbatt_status(struct oplus_monitor *monitor);
+int oplus_chg_track_handle_wired_type_info(struct oplus_monitor *monitor, int type);
 
 #endif /* __OPLUS_CHG_TRACK_H__ */

@@ -40,7 +40,7 @@ static struct chip_sc8571 *chip_sc8571_master = NULL;
 
 static struct mutex i2c_rw_lock;
 static bool error_reported = false;
-/*extern void oplus_chg_sc8571_error(int report_flag, int *buf, int len);*/
+extern void oplus_chg_sc8571_error(int report_flag, int *buf, int ret);
 
 bool sc8571_master_get_enable(void);
 
@@ -58,8 +58,8 @@ static void sc8571_i2c_error(bool happen)
 	if (happen) {
 		chip->pps_iic_err = 1;
 		chip->pps_iic_err_num++;
-		report_flag |= (1 << 0);
-/*		oplus_chg_sc8571_error(report_flag, NULL, 0);*/
+		report_flag |= (1 << PPS_REPORT_ERROR_MASTER_I2C);
+		oplus_chg_sc8571_error(report_flag, NULL, 0);
 		if (chip->pps_iic_err_num >= 10) {
 			error_reported = true;
 		}
@@ -76,6 +76,7 @@ static int __sc8571_read_byte(u8 reg, u8 *data)
 	if (ret < 0) {
 		sc8571_i2c_error(true);
 		pr_err("i2c read fail: can't read from reg 0x%02X\n", reg);
+		oplus_pps_notify_master_cp_error();
 		return ret;
 	}
 
@@ -95,6 +96,7 @@ static int __sc8571_write_byte(int reg, u8 val)
 		sc8571_i2c_error(true);
 		pr_err("i2c write fail: can't write 0x%02X to reg 0x%02X: %d\n",
 		       val, reg, ret);
+		oplus_pps_notify_master_cp_error();
 		return ret;
 	}
 
@@ -136,6 +138,7 @@ static int sc8571_read_word(u8 reg, u8 *data_block)
 		sc8571_i2c_error(true);
 		chg_err("i2c read word fail: can't read reg:0x%02X \n", reg);
 		mutex_unlock(&i2c_rw_lock);
+		oplus_pps_notify_master_cp_error();
 		return ret;
 	}
 	mutex_unlock(&i2c_rw_lock);
@@ -187,7 +190,7 @@ int sc8571_master_get_ucp_flag(void)
 	ret = sc8571_read_byte(SC8571_REG_19, &temp);
 	if (ret < 0) {
 		pr_err("SC8571_REG_19\n");
-		return -1;
+		return 0;
 	}
 
 	ucp_fail =(temp & SC8571_BUS_UCP_FALL_FLAG_MASK) >> SC8571_BUS_UCP_FALL_FLAG_SHIFT;
@@ -222,6 +225,7 @@ int sc8571_master_get_int_value(void)
 	addr = SC8571_REG_1C - SC8571_REG_18 + 1;
 	ret = sc8571_read_byte(SC8571_REG_42, &int_column[addr]);
 	memcpy(chip->int_column, int_column, sizeof(chip->int_column));
+	oplus_pps_print_dbg_info(chip);
 	return 0;
 }
 

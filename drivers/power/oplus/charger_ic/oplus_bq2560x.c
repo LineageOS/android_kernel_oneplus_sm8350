@@ -35,6 +35,7 @@
 #include <linux/reboot.h>
 #include <linux/regmap.h>
 #include <mt-plat/upmu_common.h>
+#include "../oplus_chg_track.h"
 
 #include <mt6357-pulse-charger.h>
 #include <charger_class.h>
@@ -163,7 +164,6 @@ struct bq2560x {
 	struct mutex i2c_rw_lock;
 	struct mutex chgdet_en_lock;
 
-	atomic_t charger_suspended;
 	bool chg_det_enable;
 	bool charge_enabled;/* Register bit status */
 	bool power_good;
@@ -884,10 +884,6 @@ int bq2560x_set_input_current_limit(struct bq2560x *bq, int curr)
 {
 	u8 val;
 
-	if (atomic_read(&g_bq->charger_suspended) == 1) {
-		chg_err("[BQ2560X]in suspend,don't set input_current_limit\n");
-		return 0;
-	}
 	if (curr < REG00_IINLIM_BASE)
 		curr = REG00_IINLIM_BASE;
 
@@ -1977,6 +1973,7 @@ static irqreturn_t bq2560x_irq_handler(int irq, void *data)
 	if (!prev_pg && bq->power_good) {
 		get_monotonic_boottime(&bq->ptime[0]);
 		g_bq->psy_online = true;
+		oplus_chg_track_check_wired_charging_break(g_bq->psy_online);
 
 		bq2560x_inform_charger_type(bq);
 		bq2560x_inform_online_type(bq);
@@ -1991,6 +1988,7 @@ static irqreturn_t bq2560x_irq_handler(int irq, void *data)
 			return IRQ_HANDLED;
 		}
 		bq->psy_online = false;
+		oplus_chg_track_check_wired_charging_break(bq->psy_online);
 		bq->pre_current_ma = -1;
 		bq->chg_type = CHARGER_UNKNOWN;
 		bq->oplus_chg_type = POWER_SUPPLY_TYPE_UNKNOWN;
@@ -2264,6 +2262,12 @@ int oplus_bq2560x_set_aicr(int current_ma)
 			aicl_point_temp = aicl_point = SW_AICL_POINT_VOL_5V_PHASE1;
 	}
 	chg_err("[BQ2560X] [current_ma:%d, chg_vol:%d, batt_volt:%d ,aicl_point:%d]\n", current_ma, chg_vol, chip->batt_volt, aicl_point);
+	if (chip->stop_chg == 0 && ((g_bq->oplus_chg_type == POWER_SUPPLY_TYPE_USB || g_bq->oplus_chg_type == POWER_SUPPLY_TYPE_USB_CDP)
+		|| chip->mmi_chg == 0)) {
+		bq2560x_disable_charger(g_bq);
+		i = 0;
+		goto aicl_end;
+	}
 
 	if (current_ma < 500) {
 		i = 0;
@@ -2630,7 +2634,6 @@ int oplus_bq2560x_charger_suspend(void)
 			bq2560x_disable_charger(g_bq);
 		}
 	}
-	atomic_set(&g_bq->charger_suspended, 1);
 
 	return 0;
 }
@@ -2641,7 +2644,6 @@ int oplus_bq2560x_charger_unsuspend(void)
 	int ret = 0;
 	int boot_mode = get_boot_mode();
 
-	atomic_set(&g_bq->charger_suspended, 0);
 	if (strcmp(g_bq->chg_dev_name, "primary_chg") == 0) {
 		if((g_oplus_chip != NULL) && (g_oplus_chip->is_double_charger_support)) {
 			g_oplus_chip->sub_chg_ops->charger_unsuspend();
@@ -3371,6 +3373,7 @@ static int bq2560x_charger_remove(struct i2c_client *client)
 
 static void bq2560x_charger_shutdown(struct i2c_client *client)
 {
+	oplus_bq2560x_disable_otg();
 }
 
 static struct of_device_id bq2560x_charger_match_table[] = {

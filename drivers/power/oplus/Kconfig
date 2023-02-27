@@ -53,9 +53,7 @@ depends on I2C
 	help
 	  Enables support for the oplus charging v1 framework
 
-if OPLUS_CHG
 source "drivers/power/oplus/v1/Kconfig"
-endif
 
 menuconfig OPLUS_CHG_V2
 	tristate "OPLUS charging V2 system"
