@@ -31,7 +31,9 @@ static void g_dump_waker_stack(unsigned int waker_nr_entries, unsigned long *wak
 
 	for (i = waker_nr_entries - 1; i >= 0; i--) {
 		snprintf(buf, sizeof(buf), "%pS\n", (void *)waker_entries[i]);
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk(buf);
+#endif
 	}
 }
 
@@ -42,7 +44,9 @@ static void g_dump_wakee_stack(unsigned int wakee_nr_entries, unsigned long *wak
 
 	for (i = wakee_nr_entries - 1; i >= 0; i--) {
 		snprintf(buf, sizeof(buf), "%pS\n", (void *)wakee_entries[i]);
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk(buf);
+#endif
 	}
 }
 
@@ -76,7 +80,9 @@ static void g_dstate_dump_stack(struct task_struct *task, u64 delay_ms)
 		", waker:%s tid:%d pid:%d, wakee:%s tid:%d pid:%d, blocked_func=%pS\n",
 		delay_ms, waker_nr_entries, wakee_nr_entries,
 		current->comm, current->pid, current->tgid, task->comm, task->pid, task->tgid, caller);
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 	trace_printk(buf);
+#endif
 
 	g_dump_waker_stack(waker_nr_entries, waker_entries);
 	g_dump_wakee_stack(wakee_nr_entries, wakee_entries);
