@@ -41,7 +41,3 @@ obj-$(CONFIG_OPLUS_DEVICE_IFNO)  +=  oplus/device_info/
 #ifdef OPLUS_FEATURE_ESIM
 obj-y += oplus/misc/
 #endif /* OPLUS_FEATURE_ESIM */
-
-#ifdef OPLUS_FEATURE_GAME_OPT
-obj-$(CONFIG_OPLUS_FEATURE_GAME_OPT) += oplus/game_opt/
-#endif /* OPLUS_FEATURE_GAME_OPT */
