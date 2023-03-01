@@ -65,10 +65,10 @@ void ufs_latency_hist_handle(void *data, struct ufs_hba *hba , struct ufshcd_lrb
 		u_int64_t delta_us = ktime_us_delta(lrbp->compl_time_stamp, lrbp->issue_time_stamp);
 
 		if((5000 < delta_us) && oplus_ufs_bio_has_data(lrbp->cmd->request->bio)){
-			trace_printk("ufs_io_latency:%06lld us, io_type:%s, LBA:%08x, size:%d\n",
-					delta_us, (rq_data_dir(lrbp->cmd->request) == READ) ? "R" : "W",
-					(unsigned int)lrbp->cmd->request->bio->bi_iter.bi_sector,
-					lrbp->cmd->sdb.length);
+			//trace_printk("ufs_io_latency:%06lld us, io_type:%s, LBA:%08x, size:%d\n",
+			//		delta_us, (rq_data_dir(lrbp->cmd->request) == READ) ? "R" : "W",
+			//		(unsigned int)lrbp->cmd->request->bio->bi_iter.bi_sector,
+			//		lrbp->cmd->sdb.length);
 		}
 	}
 		
