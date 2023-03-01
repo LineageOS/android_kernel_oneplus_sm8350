@@ -34,6 +34,24 @@
       "parentUuid": "bfc5b252_a5e28215",
       "revId": "6479957283339c9ec127215f46741ae0cf2d35b4",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "af01b3ba_8f126f81",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 4
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2023-03-01T15:44:29Z",
+      "side": 1,
+      "message": "we did the same for oneplus 8350, but just to be safe, we are disabling freezer until lineage-21.",
+      "parentUuid": "41741b8a_96eaadbe",
+      "revId": "6479957283339c9ec127215f46741ae0cf2d35b4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ],
   "submitRequirementResults": []
