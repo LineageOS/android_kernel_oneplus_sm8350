@@ -27,7 +27,7 @@ config OPLUS_FEATURE_CHARGERPRESENT
 config OPLUS_FEATURE_BUILDVARIANT
   tristate "Oplus buildvariant"
   default n
-  help 
+  help
       define this config to get buildvariant cmdline.
 
 config OPLUS_FEATURE_SIMCARDNUM
@@ -43,7 +43,7 @@ config OPLUS_FEATURE_CDT
       define this config to get cdt_integrity cmdline.
 
 config OPLUS_FEATURE_SHUTDOWN_SPEED
-	tristate "Oplus shutdown speed"
-	default n
-	help
-	  define this config to get shutdown_speed cmdline.
+   tristate "Oplus shutdown speed"
+   default n
+   help
+      define this config to get shutdown_speed cmdline.
