@@ -70,5 +70,12 @@ config OPLUS_SHIP_MODE_SUPPORT
 	default n
 	help
 	  Say Y to include support
+
+config OPLUS_CHG_OP9RT_PMIC_VOOCPHY
+	bool "OPLUS_CHG_OP9RT_PMIC_VOOCPHY"
+	default n
+	help
+	  Say Y to include support
+
 source "drivers/power/oplus/Kconfig"
 #endif
