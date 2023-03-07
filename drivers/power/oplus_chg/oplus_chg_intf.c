@@ -1555,7 +1555,7 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = 2200000; //BSP,temp fix xts
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL_DESIGN:
-		pval->intval = chip->batt_fcc * 1000;
+		pval->intval = chip->batt_capacity_mah * 1000;
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL:
 		pval->intval = chip->batt_fcc * 1000;
