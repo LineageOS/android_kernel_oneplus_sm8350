@@ -7088,12 +7088,7 @@ int oplus_set_otg_switch_status(bool enable)
 		return rc;
 	}
 
-	chip->otg_switch = !!enable;
-	if (enable) {
-		oplus_ccdetect_enable();
-	} else {
-		oplus_ccdetect_disable();
-	}
+	oplus_ccdetect_enable();
 	printk(KERN_ERR "[OPLUS_CHG][%s]: otg_switch=%d, otg_online=%d\n",
 		__func__, chip->otg_switch, chip->otg_online);
 
