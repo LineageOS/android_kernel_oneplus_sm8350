@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "4127b563_619541bd",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2023-03-09T14:32:31Z",
+      "side": 1,
+      "message": "Will be included with the qcom8530 kernel merge. https://review.lineageos.org/c/LineageOS/android_kernel_qcom_sm8350/+/350677",
+      "revId": "acecbbbc74119dc0bb22a6571baa2a908151a6c4",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
