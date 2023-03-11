@@ -1,6 +1,6 @@
 
 / {
-	oppo,dtsi_no = <19825 19815>;
+	oplus,dtsi_no = <19825 19815>;
 	aliases {
 		/* #ifdef OPLUS_ARCH_EXTENDS */
 		i2c4 = &qupv3_se19_i2c;
