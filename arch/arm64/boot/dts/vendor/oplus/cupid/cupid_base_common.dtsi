@@ -98,9 +98,3 @@ delete note  and status = "disabled" to "ok"  add here also, other will meet can
 &usb1 {
 	/delete-property/ extcon;
 };
-
-
-
-/ {
-	oppo,dtsi_no = <20627>;
-};
