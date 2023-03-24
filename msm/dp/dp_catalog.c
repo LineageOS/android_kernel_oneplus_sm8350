@@ -2287,6 +2287,16 @@ end:
 	return 0;
 }
 
+static void dp_catalog_hpd_set_edp_mode(struct dp_catalog_hpd *hpd, bool is_edp)
+{
+	if (!hpd) {
+		DP_ERR("invalid input\n");
+		return;
+	}
+
+	hpd->is_edp = is_edp;
+}
+
 static void dp_catalog_hpd_config_hpd(struct dp_catalog_hpd *hpd, bool en)
 {
 	struct dp_catalog_private *catalog;
@@ -2303,9 +2313,15 @@ static void dp_catalog_hpd_config_hpd(struct dp_catalog_hpd *hpd, bool en)
 	if (en) {
 		u32 reftimer = dp_read(DP_DP_HPD_REFTIMER);
 
-		/* Arm only the UNPLUG and HPD_IRQ interrupts */
+		/*
+		 * Arm only the UNPLUG and HPD_IRQ interrupts for DP
+		 * whereas for EDP arm only the HPD_IRQ interrupt
+		 */
 		dp_write(DP_DP_HPD_INT_ACK, 0xF);
-		dp_write(DP_DP_HPD_INT_MASK, 0xA);
+		if (hpd->is_edp)
+			dp_write(DP_DP_HPD_INT_MASK, 0x2);
+		else
+			dp_write(DP_DP_HPD_INT_MASK, 0xA);
 
 		/* Enable REFTIMER to count 1ms */
 		reftimer |= BIT(16);
@@ -2326,7 +2342,7 @@ static void dp_catalog_hpd_config_hpd(struct dp_catalog_hpd *hpd, bool en)
 
 static u32 dp_catalog_hpd_get_interrupt(struct dp_catalog_hpd *hpd)
 {
-	u32 isr = 0;
+	u32 isr = 0, isr_mask = 0;
 	struct dp_catalog_private *catalog;
 	struct dp_io_data *io_data;
 
@@ -2341,7 +2357,9 @@ static u32 dp_catalog_hpd_get_interrupt(struct dp_catalog_hpd *hpd)
 	isr = dp_read(DP_DP_HPD_INT_STATUS);
 	dp_write(DP_DP_HPD_INT_ACK, (isr & 0xf));
 
-	return isr;
+	isr_mask = dp_read(DP_DP_HPD_INT_MASK);
+
+	return (isr & isr_mask);
 }
 
 static bool dp_catalog_hpd_wait_for_edp_panel_ready(struct dp_catalog_hpd *hpd)
@@ -2865,6 +2883,7 @@ struct dp_catalog *dp_catalog_get(struct device *dev, struct dp_parser *parser)
 		.config_hpd	= dp_catalog_hpd_config_hpd,
 		.get_interrupt	= dp_catalog_hpd_get_interrupt,
 		.wait_for_edp_panel_ready = dp_catalog_hpd_wait_for_edp_panel_ready,
+		.set_edp_mode = dp_catalog_hpd_set_edp_mode,
 	};
 	struct dp_catalog_audio audio = {
 		.init       = dp_catalog_audio_init,
