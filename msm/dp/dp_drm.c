@@ -457,8 +457,15 @@ int dp_connector_get_info(struct drm_connector *connector,
 	info->num_of_h_tiles = 1;
 	info->h_tile_instance[0] = 0;
 	info->is_connected = display->is_sst_connected;
-	info->capabilities = MSM_DISPLAY_CAP_VID_MODE | MSM_DISPLAY_CAP_EDID |
-		MSM_DISPLAY_CAP_HOT_PLUG;
+	info->curr_panel_mode = MSM_DISPLAY_VIDEO_MODE;
+	info->capabilities = MSM_DISPLAY_CAP_VID_MODE | MSM_DISPLAY_CAP_EDID;
+
+	if (display && display->is_edp) {
+		info->intf_type = DRM_MODE_CONNECTOR_eDP;
+		info->display_type = SDE_CONNECTOR_PRIMARY;
+	} else {
+		info->capabilities |= MSM_DISPLAY_CAP_HOT_PLUG;
+	}
 
 	return 0;
 }
