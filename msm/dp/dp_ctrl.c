@@ -621,6 +621,14 @@ static void dp_ctrl_set_clock_rate(struct dp_ctrl_private *ctrl,
 {
 	u32 num = ctrl->parser->mp[clk_type].num_clk;
 	struct dss_clk *cfg = ctrl->parser->mp[clk_type].clk_config;
+	struct dp_catalog *catalog;
+
+	catalog = container_of(ctrl->catalog, struct dp_catalog, ctrl);
+
+	if (catalog->hpd.is_edp) {
+		/* convert to HZ for byte2 ops */
+		rate *= 1000;
+	}
 
 	while (num && strcmp(cfg->clk_name, name)) {
 		num--;
