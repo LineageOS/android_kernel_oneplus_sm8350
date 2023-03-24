@@ -26,6 +26,20 @@ enum dp_pm_type {
 	DP_MAX_PM
 };
 
+enum dp_pin_states {
+	DP_GPIO_AUX_ENABLE,
+	DP_GPIO_AUX_SEL,
+	DP_GPIO_USBPLUG_CC,
+	DP_GPIO_CMN_MAX = DP_GPIO_USBPLUG_CC,
+	DP_GPIO_EDP_VCC_EN,
+	DP_GPIO_EDP_MIN = DP_GPIO_EDP_VCC_EN,
+	DP_GPIO_EDP_BACKLIGHT_PWR,
+	DP_GPIO_EDP_PWM,
+	DP_GPIO_EDP_BACKLIGHT_EN,
+	DP_GPIO_EDP_MAX,
+	DP_GPIO_MAX = DP_GPIO_EDP_MAX,
+};
+
 static inline const char *dp_parser_pm_name(enum dp_pm_type module)
 {
 	switch (module) {

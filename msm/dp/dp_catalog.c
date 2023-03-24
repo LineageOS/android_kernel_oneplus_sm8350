@@ -11,6 +11,8 @@
 #include "dp_catalog.h"
 #include "dp_reg.h"
 #include "dp_debug.h"
+#include "dp_link.h"
+#include "dp_lphw_hpd.h"
 
 #define DP_GET_MSB(x)	(x >> 8)
 #define DP_GET_LSB(x)	(x & 0xff)
@@ -2342,6 +2344,32 @@ static u32 dp_catalog_hpd_get_interrupt(struct dp_catalog_hpd *hpd)
 	return isr;
 }
 
+static bool dp_catalog_hpd_wait_for_edp_panel_ready(struct dp_catalog_hpd *hpd)
+{
+	u32 reg, state;
+	void __iomem *base;
+	bool success = true;
+	u32 const poll_sleep_us = 2000;
+	u32 const pll_timeout_us = 1000000;
+	struct dp_catalog_private *catalog;
+
+	catalog = dp_catalog_get_priv(hpd);
+
+	base = catalog->io.dp_aux->io.base;
+
+	reg = DP_DP_HPD_INT_STATUS;
+
+	if (readl_poll_timeout_atomic((base + reg), state,
+			((state & DP_HPD_STATE_STATUS_CONNECTED) > 0),
+			poll_sleep_us, pll_timeout_us)) {
+		DP_ERR("DP_HPD_STATE_STATUS CONNECTED bit is still low, status=%x\n", state);
+
+		success = false;
+	}
+
+	return success;
+}
+
 static void dp_catalog_audio_init(struct dp_catalog_audio *audio)
 {
 	struct dp_catalog_private *catalog;
@@ -2836,6 +2864,7 @@ struct dp_catalog *dp_catalog_get(struct device *dev, struct dp_parser *parser)
 	struct dp_catalog_hpd hpd = {
 		.config_hpd	= dp_catalog_hpd_config_hpd,
 		.get_interrupt	= dp_catalog_hpd_get_interrupt,
+		.wait_for_edp_panel_ready = dp_catalog_hpd_wait_for_edp_panel_ready,
 	};
 	struct dp_catalog_audio audio = {
 		.init       = dp_catalog_audio_init,

@@ -1069,6 +1069,32 @@ error_ctrl:
 	return rc;
 }
 
+static int dp_display_panel_ready(struct dp_display_private *dp)
+{
+	int rc = 0;
+
+	if (dp->dp_display.is_edp) {
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_VCC_EN, true);
+		if (rc) {
+			DP_ERR("Cannot turn edp panel power on");
+			return rc;
+		}
+
+		if (!(dp->catalog->hpd.wait_for_edp_panel_ready(&dp->catalog->hpd))) {
+			DP_ERR("EDP PANEL is not ready yet, powering off panel\n");
+			rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_VCC_EN, false);
+			if (rc) {
+				DP_ERR("Cannot turn edp panel power off");
+				return rc;
+			}
+			return -ETIMEDOUT;
+		}
+	}
+	dp->panel->init(dp->panel);
+
+	return 0;
+}
+
 static int dp_display_host_ready(struct dp_display_private *dp)
 {
 	int rc = 0;
@@ -1106,7 +1132,6 @@ static int dp_display_host_ready(struct dp_display_private *dp)
 	dp->ctrl->abort(dp->ctrl, false);
 
 	dp->aux->init(dp->aux, dp->parser->aux_cfg);
-	dp->panel->init(dp->panel);
 
 	dp_display_state_add(DP_STATE_READY);
 	/* log this as it results from user action of cable connection */
@@ -1219,6 +1244,8 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 		dp_display_state_show("[ready failed]");
 		goto end;
 	}
+
+	rc = dp_display_panel_ready(dp);
 
 	dp->link->psm_config(dp->link, &dp->panel->link_info, false);
 	dp->debug->psm_enabled = false;
@@ -2164,6 +2191,7 @@ static int dp_display_prepare(struct dp_display *dp_display, void *panel)
 	struct dp_display_private *dp;
 	struct dp_panel *dp_panel;
 	int rc = 0;
+	bool shallow_mode = true;
 
 	if (!dp_display || !panel) {
 		DP_ERR("invalid input\n");
@@ -2243,6 +2271,13 @@ static int dp_display_prepare(struct dp_display *dp_display, void *panel)
 		goto end;
 	}
 
+	rc = dp_display_panel_ready(dp);
+	if (rc) {
+		dp_display_host_unready(dp);
+		dp_display_host_deinit(dp);
+		goto end;
+	}
+
 	if (dp->debug->psm_enabled) {
 		dp->link->psm_config(dp->link, &dp->panel->link_info, false);
 		dp->debug->psm_enabled = false;
@@ -2259,7 +2294,7 @@ static int dp_display_prepare(struct dp_display *dp_display, void *panel)
 	 * and required things.
 	 */
 	rc = dp->ctrl->on(dp->ctrl, dp->mst.mst_active, dp_panel->fec_en,
-			dp_panel->dsc_en, true);
+			dp_panel->dsc_en, shallow_mode);
 	if (rc)
 		goto end;
 
@@ -2381,6 +2416,23 @@ static int dp_display_enable(struct dp_display *dp_display, void *panel)
 	if (rc)
 		goto end;
 
+	/*edp backlight enable and edp pwm enable*/
+	if (dp_display->is_edp) {
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_PWR, true);
+		if (rc) {
+			DP_ERR("Cannot turn edp backlight power on");
+			goto end;
+		}
+
+		usleep_range(99000, 100000);
+
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_PWM, true);
+		if (rc) {
+			DP_ERR("Cannot turn edp PWM on ");
+			goto end;
+		}
+	}
+
 	dp_display_update_dsc_resources(dp, panel, true);
 	dp_display_state_add(DP_STATE_ENABLED);
 end:
@@ -2400,6 +2452,7 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 {
 	struct dp_display_private *dp;
 	struct dp_panel *dp_panel;
+	int rc = 0;
 
 	if (!dp_display || !panel) {
 		DP_ERR("invalid input\n");
@@ -2437,6 +2490,14 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 	}
 
 	dp_display_stream_post_enable(dp, dp_panel);
+
+	if (dp_display->is_edp) {
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_EN, true);
+		if (rc) {
+			DP_ERR("Cannot turn edp backlight power on");
+			goto end;
+		}
+	}
 
 	cancel_delayed_work_sync(&dp->hdcp_cb_work);
 	queue_delayed_work(dp->wq, &dp->hdcp_cb_work, HZ);
@@ -2491,6 +2552,14 @@ static int dp_display_pre_disable(struct dp_display *dp_display, void *panel)
 		goto end;
 	}
 
+	if (dp_display->is_edp) {
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_EN, false);
+		if (rc) {
+			DP_ERR("Cannot turn edp backlight power off");
+			goto end;
+		}
+	}
+
 	dp_display_state_add(DP_STATE_HDCP_ABORTED);
 	cancel_delayed_work_sync(&dp->hdcp_cb_work);
 	if (dp_display_is_hdcp_enabled(dp) &&
@@ -2539,7 +2608,7 @@ end:
 
 static int dp_display_disable(struct dp_display *dp_display, void *panel)
 {
-	int i;
+	int i, rc = 0;
 	struct dp_display_private *dp = NULL;
 	struct dp_panel *dp_panel = NULL;
 	struct dp_link_hdcp_status *status;
@@ -2564,6 +2633,16 @@ static int dp_display_disable(struct dp_display *dp_display, void *panel)
 	if (!dp_display_state_is(DP_STATE_READY)) {
 		dp_display_state_show("[not ready]");
 		goto end;
+	}
+
+	if (dp_display->is_edp) {
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_PWR, false);
+		if (rc)
+			DP_ERR("Cannot turn edp backlight power off\n");
+
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_PWM, false);
+		if (rc)
+			DP_ERR("Cannot turn edp PWM off\n");
 	}
 
 	dp_display_stream_disable(dp, dp_panel);
@@ -2634,6 +2713,7 @@ static int dp_display_unprepare(struct dp_display *dp_display, void *panel)
 	struct dp_display_private *dp;
 	struct dp_panel *dp_panel = panel;
 	u32 flags = 0;
+	int rc = 0;
 
 	if (!dp_display || !panel) {
 		DP_ERR("invalid input\n");
@@ -2671,6 +2751,13 @@ static int dp_display_unprepare(struct dp_display *dp_display, void *panel)
 		dp_display_state_add(DP_STATE_SRC_PWRDN);
 	}
 
+	if (dp_display->is_edp) {
+		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_VCC_EN, false);
+		if (rc) {
+			DP_ERR("Cannot turn edp panel power off\n");
+			goto end;
+		}
+	}
 	dp_display_state_remove(DP_STATE_ENABLED);
 	dp->aux->state = DP_STATE_CTRL_POWERED_OFF;
 
@@ -2689,18 +2776,25 @@ end:
 static int dp_display_validate_link_clock(struct dp_display_private *dp,
 		struct drm_display_mode *mode, struct dp_display_mode dp_mode)
 {
-	u32 mode_rate_khz = 0, supported_rate_khz = 0, mode_bpp = 0;
+	u32 mode_rate_khz = 0, supported_rate_khz = 0, mode_bpp = 0, lane_count = 0;
 	bool dsc_en;
-	int rate;
+	int rate = 0;
 
 	dsc_en = (dp_mode.timing.comp_info.comp_ratio > 1) ? true : false;
 	mode_bpp = dsc_en ?
 		DSC_BPP(dp_mode.timing.comp_info.dsc_info.config)
 		: dp_mode.timing.bpp;
 
+	if (dp->dp_display.is_edp) {
+		rate = dp->panel->link_info.rate;
+		lane_count = dp->panel->link_info.num_lanes;
+	} else {
+		rate = drm_dp_bw_code_to_link_rate(dp->link->link_params.bw_code);
+		lane_count =  dp->link->link_params.lane_count;
+	}
+
 	mode_rate_khz = mode->clock * mode_bpp;
-	rate = drm_dp_bw_code_to_link_rate(dp->link->link_params.bw_code);
-	supported_rate_khz = dp->link->link_params.lane_count * rate * 8;
+	supported_rate_khz = lane_count * rate * 8;
 
 	if (mode_rate_khz > supported_rate_khz) {
 		DP_DEBUG("mode_rate: %d kHz, supported_rate: %d kHz\n",
@@ -3607,6 +3701,71 @@ static int dp_display_mst_get_fixed_topology_display_type(
 	return 0;
 }
 
+static int dp_display_edp_detect(struct dp_display *dp_display)
+{
+	struct device *dev;
+	struct dp_display_private *dp;
+	int rc = 0;
+
+	dp = container_of(dp_display, struct dp_display_private, dp_display);
+	dev = &dp->pdev->dev;
+
+	if (dp->dp_display.is_sst_connected)
+		return rc;
+
+	mutex_lock(&dp->session_lock);
+
+	rc = dp_display_host_init(dp);
+	if (rc) {
+		DP_ERR("Host init Failed");
+		goto end;
+	}
+
+	dp->dp_display.is_sst_connected = true;
+	dp->hpd->hpd_high = true;
+	dp->hpd->alt_mode_cfg_done = true;
+
+	dp->dp_display.max_pclk_khz = min(dp->parser->max_pclk_khz, dp->debug->max_pclk_khz);
+
+	rc = dp_display_host_ready(dp);
+	if (rc) {
+		dp_display_state_show("[ready failed]");
+		dp_display_host_deinit(dp);
+		goto end;
+	}
+
+	rc = dp_display_panel_ready(dp);
+	if (rc) {
+		dp_display_host_unready(dp);
+		dp_display_host_deinit(dp);
+		goto end;
+	}
+
+	dp->link->psm_config(dp->link, &dp->panel->link_info, false);
+	dp->debug->psm_enabled = false;
+
+	rc = dp->panel->read_sink_caps(dp->panel,
+			dp->dp_display.base_connector, dp->hpd->multi_func);
+
+	if (rc == -ETIMEDOUT || rc == -ENOTCONN)
+		goto end;
+
+	dp_display_state_remove(DP_STATE_ABORTED);
+	dp_display_state_add(DP_STATE_CONFIGURED);
+	dp_display_state_add(DP_STATE_CONNECTED);
+
+	dp->link->process_request(dp->link);
+	dp->panel->handle_sink_request(dp->panel);
+
+	dp_display_state_add(DP_STATE_CONNECT_NOTIFIED);
+	dp_display_state_remove(DP_STATE_DISCONNECT_NOTIFIED);
+
+	dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_VCC_EN, false);
+end:
+	mutex_unlock(&dp->session_lock);
+	return rc;
+}
+
 static int dp_display_probe(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -3697,6 +3856,7 @@ static int dp_display_probe(struct platform_device *pdev)
 				dp_display_mst_get_fixed_topology_display_type;
 
 	g_dp_display->is_edp = (info->display_type == DRM_MODE_CONNECTOR_eDP) ? true : false;
+	g_dp_display->edp_detect = dp_display_edp_detect;
 
 	rc = component_add(&pdev->dev, &dp_display_comp_ops);
 	if (rc) {

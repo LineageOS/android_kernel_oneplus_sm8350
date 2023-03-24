@@ -108,6 +108,7 @@ struct dp_catalog_ctrl {
 struct dp_catalog_hpd {
 	void (*config_hpd)(struct dp_catalog_hpd *hpd, bool en);
 	u32 (*get_interrupt)(struct dp_catalog_hpd *hpd);
+	bool (*wait_for_edp_panel_ready)(struct dp_catalog_hpd *hpd);
 };
 
 #define HEADER_BYTE_2_BIT	 0

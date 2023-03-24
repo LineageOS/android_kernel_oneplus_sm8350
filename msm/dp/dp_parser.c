@@ -258,23 +258,26 @@ static int dp_parser_gpio(struct dp_parser *parser)
 	struct device *dev = &parser->pdev->dev;
 	struct device_node *of_node = dev->of_node;
 	struct dss_module_power *mp = &parser->mp[DP_CORE_PM];
-	static const char * const dp_gpios[] = {
+	static const char * const dp_gpios[DP_GPIO_MAX] = {
 		"qcom,aux-en-gpio",
 		"qcom,aux-sel-gpio",
 		"qcom,usbplug-cc-gpio",
+		"qcom,edp-vcc-en-gpio",
+		"qcom,edp-backlight-pwr-gpio",
+		"qcom,edp-pwm-en-gpio",
+		"qcom,edp-backlight-en-gpio",
 	};
 
 	if (of_find_property(of_node, "qcom,dp-hpd-gpio", NULL)) {
 		parser->no_aux_switch = true;
 		parser->lphw_hpd = of_find_property(of_node,
 				"qcom,dp-low-power-hw-hpd", NULL);
-		return 0;
 	}
 
 	if (of_find_property(of_node, "qcom,dp-gpio-aux-switch", NULL))
 		parser->gpio_aux_switch = true;
 	mp->gpio_config = devm_kzalloc(dev,
-		sizeof(struct dss_gpio) * ARRAY_SIZE(dp_gpios), GFP_KERNEL);
+		sizeof(struct dss_gpio) * DP_GPIO_MAX, GFP_KERNEL);
 	if (!mp->gpio_config)
 		return -ENOMEM;
 

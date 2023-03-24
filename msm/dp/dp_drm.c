@@ -476,11 +476,13 @@ enum drm_connector_status dp_connector_detect(struct drm_connector *conn,
 {
 	enum drm_connector_status status = connector_status_unknown;
 	struct msm_display_info info;
+	struct dp_display *dp_disp;
 	int rc;
 
 	if (!conn || !display)
 		return status;
 
+	dp_disp = display;
 	/* get display dp_info */
 	memset(&info, 0x0, sizeof(info));
 	rc = dp_connector_get_info(conn, &info, display);
@@ -489,12 +491,18 @@ enum drm_connector_status dp_connector_detect(struct drm_connector *conn,
 		return connector_status_disconnected;
 	}
 
-	if (info.capabilities & MSM_DISPLAY_CAP_HOT_PLUG)
+	if (info.capabilities & MSM_DISPLAY_CAP_HOT_PLUG) {
 		status = (info.is_connected ? connector_status_connected :
 					      connector_status_disconnected);
-	else
+	} else {
 		status = connector_status_connected;
 
+		rc = dp_disp->edp_detect(dp_disp);
+		if (rc) {
+			DP_ERR("error in turning on panel power sequence rc:%d\n", rc);
+			return connector_status_unknown;
+		}
+	}
 	conn->display_info.width_mm = info.width_mm;
 	conn->display_info.height_mm = info.height_mm;
 
