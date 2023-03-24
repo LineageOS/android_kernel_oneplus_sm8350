@@ -173,6 +173,10 @@ static int dp_parser_misc(struct dp_parser *parser)
 				&parser->pixel_base_off[i]);
 	}
 
+	parser->display_type = of_get_property(of_node, "qcom,display-type", NULL);
+	if (!parser->display_type)
+		parser->display_type = "unknown";
+
 	return 0;
 }
 
@@ -744,6 +748,12 @@ static int dp_parser_mst(struct dp_parser *parser)
 		of_property_read_u32_index(dev->of_node,
 				"qcom,mst-fixed-topology-ports", i,
 				&parser->mst_fixed_port[i]);
+		of_property_read_string_index(
+				dev->of_node,
+				"qcom,mst-fixed-topology-display-types", i,
+				&parser->mst_fixed_display_type[i]);
+		if (!parser->mst_fixed_display_type[i])
+			parser->mst_fixed_display_type[i] = "unknown";
 	}
 
 	return 0;

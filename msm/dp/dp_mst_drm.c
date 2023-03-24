@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  */
 
@@ -2130,11 +2131,36 @@ static void dp_mst_destroy_fixed_connector(struct drm_dp_mst_topology_mgr *mgr,
 	dp_mst_destroy_connector(mgr, connector);
 }
 
+static int dp_mst_fixed_connector_set_info_blob(
+		struct drm_connector *connector,
+		void *info, void *display, struct msm_mode_info *mode_info)
+{
+	struct sde_connector *c_conn = to_sde_connector(connector);
+	struct dp_display *dp_display = display;
+	struct dp_mst_private *mst = dp_display->dp_mst_prv_info;
+	const char *display_type = NULL;
+	int i;
+
+	for (i = 0; i < MAX_DP_MST_DRM_BRIDGES; i++) {
+		if (mst->mst_bridge[i].base.encoder != c_conn->encoder)
+			continue;
+
+		dp_display->mst_get_fixed_topology_display_type(dp_display,
+			mst->mst_bridge[i].id, &display_type);
+		sde_kms_info_add_keystr(info, "display type", display_type);
+
+		break;
+	}
+
+	return 0;
+}
+
 static struct drm_connector *
 dp_mst_drm_fixed_connector_init(struct dp_display *dp_display,
 			struct drm_encoder *encoder)
 {
 	static const struct sde_connector_ops dp_mst_connector_ops = {
+		.set_info_blob = dp_mst_fixed_connector_set_info_blob,
 		.post_init  = dp_mst_connector_post_init,
 		.detect     = dp_mst_fixed_connector_detect,
 		.get_modes  = dp_mst_connector_get_modes,
