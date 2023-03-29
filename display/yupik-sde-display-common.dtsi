@@ -10,6 +10,7 @@
 #include "dsi-panel-r66451-dsc-fhd-plus-144hz-cmd-cphy.dtsi"
 #include "dsi-panel-r66451-dsc-fhd-plus-144hz-video-cphy.dtsi"
 #include "dsi-panel-sim-video.dtsi"
+#include "dsi-panel-ext-bridge-1080p.dtsi"
 #include <dt-bindings/clock/mdss-5nm-pll-clk.h>
 
 &soc {
@@ -348,4 +349,10 @@
 			qcom,default-topology-index = <0>;
 		};
 	};
+};
+
+&dsi_ext_bridge_1080p {
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
+				"src_byte_clk0", "src_pixel_clk0",
+				"shadow_byte_clk0", "shadow_pixel_clk0";
 };
