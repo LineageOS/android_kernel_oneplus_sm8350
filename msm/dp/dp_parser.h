@@ -249,6 +249,7 @@ struct dp_parser {
 	bool gpio_aux_switch;
 	bool lphw_hpd;
 	u32 mst_fixed_port[MAX_DP_MST_STREAMS];
+	u32 pixel_base_off[MAX_DP_MST_STREAMS];
 
 	int (*parse)(struct dp_parser *parser);
 	struct dp_io_data *(*get_io)(struct dp_parser *parser, char *name);
