@@ -7,12 +7,13 @@
 &sde_edp {
 	status = "disabled";
 	pinctrl-names = "mdss_dp_hpd_active", "mdss_dp_hpd_tlmm", "mdss_dp_hpd_ctrl",
-			"mdss_dp_active", "mdss_dp_sleep";
+			"mdss_dp_active", "mdss_dp_sleep", "mdss_edp_bl_pwm";
 	pinctrl-0 = <&edp_hpd_ctrl>;
 	pinctrl-1 = <&edp_hpd_ctrl>;
 	pinctrl-2 = <&edp_hpd_ctrl>;
 	pinctrl-3 = <&edp_hpd_ctrl>;
 	pinctrl-4 = <&edp_hpd_ctrl>;
+	pinctrl-5 = <&pmic_edp_bl_pwm>;
 	qcom,dp-hpd-gpio = <&tlmm 60 0>;
 	qcom,edp-vcc-en-gpio = <&tlmm 80 0>;
 	//qcom,edp-backlight-pwr-gpio = <&tlmm 102 0>;
@@ -46,6 +47,18 @@
 		output-low;
 	};
 
+	pmic_edp_bl_pwm: pmic-edp-bl-pwm-state {
+		pins = "gpio8";
+		function = "func1";
+		bias-disable;
+		qcom,drive-strength = <PMIC_GPIO_STRENGTH_LOW>;
+		/* Force backlight to be disabled to match state at boot. */
+		output-low;
+	};
+};
+
+&pm8350c_pwm_2 {
+	status = "ok";
 };
 
 &soc {
@@ -62,7 +75,7 @@
 		enable-gpios = <&pm8350c_gpios 7 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&pmic_edp_bl_en>;
-		pwms = <&pm8350c_pwm_2 3 65535>;
+		pwms = <&pm8350c_pwm_2 0 65535 0>;
 	};
 };
 
