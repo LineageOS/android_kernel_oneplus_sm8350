@@ -2466,10 +2466,30 @@ static void dp_display_update_dsc_resources(struct dp_display_private *dp,
 	}
 }
 
+static int dp_display_set_pinctrl_state(struct dp_pinctrl *pinctrl,
+		struct pinctrl_state *state)
+{
+	int rc = 0;
+
+	if (pinctrl && !IS_ERR_OR_NULL(state)) {
+		rc = pinctrl_select_state(pinctrl->pin, state);
+		if (rc) {
+			DP_ERR("failed to set pin state, rc=%d\n", rc);
+		}
+	} else {
+		rc = -EINVAL;
+		DP_DEBUG("pinctrl state does not exist\n");
+	}
+
+	return rc;
+}
+
 static int dp_display_enable(struct dp_display *dp_display, void *panel)
 {
 	int rc = 0;
 	struct dp_display_private *dp;
+	struct dp_parser *parser;
+	struct dp_pinctrl *pinctrl;
 
 	if (!dp_display || !panel) {
 		DP_ERR("invalid input\n");
@@ -2519,6 +2539,24 @@ static int dp_display_enable(struct dp_display *dp_display, void *panel)
 		if (rc) {
 			DP_ERR("Cannot turn edp PWM on ");
 			goto end;
+		}
+
+		parser = dp->parser;
+		if (!parser) {
+			DP_ERR("failed to get parser");
+		} else {
+			pinctrl = &parser->pinctrl;
+			pinctrl->pin = devm_pinctrl_get(&dp->parser->pdev->dev);
+
+			if (!IS_ERR_OR_NULL(pinctrl->pin)) {
+				pinctrl->state_bl_pwm = pinctrl_lookup_state(pinctrl->pin,
+					"mdss_edp_bl_pwm");
+				rc = dp_display_set_pinctrl_state(pinctrl, pinctrl->state_bl_pwm);
+				if (rc)
+					DP_DEBUG("failed to set pinctrl, rc=%d\n", rc);
+			} else {
+				DP_DEBUG("failed to get pinctrl");
+			}
 		}
 	}
 
