@@ -30,6 +30,7 @@
 };
 
 &usb1 {
+	qcom,default-mode-none;
 	status = "ok";
 	dwc3@8c00000 {
 		snps,usb2-gadget-lpm-disable;
