@@ -2850,6 +2850,7 @@ static int swrm_probe(struct platform_device *pdev)
 	mutex_init(&swrm->clklock);
 	mutex_init(&swrm->devlock);
 	mutex_init(&swrm->pm_lock);
+	mutex_init(&swrm->runtime_lock);
 	swrm->wlock_holders = 0;
 	swrm->pm_state = SWRM_PM_SLEEPABLE;
 	init_waitqueue_head(&swrm->pm_wq);
@@ -3022,6 +3023,7 @@ err_irq_fail:
 	mutex_destroy(&swrm->clklock);
 	mutex_destroy(&swrm->pm_lock);
 	pm_qos_remove_request(&swrm->pm_qos_req);
+	mutex_destroy(&swrm->runtime_lock);
 
 err_pdata_fail:
 err_memory_fail:
@@ -3061,6 +3063,7 @@ static int swrm_remove(struct platform_device *pdev)
 	mutex_destroy(&swrm->force_down_lock);
 	mutex_destroy(&swrm->pm_lock);
 	pm_qos_remove_request(&swrm->pm_qos_req);
+	mutex_destroy(&swrm->runtime_lock);
 	devm_kfree(&pdev->dev, swrm);
 	return 0;
 }
@@ -3092,6 +3095,7 @@ static int swrm_runtime_resume(struct device *dev)
 
 	dev_dbg(dev, "%s: pm_runtime: resume, state:%d\n",
 		__func__, swrm->state);
+	mutex_lock(&swrm->runtime_lock);
 	mutex_lock(&swrm->reslock);
 
 	if (swrm_request_hw_vote(swrm, LPASS_HW_CORE, true)) {
@@ -3103,6 +3107,7 @@ static int swrm_runtime_resume(struct device *dev)
 		if (swrm->req_clk_switch)
 			swrm->req_clk_switch = false;
 		mutex_unlock(&swrm->reslock);
+		mutex_unlock(&swrm->runtime_lock);
 		return 0;
 	}
 	if (swrm_request_hw_vote(swrm, LPASS_AUDIO_CORE, true)) {
@@ -3120,6 +3125,7 @@ static int swrm_runtime_resume(struct device *dev)
 					pr_err("%s: irq data is NULL\n",
 						__func__);
 					mutex_unlock(&swrm->reslock);
+					mutex_unlock(&swrm->runtime_lock);
 					return IRQ_NONE;
 				}
 				mutex_lock(&swrm->irq_lock);
@@ -3211,6 +3217,7 @@ exit:
 	if (swrm->req_clk_switch)
 		swrm->req_clk_switch = false;
 	mutex_unlock(&swrm->reslock);
+	mutex_unlock(&swrm->runtime_lock);
 
 	return ret;
 }
@@ -3232,6 +3239,7 @@ static int swrm_runtime_suspend(struct device *dev)
 		swrm->state = SWR_MSTR_SSR;
 		return 0;
 	}
+	mutex_lock(&swrm->runtime_lock);
 	mutex_lock(&swrm->reslock);
 	mutex_lock(&swrm->force_down_lock);
 	current_state = swrm->state;
@@ -3329,6 +3337,7 @@ exit:
 	if (!hw_core_err)
 		swrm_request_hw_vote(swrm, LPASS_HW_CORE, false);
 	mutex_unlock(&swrm->reslock);
+	mutex_unlock(&swrm->runtime_lock);
 	dev_dbg(dev, "%s: pm_runtime: suspend done state: %d\n",
 			__func__, swrm->state);
 	pm_runtime_set_autosuspend_delay(dev, auto_suspend_timer);
