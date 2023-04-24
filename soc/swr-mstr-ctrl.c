@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2015-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/irq.h>
@@ -1738,6 +1738,8 @@ static int swrm_slvdev_datapath_control(struct swr_master *master, bool enable)
 		dev_dbg(&master->dev, "%s: pm_runtime auto suspend triggered\n",
 			__func__);
 		pm_runtime_mark_last_busy(swrm->dev);
+		if (!enable)
+			pm_runtime_set_autosuspend_delay(swrm->dev, 80);
 		pm_runtime_put_autosuspend(swrm->dev);
 	}
 exit:
@@ -3327,6 +3329,9 @@ exit:
 	if (!hw_core_err)
 		swrm_request_hw_vote(swrm, LPASS_HW_CORE, false);
 	mutex_unlock(&swrm->reslock);
+	dev_dbg(dev, "%s: pm_runtime: suspend done state: %d\n",
+			__func__, swrm->state);
+	pm_runtime_set_autosuspend_delay(dev, auto_suspend_timer);
 	return ret;
 }
 #endif /* CONFIG_PM */
