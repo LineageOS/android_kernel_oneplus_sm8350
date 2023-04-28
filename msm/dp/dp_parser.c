@@ -177,6 +177,10 @@ static int dp_parser_misc(struct dp_parser *parser)
 	if (!parser->display_type)
 		parser->display_type = "unknown";
 
+	parser->panel_notifier_support = of_property_read_bool(of_node,
+			"qcom,panel-notifier-support");
+	DP_DEBUG("panel-notifier-support = %d\n", parser->panel_notifier_support);
+
 	return 0;
 }
 

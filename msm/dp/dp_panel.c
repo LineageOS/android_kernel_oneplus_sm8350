@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -3015,6 +3016,8 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 	struct dp_panel_private *panel;
 	struct dp_panel *dp_panel;
 	struct sde_connector *sde_conn;
+	struct device *dev;
+	struct device_node *of_node = NULL;
 
 	if (!in->dev || !in->catalog || !in->aux ||
 			!in->link || !in->connector) {
@@ -3025,6 +3028,13 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 
 	panel = devm_kzalloc(in->dev, sizeof(*panel), GFP_KERNEL);
 	if (!panel) {
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	dev = devm_kzalloc(in->dev, sizeof(*dev), GFP_KERNEL);
+	if (!dev) {
+		DP_ERR("failed to allocate dev\n");
 		rc = -ENOMEM;
 		goto error;
 	}
@@ -3087,6 +3097,23 @@ struct dp_panel *dp_panel_get(struct dp_panel_in *in)
 	sde_conn->drv_panel = dp_panel;
 
 	dp_panel_edid_register(panel);
+
+	if (in->is_edp && in->panel_notifier_support) {
+		of_node = of_parse_phandle(in->dev->of_node, "qcom,edp-default-panel", 0);
+		if (!of_node) {
+			DP_ERR("phandle for default panel not found\n");
+		} else {
+			drm_panel_init(&dp_panel->drm_panel);
+			dp_panel->drm_panel.dev = dev;
+			dev->of_node = of_node;
+
+			rc = drm_panel_add(&dp_panel->drm_panel);
+			if (rc)
+				DP_ERR("Failed to add drm_panel\n");
+
+			dp_panel->connector->panel = &dp_panel->drm_panel;
+		}
+	}
 
 	return dp_panel;
 error:
