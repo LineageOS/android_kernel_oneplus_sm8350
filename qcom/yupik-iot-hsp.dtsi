@@ -18,6 +18,14 @@
 	//qcom,edp-backlight-pwr-gpio = <&tlmm 102 0>;
 	qcom,edp-pwm-en-gpio = <&pm8350c_gpios 8 0>;
 	qcom,edp-backlight-en-gpio = <&pm8350c_gpios 7 0>;
+	qcom,edp-default-panel = <&edp_panel_1080p_video>;
+	qcom,panel-notifier-support;
+};
+
+&mdss_mdp {
+	edp_panel_1080p_video: qcom,mdss_edp_panel_1080p_video {
+		status = "ok";
+	};
 };
 
 &tlmm {
