@@ -2095,6 +2095,8 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 	panel_in.connector = dp->dp_display.base_connector;
 	panel_in.base_panel = NULL;
 	panel_in.parser = dp->parser;
+	panel_in.is_edp = dp->dp_display.is_edp;
+	panel_in.panel_notifier_support = dp->parser->panel_notifier_support;
 
 	dp->panel = dp_panel_get(&panel_in);
 	if (IS_ERR(dp->panel)) {
