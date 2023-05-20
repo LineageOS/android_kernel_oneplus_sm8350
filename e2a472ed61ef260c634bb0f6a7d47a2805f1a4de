@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "df63e540_fdcca7c7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 5
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 30416
+      },
+      "writtenOn": "2023-05-20T08:56:49Z",
+      "side": 1,
+      "message": "This probably has issues with SanDisk pendrives not working",
+      "revId": "e2a472ed61ef260c634bb0f6a7d47a2805f1a4de",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
