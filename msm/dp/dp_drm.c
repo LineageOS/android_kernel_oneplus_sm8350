@@ -463,6 +463,7 @@ int dp_connector_get_info(struct drm_connector *connector,
 	if (display && display->is_edp) {
 		info->intf_type = DRM_MODE_CONNECTOR_eDP;
 		info->display_type = SDE_CONNECTOR_PRIMARY;
+		info->is_connected = true;
 	} else {
 		info->capabilities |= MSM_DISPLAY_CAP_HOT_PLUG;
 	}

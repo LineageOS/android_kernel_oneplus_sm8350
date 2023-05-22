@@ -127,7 +127,7 @@ struct dp_pll {
 
 	bool ssc_en;
 	bool bonding_en;
-
+	bool cont_splash_enabled;
 	void *priv;
 	struct dp_pll_db pll_db;
 	struct dp_pll_vco_clk pll_clks[DP_PLL_NUM_CLKS];

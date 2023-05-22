@@ -277,6 +277,8 @@ static int edp_config_vco_rate_7nm(struct dp_pll *pll,
 		DP_ERR("VCO Init DB failed\n");
 		return rc;
 	}
+	if (pll->cont_splash_enabled)
+		return 0;
 
 	dp_pll_write(dp_phy, DP_PHY_PD_CTL, 0x7d);
 	/* Make sure the PLL register writes are done */
@@ -459,6 +461,11 @@ static int edp_pll_enable_7nm(struct dp_pll *pll)
 	u32 bias_en0, drvr_en0, bias_en1, drvr_en1, phy_cfg_1;
 
 	pll->aux->state &= ~DP_STATE_PLL_LOCKED;
+
+	if (pll->cont_splash_enabled) {
+		pll->aux->state |= DP_STATE_PLL_LOCKED;
+		return rc;
+	}
 
 	dp_pll_write(dp_phy, DP_PHY_CFG, 0x01);
 	dp_pll_write(dp_phy, DP_PHY_CFG, 0x05);
@@ -789,6 +796,9 @@ static int edp_pll_vco_div_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	pll_link = to_dp_vco_hw(hw);
 	pll = pll_link->priv;
+
+	if (pll->cont_splash_enabled)
+		return rc;
 
 	if (rate != edp_pll_vco_div_clk_get_rate(pll)) {
 		DP_ERR("unsupported rate %lu failed\n", rate);

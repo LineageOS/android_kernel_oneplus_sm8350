@@ -16,17 +16,17 @@
 #include "dp_debug.h"
 
 struct dp_ctrl {
-	int (*init)(struct dp_ctrl *dp_ctrl, bool flip, bool reset);
+	int (*init)(struct dp_ctrl *dp_ctrl, bool flip, bool reset, bool skip_op);
 	void (*deinit)(struct dp_ctrl *dp_ctrl);
 	int (*on)(struct dp_ctrl *dp_ctrl, bool mst_mode, bool fec_en,
-			bool dsc_en, bool shallow);
+			bool dsc_en, bool shallow, bool skip_op);
 	void (*off)(struct dp_ctrl *dp_ctrl);
 	void (*abort)(struct dp_ctrl *dp_ctrl, bool abort);
 	void (*isr)(struct dp_ctrl *dp_ctrl);
 	bool (*handle_sink_request)(struct dp_ctrl *dp_ctrl);
-	void (*process_phy_test_request)(struct dp_ctrl *dp_ctrl);
-	int (*link_maintenance)(struct dp_ctrl *dp_ctrl);
-	int (*stream_on)(struct dp_ctrl *dp_ctrl, struct dp_panel *panel);
+	void (*process_phy_test_request)(struct dp_ctrl *dp_ctrl, bool skip_op);
+	int (*link_maintenance)(struct dp_ctrl *dp_ctrl, bool skip_op);
+	int (*stream_on)(struct dp_ctrl *dp_ctrl, struct dp_panel *panel, bool skip_op);
 	void (*stream_off)(struct dp_ctrl *dp_ctrl, struct dp_panel *panel);
 	void (*stream_pre_off)(struct dp_ctrl *dp_ctrl, struct dp_panel *panel);
 	void (*set_mst_channel_info)(struct dp_ctrl *dp_ctrl,
