@@ -4426,7 +4426,8 @@ static int _sde_kms_get_splash_data(struct sde_kms *sde_kms,
 	 * cont_splash_region  should be collection of all memory regions
 	 * Ex: <r1.start r1.end r2.start r2.end  ... rn.start, rn.end>
 	 */
-	num_displays = dsi_display_get_num_of_displays();
+	num_displays = dsi_display_get_num_of_displays()
+				+ dp_display_get_num_of_boot_displays();
 	num_regions = of_property_count_u64_elems(node, "reg") / 2;
 
 	data->num_splash_displays = num_displays;
