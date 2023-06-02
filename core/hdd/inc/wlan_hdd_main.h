@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -5030,4 +5030,13 @@ void wlan_hdd_set_pm_qos_request(struct hdd_context *hdd_ctx,
 {
 }
 #endif
+
+/**
+ * hdd_update_multicast_list() - update the multicast list
+ * @vdev: pointer to VDEV object
+ *
+ * Return: none
+ */
+void hdd_update_multicast_list(struct wlan_objmgr_vdev *vdev);
+
 #endif /* end #if !defined(WLAN_HDD_MAIN_H) */
