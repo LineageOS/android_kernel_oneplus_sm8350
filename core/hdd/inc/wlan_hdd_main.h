@@ -1223,6 +1223,8 @@ enum qdisc_filter_status {
  * @cache_sta_count: number of currently cached stations
  * @acs_complete_event: acs complete event
  * @latency_level: 0 - normal, 1 - moderate, 2 - low, 3 - ultralow
+ * @mc_addr_list: multicast address list
+ * @mc_list_lock: spin lock for multicast list
  * @last_disconnect_reason: Last disconnected internal reason code
  *                          as per enum qca_disconnect_reason_codes
  * @connect_req_status: Last disconnected internal status code
@@ -1408,6 +1410,7 @@ struct hdd_adapter {
 #endif
 
 	struct hdd_multicast_addr_list mc_addr_list;
+	qdf_spinlock_t mc_list_lock;
 	uint8_t addr_filter_pattern;
 
 	struct hdd_scan_info scan_info;
