@@ -1122,7 +1122,10 @@ static int dp_display_host_init(struct dp_display_private *dp)
 		return rc;
 	}
 
-	dp->hpd->host_init(dp->hpd, &dp->catalog->hpd);
+	/* Skip hpd config when cont. splash is enbaled*/
+	if (!skip_op)
+		dp->hpd->host_init(dp->hpd, &dp->catalog->hpd);
+
 	rc = dp->ctrl->init(dp->ctrl, flip, reset, skip_op);
 	if (rc) {
 		DP_WARN("Ctrl init Failed.\n");
