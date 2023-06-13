@@ -2581,6 +2581,9 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 {
 	struct dp_display_private *dp;
 	struct dp_panel *dp_panel;
+	struct drm_connector *connector;
+	struct sde_connector *sde_conn;
+	struct backlight_device *bl_device;
 	int rc = 0;
 
 	if (!dp_display || !panel) {
@@ -2625,6 +2628,15 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 		if (rc) {
 			DP_ERR("Cannot turn edp backlight power on");
 			goto end;
+		}
+		connector = dp_display->base_connector;
+		sde_conn = to_sde_connector(connector);
+
+		sde_conn->allow_bl_update = true;
+		if (sde_conn->bl_device) {
+			bl_device = sde_conn->bl_device;
+			bl_device->props.power = FB_BLANK_UNBLANK;
+			bl_device->props.state &= ~BL_CORE_FBBLANK;
 		}
 	}
 
@@ -3281,6 +3293,37 @@ static int dp_display_config_hdr(struct dp_display *dp_display, void *panel,
 
 	return dp_panel->setup_hdr(dp_panel, hdr, dhdr_update,
 		core_clk_rate, flush_hdr);
+}
+
+static int dp_display_set_backlight(struct dp_display *dp_display,
+		void *panel, u32 bl_lvl)
+{
+	struct dp_panel *dp_panel;
+	struct dp_display_private *dp;
+	u32 bl_scale, bl_scale_sv;
+	u64 bl_temp;
+
+	if (!dp_display || !panel) {
+		DP_ERR("invalid input\n");
+		return -EINVAL;
+	}
+
+	dp = container_of(dp_display, struct dp_display_private, dp_display);
+	dp_panel = panel;
+
+	dp_panel->bl_config.bl_level = bl_lvl;
+
+	/* scale backlight */
+	bl_scale = dp_panel->bl_config.bl_scale;
+	bl_temp = bl_lvl * bl_scale / MAX_BL_SCALE_LEVEL;
+
+	bl_scale_sv = dp_panel->bl_config.bl_scale_sv;
+	bl_temp = (u32)bl_temp * bl_scale_sv / MAX_SV_BL_SCALE_LEVEL;
+
+	DP_DEBUG("bl_scale = %u, bl_scale_sv = %u, bl_lvl = %u\n",
+		bl_scale, bl_scale_sv, (u32)bl_temp);
+
+	return dp_panel->set_backlight(dp_panel, (u32)bl_temp);
 }
 
 static int dp_display_setup_colospace(struct dp_display *dp_display,
@@ -3944,6 +3987,7 @@ static int dp_display_probe(struct platform_device *pdev)
 	dp_display->wakeup_phy_layer =
 					dp_display_wakeup_phy_layer;
 	dp_display->set_colorspace = dp_display_setup_colospace;
+	dp_display->set_backlight = dp_display_set_backlight;
 	dp_display->get_available_dp_resources =
 					dp_display_get_available_dp_resources;
 	dp_display->get_display_type = dp_display_get_display_type;
