@@ -168,6 +168,7 @@ int dp_display_get_num_of_boot_displays(void);
 int dp_display_get_displays(void **displays, int count);
 int dp_display_get_num_of_streams(void);
 int dp_display_get_info(void *dp_display, struct dp_display_info *dp_info);
+int dp_display_cont_splash_config(void *display);
 #else
 static inline int dp_display_get_num_of_displays(void)
 {
@@ -191,6 +192,10 @@ static inline int dp_display_get_info(void *dp_display, struct dp_display_info *
 }
 static inline int dp_connector_update_pps(struct drm_connector *connector,
 		char *pps_cmd, void *display)
+{
+	return 0;
+}
+static inline int dp_display_cont_splash_config(void *display)
 {
 	return 0;
 }

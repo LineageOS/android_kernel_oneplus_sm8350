@@ -1800,7 +1800,7 @@ static int _sde_kms_setup_displays(struct drm_device *dev,
 		.set_colorspace = dp_connector_set_colorspace,
 		.config_hdr = dp_connector_config_hdr,
 		.cmd_transfer = NULL,
-		.cont_splash_config = NULL,
+		.cont_splash_config = dp_display_cont_splash_config,
 		.cont_splash_res_disable = NULL,
 		.get_panel_vfp = NULL,
 		.update_pps = dp_connector_update_pps,
@@ -3381,6 +3381,7 @@ static int sde_kms_cont_splash_config(struct msm_kms *kms,
 {
 	void *display;
 	struct dsi_display *dsi_display;
+	struct dp_display *dp_display;
 	struct msm_display_info info;
 	struct drm_encoder *encoder = NULL;
 	struct drm_crtc *crtc = NULL;
@@ -3529,6 +3530,57 @@ static int sde_kms_cont_splash_config(struct msm_kms *kms,
 			SDE_ERROR("Failed: updating plane status rc=%d\n", rc);
 			return rc;
 		}
+	}
+
+	/* dp */
+	for (i = 0; i < sde_kms->dp_display_count; ++i) {
+		display = sde_kms->dp_displays[i];
+		dp_display = (struct dp_display *)display;
+
+		if (!dp_display->cont_splash_enabled) {
+			SDE_DEBUG("DP-%d splash not enabled\n", i);
+			continue;
+		}
+
+		if (dp_display->bridge->base.encoder) {
+			encoder = dp_display->bridge->base.encoder;
+			SDE_DEBUG("encoder name = %s\n", encoder->name);
+		} else {
+			SDE_DEBUG("Invalid encoder\n");
+			break;
+		}
+
+		mutex_lock(&dev->mode_config.mutex);
+		drm_connector_list_iter_begin(dev, &conn_iter);
+		drm_for_each_connector_iter(connector, &conn_iter) {
+			/**
+			 * SDE_KMS doesn't attach more than one encoder to
+			 * a DSI connector. So it is safe to check only with
+			 * the first encoder entry. Revisit this logic if we
+			 * ever have to support continuous splash for
+			 * external displays in MST configuration.
+			 */
+			if (connector->encoder_ids[0] == encoder->base.id)
+				break;
+		}
+
+		drm_connector_list_iter_end(&conn_iter);
+		if (!connector) {
+			SDE_ERROR("connector not initialized\n");
+			mutex_unlock(&dev->mode_config.mutex);
+			return -EINVAL;
+		}
+		mutex_unlock(&dev->mode_config.mutex);
+
+		/* Enable all irqs */
+		sde_irq_update(kms, true);
+
+		sde_conn = to_sde_connector(connector);
+		if (sde_conn && sde_conn->ops.cont_splash_config)
+			sde_conn->ops.cont_splash_config(sde_conn->display);
+
+		/* Disable irqs */
+		sde_irq_update(kms, false);
 	}
 
 	return rc;

@@ -177,6 +177,7 @@ struct dp_display_private {
 	struct dentry *root;
 	struct completion notification_comp;
 	struct completion attention_comp;
+	struct completion res_init_comp;
 
 	struct dp_hpd     *hpd;
 	struct dp_parser  *parser;
@@ -316,6 +317,42 @@ static void dp_audio_enable(struct dp_display_private *dp, bool enable)
 		}
 	}
 }
+
+/**
+ * dp_display_cont_splash_config() - Initialize resources for continuous splash
+ * @dp_display:    Pointer to dp display
+ * Returns:     Zero on success
+ */
+int dp_display_cont_splash_config(void *display)
+{
+	struct dp_display *dp_display = display;
+	struct dp_display_private *dp;
+	int rc = 0;
+
+	/* Vote for gdsc required to read register address space */
+	if (!dp_display) {
+		DP_ERR("invalid input display param\n");
+		return -EINVAL;
+	}
+
+	dp = container_of(dp_display, struct dp_display_private, dp_display);
+
+	if (!dp_display->is_edp) {
+		DP_ERR("splash handoff for dp not supported\n");
+		return -EOPNOTSUPP;
+	}
+
+	/* wait for the all the resource initialization and voting to
+	 * complete, before we exit driver probe
+	 */
+	if (!wait_for_completion_timeout(&dp->res_init_comp, HZ * 10)) {
+		DP_WARN("timeout waiting for splash_res_init\n");
+		rc = -ETIMEDOUT;
+	}
+
+	return rc;
+}
+
 
 static int dp_display_parse_boot_display_selection(void)
 {
@@ -1358,6 +1395,9 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	dp->process_hpd_connect = false;
 
 	dp_display_set_mst_mgr_state(dp, true);
+
+	/* all dp resource init are complete */
+	complete_all(&dp->res_init_comp);
 end:
 	mutex_unlock(&dp->session_lock);
 
@@ -3990,6 +4030,7 @@ static int dp_display_probe(struct platform_device *pdev)
 
 	init_completion(&dp->notification_comp);
 	init_completion(&dp->attention_comp);
+	init_completion(&dp->res_init_comp);
 
 	dp->pdev = pdev;
 	dp->name = "drm_dp";
