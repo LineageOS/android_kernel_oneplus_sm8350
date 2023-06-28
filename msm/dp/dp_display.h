@@ -121,6 +121,8 @@ struct dp_display {
 				bool dhdr_update);
 	int (*set_colorspace)(struct dp_display *dp_display, void *panel,
 				u32 colorspace);
+	int (*set_backlight)(struct dp_display *dp_display, void *panel,
+				u32 bl_lvl);
 	int (*post_init)(struct dp_display *dp_display);
 	int (*mst_install)(struct dp_display *dp_display,
 			struct dp_mst_drm_install_info *mst_install_info);
