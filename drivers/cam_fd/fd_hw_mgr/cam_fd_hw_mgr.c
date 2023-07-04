@@ -665,7 +665,7 @@ static int cam_fd_mgr_util_prepare_io_buf_info(int32_t iommu_hdl,
 						"Invalid cpu buf %d %d %d",
 						io_cfg[i].direction,
 						io_cfg[i].resource_type, plane);
-					cam_mem_put_cpu_buf(io_cfg[i].mem_handle[plane];
+					cam_mem_put_cpu_buf(io_cfg[i].mem_handle[plane]);
 					rc = -EINVAL;
 					return rc;
 				}
