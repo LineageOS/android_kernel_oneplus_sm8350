@@ -53,6 +53,8 @@
 		qcom,dir-rx;
 		qcom,rx-filter-ip;
 
+		qcom,multi_rx_queues;
+
 		qcom,ring-size = <256>;
 		qcom,buff-size = <2048>;
 
