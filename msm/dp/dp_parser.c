@@ -256,6 +256,47 @@ error:
 	return rc;
 }
 
+static void dp_parser_bl_config(struct dp_parser *parser)
+{
+	int rc = 0;
+	u32 val = 0;
+	struct device_node *of_node = parser->pdev->dev.of_node;
+
+	rc = of_property_read_u32(of_node, "qcom,edp-bl-min-level", &val);
+	if (rc) {
+		DP_DEBUG("bl-min-level unspecified, defaulting to zero\n");
+		parser->bl_min_level = 0;
+	} else {
+		parser->bl_min_level = val;
+	}
+
+	rc = of_property_read_u32(of_node, "qcom,edp-bl-max-level", &val);
+	if (rc) {
+		DP_DEBUG("bl-max-level unspecified, defaulting to 4096\n");
+		parser->bl_max_level = 4096;
+	} else {
+		parser->bl_max_level = val;
+	}
+
+	rc = of_property_read_u32(of_node, "qcom,edp-brightness-max-level",
+				&val);
+	if (rc) {
+		DP_DEBUG("brigheness-max-level unspecified, defaulting to 255\n");
+		parser->brightness_max_level = 255;
+	} else {
+		parser->brightness_max_level = val;
+	}
+
+	rc = of_property_read_u32(of_node, "qcom,bl-pmic-pwm-period-usecs",
+				&val);
+	if (rc) {
+		DP_DEBUG("bl-pmic-pwm-period-usecs unspecified, default 100\n");
+		parser->pwm_period_usecs = 100;
+	} else {
+		parser->pwm_period_usecs = val;
+	}
+}
+
 static int dp_parser_gpio(struct dp_parser *parser)
 {
 	int i = 0;
@@ -854,6 +895,7 @@ static int dp_parser_parse(struct dp_parser *parser)
 	if (rc)
 		goto err;
 
+	dp_parser_bl_config(parser);
 	dp_parser_dsc(parser);
 	dp_parser_fec(parser);
 	dp_parser_widebus(parser);

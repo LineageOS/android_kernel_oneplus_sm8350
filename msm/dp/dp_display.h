@@ -121,6 +121,8 @@ struct dp_display {
 				bool dhdr_update);
 	int (*set_colorspace)(struct dp_display *dp_display, void *panel,
 				u32 colorspace);
+	int (*set_backlight)(struct dp_display *dp_display, void *panel,
+				u32 bl_lvl);
 	int (*post_init)(struct dp_display *dp_display);
 	int (*mst_install)(struct dp_display *dp_display,
 			struct dp_mst_drm_install_info *mst_install_info);
@@ -160,14 +162,20 @@ struct dp_display {
 			u32 strm_id, const char **display_type);
 	int (*edp_detect)(struct dp_display *dp_display);
 };
-int dp_display_get_num_of_boot_displays(void);
+
 #if IS_ENABLED(CONFIG_DRM_MSM_DP)
 int dp_display_get_num_of_displays(void);
+int dp_display_get_num_of_boot_displays(void);
 int dp_display_get_displays(void **displays, int count);
 int dp_display_get_num_of_streams(void);
 int dp_display_get_info(void *dp_display, struct dp_display_info *dp_info);
+int dp_display_cont_splash_config(void *display);
 #else
 static inline int dp_display_get_num_of_displays(void)
+{
+	return 0;
+}
+static inline int dp_display_get_num_of_boot_displays(void)
 {
 	return 0;
 }
@@ -185,6 +193,10 @@ static inline int dp_display_get_info(void *dp_display, struct dp_display_info *
 }
 static inline int dp_connector_update_pps(struct drm_connector *connector,
 		char *pps_cmd, void *display)
+{
+	return 0;
+}
+static inline int dp_display_cont_splash_config(void *display)
 {
 	return 0;
 }

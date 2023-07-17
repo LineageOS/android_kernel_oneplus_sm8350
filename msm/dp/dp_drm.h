@@ -50,6 +50,15 @@ int dp_connector_atomic_check(struct drm_connector *connector,
 	struct drm_atomic_state *state);
 
 /**
+ * dp_connector_set_backlight - callback to set backlight
+ * @connector: Pointer to drm connector structure
+ * @display: Pointer to private display handle
+ * Returns: Zero on success
+ */
+int dp_connector_set_backlight(struct drm_connector *connector,
+	void *display, u32 bl_lvl);
+
+/**
  * dp_connector_set_colorspace - callback to set new colorspace
  * @connector: Pointer to drm connector structure
  * @display: Pointer to private display handle

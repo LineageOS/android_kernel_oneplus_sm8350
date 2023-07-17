@@ -177,6 +177,7 @@ struct dp_display_private {
 	struct dentry *root;
 	struct completion notification_comp;
 	struct completion attention_comp;
+	struct completion res_init_comp;
 
 	struct dp_hpd     *hpd;
 	struct dp_parser  *parser;
@@ -315,6 +316,41 @@ static void dp_audio_enable(struct dp_display_private *dp, bool enable)
 			}
 		}
 	}
+}
+
+/**
+ * dp_display_cont_splash_config() - Initialize resources for continuous splash
+ * @dp_display:    Pointer to dp display
+ * Returns:     Zero on success
+ */
+int dp_display_cont_splash_config(void *display)
+{
+	struct dp_display *dp_display = display;
+	struct dp_display_private *dp;
+	int rc = 0;
+
+	/* Vote for gdsc required to read register address space */
+	if (!dp_display) {
+		DP_ERR("invalid input display param\n");
+		return -EINVAL;
+	}
+
+	dp = container_of(dp_display, struct dp_display_private, dp_display);
+
+	if (!dp_display->is_edp) {
+		DP_ERR("splash handoff for dp not supported\n");
+		return -EOPNOTSUPP;
+	}
+
+	/* wait for the all the resource initialization and voting to
+	 * complete, before we exit driver probe
+	 */
+	if (!wait_for_completion_timeout(&dp->res_init_comp, HZ * 10)) {
+		DP_WARN("timeout waiting for splash_res_init\n");
+		rc = -ETIMEDOUT;
+	}
+
+	return rc;
 }
 
 static int dp_display_parse_boot_display_selection(void)
@@ -1122,10 +1158,14 @@ static int dp_display_host_init(struct dp_display_private *dp)
 		return rc;
 	}
 
+<<<<<<< HEAD
 	/* Skip hpd config when cont. splash is enbaled*/
 	if (!skip_op)
 		dp->hpd->host_init(dp->hpd, &dp->catalog->hpd);
 
+=======
+	dp->hpd->host_init(dp->hpd, &dp->catalog->hpd);
+>>>>>>> 452e643352bd41612f5634d8b38d7be9cbc9a875
 	rc = dp->ctrl->init(dp->ctrl, flip, reset, skip_op);
 	if (rc) {
 		DP_WARN("Ctrl init Failed.\n");
@@ -1361,6 +1401,9 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 	dp->process_hpd_connect = false;
 
 	dp_display_set_mst_mgr_state(dp, true);
+
+	/* all dp resource init are complete */
+	complete_all(&dp->res_init_comp);
 end:
 	mutex_unlock(&dp->session_lock);
 
@@ -2630,7 +2673,11 @@ static void dp_display_stream_post_enable(struct dp_display_private *dp,
 			struct dp_panel *dp_panel)
 {
 
+<<<<<<< HEAD
 	if (dp->dp_display.is_edp) {
+=======
+	if (dp->dp_display.cont_splash_enabled) {
+>>>>>>> 452e643352bd41612f5634d8b38d7be9cbc9a875
 		dp->dp_display.cont_splash_enabled = false;
 		dp->pll->cont_splash_enabled = false;
 	}
@@ -2642,6 +2689,9 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 {
 	struct dp_display_private *dp;
 	struct dp_panel *dp_panel;
+	struct drm_connector *connector;
+	struct sde_connector *sde_conn;
+	struct backlight_device *bl_device;
 	int rc = 0;
 
 	if (!dp_display || !panel) {
@@ -2686,6 +2736,15 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 		if (rc) {
 			DP_ERR("Cannot turn edp backlight power on");
 			goto end;
+		}
+		connector = dp_display->base_connector;
+		sde_conn = to_sde_connector(connector);
+
+		sde_conn->allow_bl_update = true;
+		if (sde_conn->bl_device) {
+			bl_device = sde_conn->bl_device;
+			bl_device->props.power = FB_BLANK_UNBLANK;
+			bl_device->props.state &= ~BL_CORE_FBBLANK;
 		}
 	}
 
@@ -3344,6 +3403,37 @@ static int dp_display_config_hdr(struct dp_display *dp_display, void *panel,
 		core_clk_rate, flush_hdr);
 }
 
+static int dp_display_set_backlight(struct dp_display *dp_display,
+		void *panel, u32 bl_lvl)
+{
+	struct dp_panel *dp_panel;
+	struct dp_display_private *dp;
+	u32 bl_scale, bl_scale_sv;
+	u64 bl_temp;
+
+	if (!dp_display || !panel) {
+		DP_ERR("invalid input\n");
+		return -EINVAL;
+	}
+
+	dp = container_of(dp_display, struct dp_display_private, dp_display);
+	dp_panel = panel;
+
+	dp_panel->bl_config.bl_level = bl_lvl;
+
+	/* scale backlight */
+	bl_scale = dp_panel->bl_config.bl_scale;
+	bl_temp = bl_lvl * bl_scale / MAX_BL_SCALE_LEVEL;
+
+	bl_scale_sv = dp_panel->bl_config.bl_scale_sv;
+	bl_temp = (u32)bl_temp * bl_scale_sv / MAX_SV_BL_SCALE_LEVEL;
+
+	DP_DEBUG("bl_scale = %u, bl_scale_sv = %u, bl_lvl = %u\n",
+		bl_scale, bl_scale_sv, (u32)bl_temp);
+
+	return dp_panel->set_backlight(dp_panel, (u32)bl_temp);
+}
+
 static int dp_display_setup_colospace(struct dp_display *dp_display,
 		void *panel,
 		u32 colorspace)
@@ -3950,6 +4040,7 @@ static int dp_display_probe(struct platform_device *pdev)
 
 	init_completion(&dp->notification_comp);
 	init_completion(&dp->attention_comp);
+	init_completion(&dp->res_init_comp);
 
 	dp->pdev = pdev;
 	dp->name = "drm_dp";
@@ -4005,6 +4096,7 @@ static int dp_display_probe(struct platform_device *pdev)
 	dp_display->wakeup_phy_layer =
 					dp_display_wakeup_phy_layer;
 	dp_display->set_colorspace = dp_display_setup_colospace;
+	dp_display->set_backlight = dp_display_set_backlight;
 	dp_display->get_available_dp_resources =
 					dp_display_get_available_dp_resources;
 	dp_display->get_display_type = dp_display_get_display_type;
@@ -4238,4 +4330,8 @@ void __exit dp_display_unregister(void)
 module_param_string(edp_display0, edp_display_primary, MAX_CMDLINE_PARAM_LEN,
 								0600);
 MODULE_PARM_DESC(edp_display0,
+<<<<<<< HEAD
 		"msm_drm.edp_display0=<display node>:<configX> where <display node> is 'primary dp display node name' and <configX> where x represents index in the topology list");
+=======
+		"msm_drm.edp_display0=<display node>: where <display node> is 'primary dp display node name' ");
+>>>>>>> 452e643352bd41612f5634d8b38d7be9cbc9a875
