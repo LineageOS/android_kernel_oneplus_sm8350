@@ -2666,11 +2666,7 @@ static void dp_display_stream_post_enable(struct dp_display_private *dp,
 			struct dp_panel *dp_panel)
 {
 
-<<<<<<< HEAD
-	if (dp->dp_display.is_edp) {
-=======
 	if (dp->dp_display.cont_splash_enabled) {
->>>>>>> 452e643352bd41612f5634d8b38d7be9cbc9a875
 		dp->dp_display.cont_splash_enabled = false;
 		dp->pll->cont_splash_enabled = false;
 	}
@@ -4323,8 +4319,4 @@ void __exit dp_display_unregister(void)
 module_param_string(edp_display0, edp_display_primary, MAX_CMDLINE_PARAM_LEN,
 								0600);
 MODULE_PARM_DESC(edp_display0,
-<<<<<<< HEAD
-		"msm_drm.edp_display0=<display node>:<configX> where <display node> is 'primary dp display node name' and <configX> where x represents index in the topology list");
-=======
 		"msm_drm.edp_display0=<display node>: where <display node> is 'primary dp display node name' ");
->>>>>>> 452e643352bd41612f5634d8b38d7be9cbc9a875
