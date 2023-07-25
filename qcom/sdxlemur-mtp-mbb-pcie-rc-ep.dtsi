@@ -55,7 +55,7 @@
 
 		qcom,multi_rx_queues;
 
-		qcom,ring-size = <256>;
+		qcom,ring-size = <1024>;
 		qcom,buff-size = <2048>;
 
 		qcom,mod-count-min = <32>;
@@ -66,7 +66,7 @@
 
 	ioss_r8168_eth0_tx: r8168_tx@eth0 {
 		qcom,dir-tx;
-		qcom,ring-size = <256>;
+		qcom,ring-size = <1024>;
 		qcom,buff-size = <2048>;
 
 		qcom,mod-count-min = <32>;
