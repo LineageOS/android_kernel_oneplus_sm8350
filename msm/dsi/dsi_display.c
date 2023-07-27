@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -2052,7 +2052,7 @@ static void adjust_timing_by_ctrl_count(const struct dsi_display *display,
 		mode->timing.h_skew /= sublinks_count;
 		mode->pixel_clk_khz /= sublinks_count;
 	} else {
-		if (mode->priv_info->dsc_enabled)
+		if ((mode->priv_info) && (mode->priv_info->dsc_enabled))
 			mode->priv_info->dsc.config.pic_width =
 				mode->timing.h_active;
 		mode->timing.h_active /= display->ctrl_count;
