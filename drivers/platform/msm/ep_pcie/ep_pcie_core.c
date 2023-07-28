@@ -3236,6 +3236,9 @@ static int ep_pcie_core_wakeup_host_internal(enum ep_pcie_event event)
 {
 	struct ep_pcie_dev_t *dev = &ep_pcie_dev;
 
+	if (atomic_read(&dev->host_wake_pending))
+		return 0;
+
 	if (!atomic_read(&dev->perst_deast)) {
 		/*D3 cold handling*/
 		ep_pcie_core_toggle_wake_gpio(true);
