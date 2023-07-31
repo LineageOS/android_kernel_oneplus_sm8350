@@ -48,6 +48,32 @@
 		qcom,mod-usecs-min = <30>;
 		qcom,mod-usecs-max = <60>;
 	};
+
+	ioss_r8168_eth0_rx: r8168_rx@eth0 {
+		qcom,dir-rx;
+		qcom,rx-filter-ip;
+
+		qcom,multi_rx_queues;
+
+		qcom,ring-size = <1024>;
+		qcom,buff-size = <2048>;
+
+		qcom,mod-count-min = <32>;
+		qcom,mod-count-max = <64>;
+		qcom,mod-usecs-min = <30>;
+		qcom,mod-usecs-max = <60>;
+	};
+
+	ioss_r8168_eth0_tx: r8168_tx@eth0 {
+		qcom,dir-tx;
+		qcom,ring-size = <1024>;
+		qcom,buff-size = <2048>;
+
+		qcom,mod-count-min = <32>;
+		qcom,mod-count-max = <64>;
+		qcom,mod-usecs-min = <30>;
+		qcom,mod-usecs-max = <60>;
+	};
 };
 
 &pcie0_rp {
@@ -116,6 +142,24 @@
 			"10ec:8125",
 			"10ec:3000";
 
+	};
+
+	realtek,rtl8168@pcie0_rp {
+		reg = <0 0 0 0 0>;
+
+		compatible = "qcom,ioss-v2-device";
+		qcom,ioss = <&ioss>;
+		qcom,ioss_instance = <0>;
+		qcom,ioss_channels =
+			<&ioss_r8168_eth0_rx>,
+			<&ioss_r8168_eth0_tx>;
+
+		/* ipa shares this group with rtl */
+		qcom,iommu-group = <&ipa_eth_group1>;
+
+		pci-ids =
+			"10ec:8168",
+			"17cb:0308";
 	};
 
 	pcie0_generic_ep: pcie0_generic_ep {
