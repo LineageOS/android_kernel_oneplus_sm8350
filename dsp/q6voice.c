@@ -1164,6 +1164,10 @@ static int voice_create_mvm_cvs_session(struct voice_data *v)
 						common.mvs_info.media_type;
 			cvs_full_ctl_cmd.cvs_session.network_id =
 					       common.mvs_info.network_type;
+
+			memset(cvs_full_ctl_cmd.cvs_session.name, 0,
+				sizeof(cvs_full_ctl_cmd.cvs_session.name));
+
 			strlcpy(cvs_full_ctl_cmd.cvs_session.name,
 				"default q6 voice",
 				strlen("default q6 voice")+1);
@@ -3078,6 +3082,9 @@ static int voice_send_cvp_create_cmd(struct voice_data *v)
 		cvp_session_cmd.cvp_session.ec_ref_port_id =
 						 VSS_IVOCPROC_PORT_ID_NONE;
 	}
+
+	memset(cvp_session_cmd.cvp_session.name, 0,
+                        sizeof(cvp_session_cmd.cvp_session.name));
 
 	pr_debug("tx_topology: %d tx_port_id=%d, rx_port_id=%d, mode: 0x%x\n",
 		cvp_session_cmd.cvp_session.tx_topology_id,
