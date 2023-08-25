@@ -4001,7 +4001,7 @@ QDF_STATUS wma_set_vc_mode_config(void *wma_handle,
 {
 	int32_t ret;
 	tp_wma_handle wma = (tp_wma_handle)wma_handle;
-	struct pdev_params pdevparam;
+	struct pdev_params pdevparam = {};
 
 	pdevparam.param_id = WMI_PDEV_UPDATE_WDCVS_ALGO;
 	pdevparam.param_value = vc_bitmap;
