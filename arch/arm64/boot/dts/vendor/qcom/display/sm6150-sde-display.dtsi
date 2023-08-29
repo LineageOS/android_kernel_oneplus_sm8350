@@ -1,6 +1,8 @@
+#include <dt-bindings/clock/qcom,rpmh.h>
 #include <dt-bindings/clock/mdss-14nm-pll-clk.h>
 #include "dsi-panel-ili988c-dual-video.dtsi"
 #include "dsi-panel-ext-bridge-1080p.dtsi"
+#include "dsi-panel-hx83112a-truly-singlemipi-fhd-video.dtsi"
 
 &soc {
 	dsi_panel_pwr_supply: dsi_panel_pwr_supply {
@@ -88,10 +90,13 @@
 			 <&mdss_dsi_phy0 BYTE0_SRC_CLK>,
 			 <&mdss_dsi_phy0 PIX0_SRC_CLK>,
 			 <&mdss_dsi_phy0 SHADOW_BYTE0_SRC_CLK>,
-			 <&mdss_dsi_phy0 SHADOW_PIX0_SRC_CLK>;
+			 <&mdss_dsi_phy0 SHADOW_PIX0_SRC_CLK>,
+			 <&rpmhcc RPMH_CXO_CLK>,
+			 <&rpmhcc RPMH_CXO_CLK>;
 		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
 			"src_byte_clk0", "src_pixel_clk0",
-			"shadow_byte_clk0", "shadow_pixel_clk0";
+			"shadow_byte_clk0", "shadow_pixel_clk0",
+			"xo_byte_clk0", "xo_pixel_clk0";
 		pinctrl-names = "panel_active", "panel_suspend";
 		pinctrl-0 = <&sde_dsi_active &sde_te_active>;
 		pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend>;
@@ -147,7 +152,8 @@
 &dsi_ili9881c_720p_video {
 	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
 			"src_byte_clk0", "src_pixel_clk0",
-			"shadow_byte_clk0", "shadow_pixel_clk0";
+			"shadow_byte_clk0", "shadow_pixel_clk0",
+			"xo_byte_clk0", "xo_pixel_clk0";
 	qcom,mdss-dsi-t-clk-post = <0x0a>;
 	qcom,mdss-dsi-t-clk-pre = <0x21>;
 	qcom,mdss-dsi-display-timings {
@@ -178,6 +184,18 @@
 				24 1f 08 09 05 03 04 a0
 				24 1b 08 09 05 03 04 a0];
 
+			qcom,display-topology = <1 0 1>;
+			qcom,default-topology-index = <0>;
+		};
+	};
+};
+
+&dsi_hx83112a_truly_video {
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
+			"src_byte_clk0", "src_pixel_clk0",
+			"shadow_byte_clk0", "shadow_pixel_clk0";
+	qcom,mdss-dsi-display-timings {
+		timing@0{
 			qcom,display-topology = <1 0 1>;
 			qcom,default-topology-index = <0>;
 		};

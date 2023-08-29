@@ -445,6 +445,7 @@ Optional properties:
 					height values. This property is specified per timing node to support
 					resolution's alignment restrictions.
 - qcom,esd-check-enabled:		Boolean used to enable ESD recovery feature.
+- qcom,skip-panel-power-off:		Boolean used to skip panel power off.
 - qcom,mdss-dsi-panel-status-command:	A byte stream formed by multiple dcs packets based on
 					qcom dsi controller protocol, to read the panel status.
 					This value is used to kick in the ESD recovery.
