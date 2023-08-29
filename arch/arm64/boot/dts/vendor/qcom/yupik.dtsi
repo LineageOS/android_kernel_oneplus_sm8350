@@ -2699,6 +2699,7 @@
 		clock-names = "xo", "alternate";
 
 		qcom,lut-row-size = <4>;
+		qcom,no-accumulative-counter;
 		qcom,skip-enable-check;
 
 		interrupts = <GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>,

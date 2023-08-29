@@ -140,7 +140,7 @@
 			cpu-idle-states = <&GOLD_OFF &GOLD_RAIL_OFF>;
 			capacity-dmips-mhz = <1964>;
 			dynamic-power-coefficient = <520>;
-			qcom,freq-domain = <&cpufreq_hw 1 4>;
+			qcom,freq-domain = <&cpufreq_hw 2 4>;
 			next-level-cache = <&L2_7>;
 			L2_7: l2-cache {
 			      compatible = "arm,arch-cache";
@@ -180,8 +180,10 @@
 				core2 {
 					cpu = <&CPU6>;
 				};
+			};
 
-				core3 {
+			cluster2 {
+				core0 {
 					cpu = <&CPU7>;
 				};
 			};
@@ -219,8 +221,6 @@
 		};
 
 		qcom,cpu4-computemon {
-			/delete-property/ qcom,cpulist;
-			qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 			ddr4-map {
 				qcom,core-dev-table =
 					<  691200 MHZ_TO_MBPS( 451, 4) >,
@@ -244,24 +244,10 @@
 			qcom,core-dev-table =
 				< 1900800 MHZ_TO_MBPS( 150, 16) >;
 		};
-
-		qcom,cpu4-qoslatmon {
-			/delete-property/ qcom,cpulist;
-			qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
-		};
-
-		/delete-node/ qcom,cpu7-qoslatmon;
-		/delete-node/ qcom,cpu7-l3-computemon;
-		/delete-node/ qcom,cpu7-computemon;
 	};
 
 	qcom,cpu4_grp {
-	/delete-property/ qcom,cpulist;
-	qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
-
 		qcom,cpu4-rimps-l3-latmon {
-			/delete-property/ qcom,cpulist;
-			qcom,cpulist = <&CPU4 &CPU5 &CPU6 &CPU7>;
 			qcom,core-dev-table =
 				<  940800  556800000 >,
 				< 1228800  768000000 >,
@@ -269,10 +255,39 @@
 				< 1900800 1401600000 >;
 		};
 	};
-
-	/delete-node/ qcom,cpu7-cpu-ddr-latfloor;
-	/delete-node/ qcom,cpu7-cpu-l3-latfloor;
-	/delete-node/ qcom,cpu7-cpu-ddr-qoslatfloor;
-	/delete-node/ qcom,cpu7_grp;
 };
 
+&cpu4_llcc_computemon {
+	qcom,core-dev-table =
+		< 1900800 MHZ_TO_MBPS( 150, 16) >;
+};
+
+&cpu7_computemon {
+	ddr4-map {
+		qcom,core-dev-table =
+			< 2380800 MHZ_TO_MBPS( 451, 4) >;
+	};
+
+	ddr5-map {
+		qcom,core-dev-table =
+			< 2380800 MHZ_TO_MBPS( 451, 4) >;
+	};
+};
+
+&cpu7_l3_computemon {
+	qcom,core-dev-table =
+		< 2035200  300000000 >;
+};
+
+&cpu7_qoslatmon {
+	qcom,core-dev-table =
+		< 2035200 1 >;
+
+};
+
+&cpu7_rimps_l3_latmon {
+	qcom,core-dev-table =
+		< 1056000  556800000 >,
+		< 1324800  768000000 >,
+		< 1766400 1190400000 >;
+};
