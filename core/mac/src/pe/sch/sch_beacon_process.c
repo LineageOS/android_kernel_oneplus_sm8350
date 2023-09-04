@@ -537,14 +537,8 @@ sch_bcn_process_sta_opmode(struct mac_context *mac_ctx,
 	uint16_t aid;
 	uint8_t cb_mode;
 
-	if (wlan_reg_is_24ghz_ch_freq(session->curr_op_freq)) {
-		if (session->force_24ghz_in_ht20)
-			cb_mode = WNI_CFG_CHANNEL_BONDING_MODE_DISABLE;
-		else
-			cb_mode =
-			   mac_ctx->roam.configParam.channelBondingMode24GHz;
-	} else
-		cb_mode = mac_ctx->roam.configParam.channelBondingMode5GHz;
+	cb_mode = lim_get_cb_mode_for_freq(mac_ctx, session,
+					   session->curr_op_freq);
 	/* check for VHT capability */
 	sta = dph_lookup_hash_entry(mac_ctx, pMh->sa, &aid,
 			&session->dph.dphHashTable);
