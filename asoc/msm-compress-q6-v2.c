@@ -2017,6 +2017,7 @@ static int msm_compr_playback_open(struct snd_compr_stream *cstream)
 	atomic_set(&prtd->start, 0);
 	atomic_set(&prtd->drain, 0);
 #if !IS_ENABLED(CONFIG_AUDIO_QGKI)
+	snd_compr_use_pause_in_draining(cstream);
 	atomic_set(&prtd->partial_drain, 0);
 #endif
 	atomic_set(&prtd->xrun, 0);
