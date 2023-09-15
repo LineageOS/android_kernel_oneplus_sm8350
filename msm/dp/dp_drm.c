@@ -150,6 +150,9 @@ static void dp_bridge_enable(struct drm_bridge *drm_bridge)
 	if (rc)
 		DP_ERR("[%d] DP display post enable failed, rc=%d\n",
 		       bridge->id, rc);
+
+	if (dp->is_edp)
+		sde_connector_helper_bridge_enable(bridge->connector);
 }
 
 static void dp_bridge_disable(struct drm_bridge *drm_bridge)
