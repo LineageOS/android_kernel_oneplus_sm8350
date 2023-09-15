@@ -1020,18 +1020,23 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 	}
 
 	c_conn = to_sde_connector(connector);
-	display = (struct dsi_display *) c_conn->display;
 
-	/*
-	 * Special handling for some panels which need atleast
-	 * one frame to be transferred to GRAM before enabling backlight.
-	 * So delay backlight update to these panels until the
-	 * first frame commit is received from the HW.
-	 */
-	if (display->panel->bl_config.bl_update ==
-				BL_UPDATE_DELAY_UNTIL_FIRST_FRAME)
-		sde_encoder_wait_for_event(c_conn->encoder,
-				MSM_ENC_TX_COMPLETE);
+	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI) {
+		display = (struct dsi_display *) c_conn->display;
+
+		/*
+		 * Special handling for some panels which need atleast
+		 * one frame to be transferred to GRAM before enabling
+		 * backlight.
+		 * So delay backlight update to these panels until the
+		 * first frame commit is received from the HW.
+		 */
+		if (display->panel->bl_config.bl_update ==
+					BL_UPDATE_DELAY_UNTIL_FIRST_FRAME)
+			sde_encoder_wait_for_event(c_conn->encoder,
+					MSM_ENC_TX_COMPLETE);
+	}
+
 	c_conn->allow_bl_update = true;
 
 	if (!sde_in_trusted_vm(sde_kms) && c_conn->bl_device) {
