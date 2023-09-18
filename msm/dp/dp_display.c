@@ -1508,6 +1508,8 @@ static int dp_display_init_aux_switch(struct dp_display_private *dp)
 	int rc = 0;
 	struct notifier_block nb;
 	const u32 max_retries = 50;
+	const char *external_aux_switch = "redriver";
+	const char *phandle = "qcom,dp-aux-switch";
 	u32 retry;
 
 	if (dp->aux_switch_ready)
@@ -1515,6 +1517,16 @@ static int dp_display_init_aux_switch(struct dp_display_private *dp)
 
 	SDE_EVT32_EXTERNAL(SDE_EVTLOG_FUNC_ENTRY);
 
+	dp->aux_switch_node = of_parse_phandle(dp->pdev->dev.of_node,
+			phandle, 0);
+	if (!dp->aux_switch_node) {
+		DP_WARN("cannot parse %s handle\n", phandle);
+		rc = -ENODEV;
+		return rc;
+	}
+	if (strcmp(dp->aux_switch_node->name,
+		 external_aux_switch) == 0)
+		return rc;
 	nb.notifier_call = dp_display_fsa4480_callback;
 	nb.priority = 0;
 
