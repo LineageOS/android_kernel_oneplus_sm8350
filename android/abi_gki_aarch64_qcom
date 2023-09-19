@@ -2561,6 +2561,7 @@
   ufshcd_remove
   ufshcd_uic_hibern8_enter
   ufshcd_uic_hibern8_exit
+  uhid_hid_driver
   __uio_register_device
   uhid_hid_driver
   uio_unregister_device
