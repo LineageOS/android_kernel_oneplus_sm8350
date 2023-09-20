@@ -136,6 +136,10 @@ static int afe_loopback_tx_port_id = -1;
 static struct msm_pcm_channel_mixer ec_ref_chmix_cfg[MSM_FRONTEND_DAI_MAX];
 static struct msm_ec_ref_port_cfg ec_ref_port_cfg;
 
+static int32_t mclk_cfg_be_idx;
+static int32_t mclk_cfg_src_id;
+static uint32_t mclk_cfg_freq;
+
 #define WEIGHT_0_DB 0x4000
 /* all the FEs which can support channel mixer */
 static struct msm_pcm_channel_mixer channel_mixer[MSM_FRONTEND_DAI_MM_SIZE];
@@ -42813,6 +42817,16 @@ static const struct snd_kcontrol_new
 	},
 };
 
+static int msm_routing_get_mclk_src_cfg(struct snd_kcontrol *kcontrol,
+                                        struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = mclk_cfg_be_idx;
+	ucontrol->value.integer.value[1] = mclk_cfg_src_id;
+	ucontrol->value.integer.value[2] = mclk_cfg_freq;
+
+        return 0;
+}
+
 static int msm_routing_put_mclk_src_cfg(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
 {
@@ -42824,6 +42838,10 @@ static int msm_routing_put_mclk_src_cfg(struct snd_kcontrol *kcontrol,
 	be_idx = ucontrol->value.integer.value[0];
 	mclk_src_id = ucontrol->value.integer.value[1];
 	mclk_freq = ucontrol->value.integer.value[2];
+
+	mclk_cfg_be_idx = be_idx;
+	mclk_cfg_src_id = mclk_src_id;
+	mclk_cfg_freq = mclk_freq;
 
 	if (be_idx < 0 || be_idx >= MSM_BACKEND_DAI_MAX) {
 		pr_err("%s: Invalid be id %d\n", __func__, be_idx);
@@ -42854,7 +42872,8 @@ static int msm_routing_put_mclk_src_cfg(struct snd_kcontrol *kcontrol,
 
 static const struct snd_kcontrol_new mclk_src_controls[] = {
 	SOC_SINGLE_MULTI_EXT("MCLK_SRC CFG", SND_SOC_NOPM, 0, 24576000, 0, 3,
-					NULL, msm_routing_put_mclk_src_cfg),
+			     msm_routing_get_mclk_src_cfg,
+			     msm_routing_put_mclk_src_cfg),
 };
 
 static int msm_routing_stereo_channel_reverse_control_get(
