@@ -77,6 +77,8 @@ Optional Properties:
   - qcom,mhi-soc-reset-offset: AXI register offset to initiate a SOC reset.
   - qcom,avoid-reboot-in-d3hot: Ensures device is not in D3hot during
     reboot/panic.
+  - qcom,pme-in-wake-from-d3cold: Issue PME message in device initiated wake
+    from d3cold.
 
 Example:
 

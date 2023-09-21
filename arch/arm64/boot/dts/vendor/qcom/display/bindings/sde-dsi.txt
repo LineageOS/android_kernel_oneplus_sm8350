@@ -129,3 +129,5 @@ Optional properties:
 					to be programmed for the SSC.
 - qcom,ssc-ppm:                         Integer property to specify the Parts per Million
 					value of SSC.
+- qcom,needs-clk-src-reset:             Do clk src reset during pm_suspend and pm_resume.
+- qcom,needs-ctrl-vreg-disable:         Disable dsi ctrl regulator pm_suspend.

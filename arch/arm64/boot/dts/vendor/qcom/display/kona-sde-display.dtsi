@@ -37,6 +37,14 @@
 	};
 };
 
+&qupv3_se15_i2c {
+	status = "ok";
+	fsa4480: fsa4480@43 {
+		compatible = "qcom,fsa4480-i2c";
+		reg = <0x43>;
+	};
+};
+
 &soc {
 	ext_disp: qcom,msm-ext-disp {
 		compatible = "qcom,msm-ext-disp";
@@ -168,18 +176,18 @@
 		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
 		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
 
-		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
-			 <&mdss_dsi0_pll PCLK_MUX_0_CLK>,
-			 <&mdss_dsi0_pll BYTECLK_SRC_0_CLK>,
-			 <&mdss_dsi0_pll PCLK_SRC_0_CLK>,
-			 <&mdss_dsi0_pll SHADOW_BYTECLK_SRC_0_CLK>,
-			 <&mdss_dsi0_pll SHADOW_PCLK_SRC_0_CLK>,
-			 <&mdss_dsi1_pll BYTECLK_MUX_1_CLK>,
-			 <&mdss_dsi1_pll PCLK_MUX_1_CLK>,
-			 <&mdss_dsi1_pll BYTECLK_SRC_1_CLK>,
-			 <&mdss_dsi1_pll PCLK_SRC_1_CLK>,
-			 <&mdss_dsi1_pll SHADOW_BYTECLK_SRC_1_CLK>,
-			 <&mdss_dsi1_pll SHADOW_PCLK_SRC_1_CLK>;
+		clocks = <&mdss_dsi_phy0 BYTECLK_MUX_0_CLK>,
+			 <&mdss_dsi_phy0 PCLK_MUX_0_CLK>,
+			 <&mdss_dsi_phy0 BYTECLK_SRC_0_CLK>,
+			 <&mdss_dsi_phy0 PCLK_SRC_0_CLK>,
+			 <&mdss_dsi_phy0 SHADOW_BYTECLK_SRC_0_CLK>,
+			 <&mdss_dsi_phy0 SHADOW_PCLK_SRC_0_CLK>,
+			 <&mdss_dsi_phy1 BYTECLK_MUX_1_CLK>,
+			 <&mdss_dsi_phy1 PCLK_MUX_1_CLK>,
+			 <&mdss_dsi_phy1 BYTECLK_SRC_1_CLK>,
+			 <&mdss_dsi_phy1 PCLK_SRC_1_CLK>,
+			 <&mdss_dsi_phy1 SHADOW_BYTECLK_SRC_1_CLK>,
+			 <&mdss_dsi_phy1 SHADOW_PCLK_SRC_1_CLK>;
 
 		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
 				"src_byte_clk0", "src_pixel_clk0",
@@ -198,8 +206,6 @@
 		vddio-supply = <&pm8150_l14>;
 		vdd-supply = <&pm8150a_l11>;
 		avdd-supply = <&display_panel_avdd>;
-		lab-supply = <&ab_vreg>;
-		ibb-supply = <&ibb_vreg>;
 
 		qcom,mdp = <&mdss_mdp>;
 		qcom,dsi-default-panel = <&dsi_sw43404_amoled_cmd>;
@@ -212,10 +218,10 @@
 		qcom,dsi-ctrl = <&mdss_dsi0 &mdss_dsi1>;
 		qcom,dsi-phy = <&mdss_dsi_phy0 &mdss_dsi_phy1>;
 
-		clocks = <&mdss_dsi0_pll BYTECLK_MUX_0_CLK>,
-			 <&mdss_dsi0_pll PCLK_MUX_0_CLK>,
-			 <&mdss_dsi1_pll BYTECLK_MUX_1_CLK>,
-			 <&mdss_dsi1_pll PCLK_MUX_1_CLK>;
+		clocks = <&mdss_dsi_phy0 BYTECLK_MUX_0_CLK>,
+			 <&mdss_dsi_phy0 PCLK_MUX_0_CLK>,
+			 <&mdss_dsi_phy1 BYTECLK_MUX_1_CLK>,
+			 <&mdss_dsi_phy1 PCLK_MUX_1_CLK>;
 		clock-names = "mux_byte_clk0", "mux_pixel_clk0",
 			      "mux_byte_clk1", "mux_pixel_clk1";
 

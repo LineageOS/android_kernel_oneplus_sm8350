@@ -26,7 +26,7 @@ Optional properties:
 				for particular chipset.
 				These paths must be defined after rt-paths in
 				"qcom,msm-bus,vectors-KBps" vector request.
-
+- qcom,sde-rsc-need-hw-reinit:	Boolean used to enable hw reinit.
 Bus Scaling Subnodes:
 - qcom,sde-data-bus:		Property to provide Bus scaling for data bus access for
 				sde blocks.
