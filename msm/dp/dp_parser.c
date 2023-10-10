@@ -295,6 +295,8 @@ static void dp_parser_bl_config(struct dp_parser *parser)
 	} else {
 		parser->pwm_period_usecs = val;
 	}
+	parser->no_backlight_support = of_property_read_bool(of_node,
+			"qcom,no-backlight-support");
 }
 
 static int dp_parser_gpio(struct dp_parser *parser)

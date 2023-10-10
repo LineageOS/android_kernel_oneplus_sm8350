@@ -97,6 +97,7 @@ struct dp_display {
 	u32 max_mixer_count;
 	u32 max_dsc_count;
 	bool cont_splash_enabled;
+	bool no_backlight_support;
 
 	int (*enable)(struct dp_display *dp_display, void *panel);
 	int (*post_enable)(struct dp_display *dp_display, void *panel);

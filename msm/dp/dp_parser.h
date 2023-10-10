@@ -231,6 +231,7 @@ static inline char *dp_phy_aux_config_type_to_string(u32 cfg_type)
  * @has_mst_sideband: MST sideband feature enable status
  * @no_aux_switch: presence AUX switch status
  * @gpio_aux_switch: presence GPIO AUX switch status
+ * @no_backlight_support: For some display type that no support backlight
  * @dsc_feature_enable: DSC feature enable status
  * @fec_feature_enable: FEC feature enable status
  * @dsc_continuous_pps: PPS sent every frame by HW
@@ -271,6 +272,7 @@ struct dp_parser {
 	bool gpio_aux_switch;
 	bool lphw_hpd;
 	bool panel_notifier_support;
+	bool no_backlight_support;
 	u32 bl_min_level;
 	u32 bl_max_level;
 	u32 brightness_max_level;
