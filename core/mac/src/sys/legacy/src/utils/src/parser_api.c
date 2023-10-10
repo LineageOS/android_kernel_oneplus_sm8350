@@ -915,7 +915,7 @@ populate_dot11f_ht_caps(struct mac_context *mac,
 {
 	qdf_size_t ncfglen;
 	QDF_STATUS nSirStatus;
-	uint8_t disable_high_ht_mcs_2x2 = 0;
+	uint8_t disable_high_ht_mcs_2x2 = 0, cb_mode;
 	struct ch_params ch_params = {0};
 
 	tSirMacTxBFCapabilityInfo *pTxBFCapabilityInfo;
@@ -945,10 +945,11 @@ populate_dot11f_ht_caps(struct mac_context *mac,
 		pDot11f->shortGI20MHz = ht_cap_info->short_gi_20_mhz;
 		pDot11f->shortGI40MHz = ht_cap_info->short_gi_40_mhz;
 	} else {
+		cb_mode = lim_get_cb_mode_for_freq(mac, pe_session,
+						   pe_session->curr_op_freq);
 		if (WLAN_REG_IS_24GHZ_CH_FREQ(pe_session->curr_op_freq) &&
 		    LIM_IS_STA_ROLE(pe_session) &&
-		    WNI_CFG_CHANNEL_BONDING_MODE_DISABLE !=
-		    mac->roam.configParam.channelBondingMode24GHz) {
+		    cb_mode != WNI_CFG_CHANNEL_BONDING_MODE_DISABLE) {
 			pDot11f->supportedChannelWidthSet = 1;
 			ch_params.ch_width = CH_WIDTH_40MHZ;
 			wlan_reg_set_channel_params_for_freq(
