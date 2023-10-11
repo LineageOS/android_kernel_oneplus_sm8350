@@ -49,7 +49,18 @@
 				    SNDRV_PCM_FMTBIT_S24_LE | \
 				    SNDRV_PCM_FMTBIT_S32_LE)
 
+#define SAMPLING_RATE_11P025KHZ 11025
+#define SAMPLING_RATE_22P05KHZ  22050
+#define SAMPLING_RATE_44P1KHZ   44100
+#define SAMPLING_RATE_88P2KHZ   88200
+#define SAMPLING_RATE_176P4KHZ  176400
+#define SAMPLING_RATE_352P8KHZ  352800
+
+#define IS_TDM_INTERFACE(x) \
+((x >= AFE_PORT_ID_TDM_PORT_RANGE_START) && (x < AFE_PORT_ID_TDM_PORT_RANGE_END))
+
 static int msm_mi2s_get_port_id(u32 mi2s_id, int stream, u16 *port_id);
+int msm_lpass_audio_hw_vote_req(struct snd_pcm_substream *substream, bool enable);
 
 enum {
 	ENC_FMT_NONE,
@@ -299,6 +310,11 @@ enum {
 	IDX_GROUP_HSIF2_TDM_TX,
 	IDX_GROUP_TDM_MAX,
 };
+
+#define IS_FRACTIONAL(x) \
+((x == SAMPLING_RATE_11P025KHZ) || (x == SAMPLING_RATE_22P05KHZ) || \
+(x == SAMPLING_RATE_44P1KHZ) || (x == SAMPLING_RATE_88P2KHZ) || \
+(x == SAMPLING_RATE_176P4KHZ) || (x == SAMPLING_RATE_352P8KHZ))
 
 struct msm_dai_q6_dai_data {
 	DECLARE_BITMAP(status_mask, STATUS_MAX);
@@ -11665,6 +11681,9 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 	struct msm_dai_q6_tdm_dai_data *dai_data =
 		dev_get_drvdata(dai->dev);
 	u16 group_id = dai_data->group_cfg.tdm_cfg.group_id;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	int index = rtd->cpu_dai->id;
+	int sample_rate = dai_data->rate;
 	int group_idx = 0;
 	atomic_t *group_ref = NULL;
 	int intf_idx =  PORT_ID_TO_INTF_IDX(dai->id);
@@ -11688,6 +11707,15 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 	group_ref = &tdm_group_ref[group_idx];
 
 	if (!test_bit(STATUS_PORT_STARTED, dai_data->status_mask)) {
+		if (IS_TDM_INTERFACE(index) && (IS_FRACTIONAL(sample_rate))) {
+			rc = msm_lpass_audio_hw_vote_req(substream, true);
+			if (rc < 0) {
+				dev_err(dai->dev, "%s: fail to enable audio hw clk 0x%x\n",
+					__func__, dai->id);
+				goto rtn;
+			}
+		}
+
 		if (msm_dai_q6_get_tdm_clk_ref(group_idx) == 0) {
 			/* TX and RX share the same clk. So enable the clk
 			 * per TDM interface. */
@@ -11746,6 +11774,9 @@ static int msm_dai_q6_tdm_prepare(struct snd_pcm_substream *substream,
 				msm_dai_q6_tdm_set_clk(dai_data,
 					dai->id, false);
 			}
+			if (IS_TDM_INTERFACE(index) && (IS_FRACTIONAL(sample_rate)))
+				msm_lpass_audio_hw_vote_req(substream, false);
+
 			dev_err(dai->dev, "%s: fail to open AFE port 0x%x\n",
 				__func__, dai->id);
 		} else {
@@ -11775,6 +11806,10 @@ static void msm_dai_q6_tdm_shutdown(struct snd_pcm_substream *substream,
 	int group_idx = 0;
 	atomic_t *group_ref = NULL;
 	int intf_idx =  PORT_ID_TO_INTF_IDX(dai->id);
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
+	int index = cpu_dai->id;
+	int sample_rate = dai_data->rate;
 
 	group_idx = msm_dai_q6_get_group_idx(dai->id);
 	if (group_idx < 0) {
@@ -11830,6 +11865,9 @@ static void msm_dai_q6_tdm_shutdown(struct snd_pcm_substream *substream,
 		/* NOTE: AFE should error out if HW resource contention */
 
 	}
+
+	if (IS_TDM_INTERFACE(index) && (IS_FRACTIONAL(sample_rate)))
+		msm_lpass_audio_hw_vote_req(substream, false);
 
 	mutex_unlock(&tdm_mutex);
 }
