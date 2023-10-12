@@ -261,6 +261,14 @@ bool reg_is_us_alpha2(uint8_t *alpha2);
 bool reg_is_etsi_alpha2(uint8_t *alpha2);
 
 /**
+ * reg_ctry_support_vlp - Does country code supports VLP
+ * @alpha2: country code pointer
+ *
+ * Return: true or false
+ */
+bool reg_ctry_support_vlp(uint8_t *alpha2);
+
+/**
  * reg_set_country() - Set the current regulatory country
  * @pdev: pdev device for country information
  * @country: country value
@@ -439,6 +447,11 @@ static inline QDF_STATUS reg_read_current_country(struct wlan_objmgr_psoc *psoc,
 }
 
 static inline bool reg_is_world_alpha2(uint8_t *alpha2)
+{
+	return false;
+}
+
+static inline bool reg_ctry_support_vlp(uint8_t *alpha2)
 {
 	return false;
 }
