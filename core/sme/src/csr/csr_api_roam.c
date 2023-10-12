@@ -15837,6 +15837,7 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 			wlan_reg_read_current_country(mac->psoc,
 						      programmed_country);
 			status = wlan_reg_get_6g_power_type_for_ctry(mac->psoc,
+					mac->pdev,
 					pIes->Country.country,
 					programmed_country, &power_type_6g,
 					&ctry_code_match,
