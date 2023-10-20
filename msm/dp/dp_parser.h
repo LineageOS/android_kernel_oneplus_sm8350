@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  */
 
@@ -232,6 +232,8 @@ static inline char *dp_phy_aux_config_type_to_string(u32 cfg_type)
  * @no_aux_switch: presence AUX switch status
  * @gpio_aux_switch: presence GPIO AUX switch status
  * @no_backlight_support: For some display type that no support backlight
+ * @ext_hpd_en: A boolean value indicates an external dp can support hotplug
+ * @is_edp: A boolean value indicates an edp interface
  * @dsc_feature_enable: DSC feature enable status
  * @fec_feature_enable: FEC feature enable status
  * @dsc_continuous_pps: PPS sent every frame by HW
@@ -273,6 +275,8 @@ struct dp_parser {
 	bool lphw_hpd;
 	bool panel_notifier_support;
 	bool no_backlight_support;
+	bool ext_hpd_en;
+	bool is_edp;
 	u32 bl_min_level;
 	u32 bl_max_level;
 	u32 brightness_max_level;
