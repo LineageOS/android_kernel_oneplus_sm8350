@@ -202,6 +202,8 @@ struct wlan_cm_roam_vendor_btm_params {
  *                   floor in dB
  * @bg_rssi_threshold: Value of rssi threshold to trigger roaming
  *                     after background scan.
+ * @num_allowed_authmode: Number of allowerd authmode
+ * @allowed_authmode: List of allowed authmode other than connected
  */
 struct ap_profile {
 	uint32_t flags;
@@ -213,6 +215,8 @@ struct ap_profile {
 	uint32_t rsn_mcastmgmtcipherset;
 	uint32_t rssi_abs_thresh;
 	uint8_t bg_rssi_threshold;
+	uint32_t num_allowed_authmode;
+	uint32_t allowed_authmode[WLAN_CRYPTO_AUTH_MAX];
 };
 
 /**

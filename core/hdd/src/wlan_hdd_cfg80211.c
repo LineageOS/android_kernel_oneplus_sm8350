@@ -20884,6 +20884,12 @@ static void hdd_populate_crypto_akm_type(struct wlan_objmgr_vdev *vdev,
 	if (QDF_IS_STATUS_ERROR(status))
 		hdd_err("Failed to set akm type %0x to crypto component",
 			set_val);
+	status = wlan_crypto_set_vdev_param(vdev,
+					    WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT,
+					    set_val);
+	if (QDF_IS_STATUS_ERROR(status))
+		hdd_err("Failed to set original akm type %0x to crypto component",
+			set_val);
 }
 
 /**
@@ -20937,8 +20943,11 @@ static void hdd_populate_crypto_params(struct wlan_objmgr_vdev *vdev,
 		/* Reset to none */
 		HDD_SET_BIT(set_val, WLAN_CRYPTO_KEY_MGMT_NONE);
 		wlan_crypto_set_vdev_param(vdev,
-					    WLAN_CRYPTO_PARAM_KEY_MGMT,
-					    set_val);
+					   WLAN_CRYPTO_PARAM_KEY_MGMT,
+					   set_val);
+		wlan_crypto_set_vdev_param(vdev,
+					   WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT,
+					   set_val);
 	}
 	if (req->crypto.n_ciphers_pairwise) {
 		hdd_populate_crypto_cipher_type(req->crypto.ciphers_pairwise[0],

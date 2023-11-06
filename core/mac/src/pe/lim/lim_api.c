@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2011-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -1788,9 +1788,9 @@ void lim_fill_join_rsp_ht_caps(struct pe_session *session,
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
 #ifdef WLAN_FEATURE_11W
-static void pe_set_rmf_caps(struct mac_context *mac_ctx,
-			    struct pe_session *ft_session,
-			    struct roam_offload_synch_ind *roam_synch)
+static void pe_update_crypto_params(struct mac_context *mac_ctx,
+				    struct pe_session *ft_session,
+				    struct roam_offload_synch_ind *roam_synch)
 {
 	uint8_t *assoc_body;
 	uint16_t len;
@@ -1855,9 +1855,10 @@ static void pe_set_rmf_caps(struct mac_context *mac_ctx,
 		lim_get_vdev_rmf_capable(mac_ctx, ft_session);
 }
 #else
-static inline void pe_set_rmf_caps(struct mac_context *mac_ctx,
-				   struct pe_session *ft_session,
-				   struct roam_offload_synch_ind *roam_synch)
+static inline
+void pe_update_crypto_params(struct mac_context *mac_ctx,
+			     struct pe_session *ft_session,
+			     struct roam_offload_synch_ind *roam_synch)
 {
 }
 #endif
@@ -2624,7 +2625,7 @@ pe_roam_synch_callback(struct mac_context *mac_ctx,
 	/* Next routine will update nss and vdev_nss with AP's capabilities */
 	lim_fill_ft_session(mac_ctx, bss_desc, ft_session_ptr,
 			    session_ptr, roam_sync_ind_ptr->phy_mode);
-	pe_set_rmf_caps(mac_ctx, ft_session_ptr, roam_sync_ind_ptr);
+	pe_update_crypto_params(mac_ctx, ft_session_ptr, roam_sync_ind_ptr);
 	/* Next routine may update nss based on dot11Mode */
 	lim_ft_prepare_add_bss_req(mac_ctx, ft_session_ptr, bss_desc);
 	if (session_ptr->is11Rconnection)
