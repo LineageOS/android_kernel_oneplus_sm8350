@@ -197,17 +197,10 @@ struct ext_mclk_cfg_info {
 	u32 num_mclk_cfg;
 };
 
-/* Coupled with "qcom,ext-mclk-oe-cfg" DTSI property */
-#define MCLK_OE_CFG_CELLS 3
-struct ext_mclk_oe_cfg {
-	char __iomem *reg;
-	uint32_t reset_val;
-	uint32_t active_val;
-};
-
 struct ext_mclk_gpio_info {
 	struct device_node *gpio_p; /* used by pinctrl API */
-	struct ext_mclk_oe_cfg oe_cfg;
+	const char *ext_mclk_muxsel_str;
+	uint32_t ext_mclk_muxsel_val;
 	uint32_t ref_cnt;
 	struct mutex lock;
 };
@@ -1155,7 +1148,7 @@ static int lahaina_handle_ext_mclk_gpio(struct snd_soc_card *card,
 				goto unlock;
 			}
 
-			if (gpio_info->oe_cfg.reg != NULL) {
+			if (gpio_info->ext_mclk_muxsel_str != NULL) {
 				ret = lahaina_audio_vote(card, true);
 				if (ret) {
 					dev_err(card->dev, "%s: HW voting failed, ret: %d\n",
@@ -1163,9 +1156,8 @@ static int lahaina_handle_ext_mclk_gpio(struct snd_soc_card *card,
 					goto unlock;
 				}
 
-				iowrite32(gpio_info->oe_cfg.active_val,
-					  gpio_info->oe_cfg.reg);
-
+				ret = afe_set_lpass_ext_mclk_mux_cfg(gpio_info->ext_mclk_muxsel_str,
+					gpio_info->ext_mclk_muxsel_val);
 				lahaina_audio_vote(card, false);
 			}
 		}
@@ -1173,29 +1165,16 @@ static int lahaina_handle_ext_mclk_gpio(struct snd_soc_card *card,
 		if (--gpio_info->ref_cnt == 0) {
 			ret = msm_cdc_pinctrl_select_sleep_state(gpio_info->gpio_p);
 			if (ret) {
-				dev_err(card->dev, "%s: couldn't sleep mclk pinctrl\n",
+				dev_err(card->dev, "%s: couldn't deactivate mclk pinctrl\n",
 				       __func__);
-				ret = 0;
-			}
-
-			if (gpio_info->oe_cfg.reg != NULL) {
-				ret = lahaina_audio_vote(card, true);
-				if (ret) {
-					dev_err(card->dev, "%s: HW voting failed, ret: %d\n",
-					       __func__, ret);
-					goto unlock;
-				}
-
-				iowrite32(gpio_info->oe_cfg.reset_val,
-					  gpio_info->oe_cfg.reg);
-
-				lahaina_audio_vote(card, false);
 			}
 		}
 	}
 
 unlock:
 	mutex_unlock(&gpio_info->lock);
+	if (ret)
+		enable ? --gpio_info->ref_cnt : ++gpio_info->ref_cnt;
 
 	return ret;
 }
@@ -9119,10 +9098,10 @@ static int msm_parse_ext_mclk_gpios(struct snd_soc_card *card,
 	int ret = 0;
 	uint32_t len = 0;
 	uint32_t num_gpios = 0;
-	uint32_t cells = 0;
 	struct device_node *np = NULL;
 	struct ext_mclk_gpio_info *gpio_info = NULL;
-	u32 ext_mclk_oe_cfg_arr[MCLK_OE_CFG_CELLS];
+	const char *ext_mclk_muxsel_str = NULL;
+	u32 ext_mclk_muxsel_val = 0;
 	int i = 0;
 
 	if (!card || !card->dev || !card->dev->of_node)
@@ -9160,47 +9139,33 @@ static int msm_parse_ext_mclk_gpios(struct snd_soc_card *card,
 			goto free_gpio_info;
 		}
 
-		/* Parse ext clk OE register info from DT if it's a LPI GPIO */
+		/* aud_ref_mux is present only for LPI GPIOs on lahaina.
+		 * Hence we mandate parsing of mux config only for LPI GPIOs.
+		 * Review the existence of aud_ref_mux for LPI/TLMM GPIOs 
+		 * while porting this change to other platforms
+		 */
 		if (of_property_read_bool(gpio_info[i].gpio_p, "qcom,lpi-gpios")) {
-
-			ret = of_property_read_u32(gpio_info[i].gpio_p, "#ext-mclk-oe-cfg-cells", &cells);
+			ret = of_property_read_string(gpio_info[i].gpio_p,
+					"qcom,ext-mclk-muxsel-str", &ext_mclk_muxsel_str);
 			if (ret) {
-				dev_err(card->dev, "%s: ext mclk oe cfg cells not found in DT\n", __func__);
+				dev_err(card->dev, "%s: qcom,ext-mclk-muxsel-str not found in DT\n",
+						__func__);
 				ret = -EINVAL;
 				goto free_gpio_info;
+			} else {
+				ret = of_property_read_u32(gpio_info[i].gpio_p,
+						"qcom,ext-mclk-muxsel-val", &ext_mclk_muxsel_val);
+				if (ret) {
+					dev_err(card->dev, "%s: qcom,ext-mclk-muxsel-val not found in DT\n",
+						__func__);
+					ret = -EINVAL;
+					goto free_gpio_info;
+				}
 			}
-
-			if (cells != MCLK_OE_CFG_CELLS) {
-				dev_err(card->dev, "%s: invalid ext-mclk-oe-cfg-cells in DT\n", __func__);
-				ret = -EINVAL;
-				goto free_gpio_info;
-			};
-
-			ret = of_property_read_u32_array(gpio_info[i].gpio_p,
-							 "qcom,ext-mclk-oe-cfg",
-							 ext_mclk_oe_cfg_arr,
-							 cells);
-			if (ret) {
-				dev_err(card->dev, "could not find qcom,ext-mclk-oe-cfg DT entry for lpi-gpio");
-				ret = -EINVAL;
-				goto free_gpio_info;
-			}
-
-			gpio_info[i].oe_cfg.reg = devm_ioremap(card->dev,
-						ext_mclk_oe_cfg_arr[0], 0x4);
-			if (!gpio_info[i].oe_cfg.reg) {
-				dev_err(card->dev, "%s: failed to remap ext mclk OE reg 0x%x",
-				       __func__, ext_mclk_oe_cfg_arr[0]);
-				ret = -ENOMEM;
-				goto free_gpio_info;
-			}
-			gpio_info[i].oe_cfg.reset_val = ext_mclk_oe_cfg_arr[1];
-			gpio_info[i].oe_cfg.active_val = ext_mclk_oe_cfg_arr[2];
-			dev_dbg(card->dev, "%s: oe_cfg[%d].reg = 0x%x, reset = %u, active = %u\n",
-				__func__, i, ext_mclk_oe_cfg_arr[0], gpio_info[i].oe_cfg.reset_val,
-				gpio_info[i].oe_cfg.active_val);
-		} else {
-			gpio_info[i].oe_cfg.reg = NULL;
+			dev_dbg(card->dev, "%s: gpio_info[%d] - muxsel= %s,  val= %u\n",
+					__func__, i, ext_mclk_muxsel_str, ext_mclk_muxsel_val);
+			gpio_info[i].ext_mclk_muxsel_str = ext_mclk_muxsel_str;
+			gpio_info[i].ext_mclk_muxsel_val = ext_mclk_muxsel_val;
 		}
 	}
 
