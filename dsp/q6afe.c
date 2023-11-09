@@ -9959,6 +9959,77 @@ stop_mclk:
 }
 EXPORT_SYMBOL(afe_set_lpass_clk_cfg_ext_mclk);
 
+
+int afe_set_lpass_ext_mclk_mux_cfg(const char *mux_str,
+				   uint32_t mux_val)
+{
+	struct param_hdr_v3 param_hdr;
+	struct afe_param_id_clock_mux_cfg_t clk_mux_cfg;
+	uint32_t build_major_version = 0;
+	uint32_t build_minor_version = 0;
+	uint32_t build_branch_version = 0;
+	int afe_api_version = 0;
+	int ret = 0;
+
+	if (!mux_str) {
+		pr_err("%s: mux_str is NULL\n", __func__);
+		ret = -EINVAL;
+		return ret;
+	}
+
+	ret = q6core_get_avcs_avs_build_version_info(
+			&build_major_version, &build_minor_version,
+			&build_branch_version);
+	if (ret < 0)
+		return ret;
+
+	ret = q6core_get_avcs_api_version_per_service(
+			APRV2_IDS_SERVICE_ID_ADSP_AFE_V);
+	if (ret < 0)
+		return ret;
+
+	afe_api_version = ret;
+	pr_debug("%s: mjor: %u, mnor: %u, brnch: %u, afe_api: %u\n",
+			__func__, build_major_version, build_minor_version,
+			build_branch_version, afe_api_version);
+	if ((build_major_version != AVS_BUILD_MAJOR_VERSION_V2) ||
+			(build_minor_version != AVS_BUILD_MINOR_VERSION_V9) ||
+			(build_branch_version != AVS_BUILD_BRANCH_VERSION_V0) ||
+			(afe_api_version < AFE_API_VERSION_V11)) {
+		pr_err("%s: AFE_PARAM_ID_CLOCK_MUX_CFG unsupported by AVS\n", __func__);
+		return -EINVAL;
+	}
+
+	memset(&param_hdr, 0, sizeof(param_hdr));
+	param_hdr.module_id = AFE_MODULE_CLOCK_SET;
+	param_hdr.instance_id = INSTANCE_ID_0;
+	param_hdr.param_id = AFE_PARAM_ID_CLOCK_MUX_CFG;
+	param_hdr.param_size = sizeof(struct afe_param_id_clock_mux_cfg_t);
+	memset(&clk_mux_cfg, 0, sizeof(clk_mux_cfg));
+	strlcpy(clk_mux_cfg.mux_string, mux_str, sizeof(clk_mux_cfg.mux_string));
+	clk_mux_cfg.mux_value = mux_val;
+	pr_debug("%s: ext mclk mux cfg - mux_string: %s, mux_value = %u\n", __func__,
+		clk_mux_cfg.mux_string, clk_mux_cfg.mux_value);
+
+	ret = afe_q6_interface_prepare();
+	if (ret != 0) {
+		pr_err_ratelimited("%s: Q6 interface prepare failed %d\n",
+				__func__, ret);
+		return ret;
+	}
+
+	mutex_lock(&this_afe.afe_cmd_lock);
+	ret = q6afe_svc_pack_and_set_param_in_band(IDX_RSVD_3, param_hdr,
+						   (u8 *) &clk_mux_cfg);
+	if (ret < 0) {
+		pr_err_ratelimited("%s: ext mclk mux cfg failed with ret %d\n",
+				   __func__, ret);
+	}
+	mutex_unlock(&this_afe.afe_cmd_lock);
+	return ret;
+}
+EXPORT_SYMBOL(afe_set_lpass_ext_mclk_mux_cfg);
+
 static int ext_dyn_mclk_port_id;
 static int ext_dyn_clk_root = Q6AFE_LPASS_CLK_ROOT_DEFAULT;
 static struct afe_param_id_clock_set_v2_t ext_dyn_mclk;
