@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __Q6AFE_V2_H__
 #define __Q6AFE_V2_H__
@@ -55,6 +55,8 @@
 /* for external mclk dynamic switch */
 #define AFE_API_VERSION_V8		8
 #define AFE_API_VERSION_V10		10
+/* for external mclk selection through mux */
+#define AFE_API_VERSION_V11		11
 
 #define AFE_SAMPLING_RATE_8KHZ 8000
 
@@ -608,6 +610,7 @@ int afe_set_lpass_clk_cfg_ext_mclk(int index, struct afe_clk_set *cfg,
 				   uint32_t mclk_freq);
 int afe_set_lpass_clk_cfg_ext_mclk_v2(int index,
 	struct afe_param_id_clock_set_v2_t *dyn_mclk_cfg, uint32_t mclk_freq);
+int afe_set_lpass_ext_mclk_mux_cfg(const char *mux_str, uint32_t mux_val);
 int afe_get_sp_rx_tmax_xmax_logging_data(
 		struct afe_sp_rx_tmax_xmax_logging_param *xt_logging,
 		u16 port_id);
