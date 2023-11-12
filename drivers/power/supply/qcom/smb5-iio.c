@@ -26,11 +26,12 @@ int smb5_iio_get_prop(struct smb_charger *chg, int channel, int *val)
 	switch (channel) {
 	/* USB */
 	case PSY_IIO_VOLTAGE_MAX_LIMIT:
-		if (chg->usbin_forced_max_uv)
+		if (chg->usbin_forced_max_uv) {
 			*val = chg->usbin_forced_max_uv;
-		else
+		} else {
 			rc = smblib_get_prop_usb_voltage_max_design(chg, &pval);
 			*val = pval.intval;
+		}
 		break;
 	case PSY_IIO_PD_CURRENT_MAX:
 		*val = get_client_vote(chg->usb_icl_votable, PD_VOTER);
