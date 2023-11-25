@@ -6488,7 +6488,12 @@ static ssize_t oplus_chg_wls_proc_tx_write(struct file *file,
 	}
 
 	pr_err("buffer=%s", buffer);
-	kstrtoint(buffer, 0, &val);
+
+	if (kstrtoint(buffer, 0, &val) != 0) {
+		pr_err("Failed to convert buffer to integer\n");
+		return -EINVAL;
+	}
+
 	pr_err("val = %d", val);
 #ifndef CONFIG_OPLUS_CHG_OOS
 	/*
@@ -6553,7 +6558,12 @@ static ssize_t oplus_chg_wls_proc_rx_write(struct file *file,
 	}
 
 	pr_err("buffer=%s", buffer);
-	kstrtoint(buffer, 0, &val);
+
+	if (kstrtoint(buffer, 0, &val) != 0) {
+		pr_err("Failed to convert buffer to integer\n");
+		return -EINVAL;
+	}
+
 	pr_err("val = %d", val);
 
 	wls_dev->charge_enable = !!val;
@@ -6622,7 +6632,12 @@ static ssize_t oplus_chg_wls_proc_user_sleep_mode_write(struct file *file,
 	}
 
 	pr_err("user mode: buffer=%s\n", buffer);
-	kstrtoint(buffer, 0, &pmw_pulse);
+
+	if (kstrtoint(buffer, 0, &pmw_pulse) != 0) {
+		pr_err("Failed to convert buffer to integer\n");
+		return -EINVAL;
+	}
+
 	if (pmw_pulse == FASTCHG_MODE) {
 		pval.intval = 0;
 		rc = oplus_chg_mod_set_property(wls_dev->wls_ocm,
@@ -6716,7 +6731,11 @@ static ssize_t oplus_chg_wls_proc_idt_adc_test_write(struct file *file,
 		return -EFAULT;
 	}
 
-	kstrtoint(buffer, 0, &rx_adc_cmd);
+	if (kstrtoint(buffer, 0, &rx_adc_cmd) != 0) {
+		pr_err("Failed to convert buffer to integer\n");
+		return -EINVAL;
+	}
+
 	if (rx_adc_cmd == 0) {
 		pr_err("rx_adc_test: set 0.\n");
 		wls_dev->wls_status.rx_adc_test_enable = false;
@@ -6905,7 +6924,11 @@ static ssize_t oplus_chg_wls_proc_ftm_mode_write(struct file *file,
 	}
 
 	pr_err("ftm mode: buffer=%s\n", buffer);
-	kstrtoint(buffer, 0, &ftm_mode);
+
+	if (kstrtoint(buffer, 0, &ftm_mode) != 0) {
+		pr_err("Failed to convert buffer to integer\n");
+		return -EINVAL;
+	}
 
 	if (ftm_mode == FTM_MODE_DISABLE) {
 		wls_dev->ftm_mode = false;
