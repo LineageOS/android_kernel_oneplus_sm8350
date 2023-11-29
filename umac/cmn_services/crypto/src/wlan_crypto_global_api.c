@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2017-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -2553,12 +2553,7 @@ static int32_t wlan_crypto_wpa_suite_to_keymgmt(const uint8_t *sel)
 	return status;
 }
 
-/*
- * Convert a RSN cipher selector OUI to an internal
- * cipher algorithm.  Where appropriate we also
- * record any key length.
- */
-static int32_t wlan_crypto_rsn_suite_to_cipher(const uint8_t *sel)
+int32_t wlan_crypto_rsn_suite_to_cipher(const uint8_t *sel)
 {
 	uint32_t w = LE_READ_4(sel);
 	int32_t status = -1;
@@ -2588,11 +2583,8 @@ static int32_t wlan_crypto_rsn_suite_to_cipher(const uint8_t *sel)
 
 	return status;
 }
-/*
- * Convert an RSN key management/authentication algorithm
- * to an internal code.
- */
-static int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
+
+int32_t wlan_crypto_rsn_suite_to_keymgmt(const uint8_t *sel)
 {
 	uint32_t w = LE_READ_4(sel);
 	int32_t status = -1;
