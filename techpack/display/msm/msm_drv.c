@@ -1099,11 +1099,13 @@ static void msm_lastclose(struct drm_device *dev)
 			DRM_INFO("wait for crtc mask 0x%x failed, commit anyway...\n",
 				priv->pending_crtcs);
 
+#ifndef OPLUS_FEATURE_PXLW_IRIS5
 		rc = kms->funcs->trigger_null_flush(kms);
 		if (rc) {
 			DRM_ERROR("null flush commit failure during lastclose\n");
 			return;
 		}
+#endif
 	}
 
 	/*
