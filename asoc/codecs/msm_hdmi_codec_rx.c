@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/platform_device.h>
 #include <linux/slab.h>
@@ -367,7 +368,7 @@ static int msm_ext_disp_audio_device_get(struct snd_kcontrol *kcontrol,
 	int dai_id = ((struct soc_multi_mixer_control *)
 				kcontrol->private_value)->shift;
 
-	if (dai_id < 0 || dai_id > DP_DAI_MAX) {
+	if (dai_id < 0 || dai_id >= DP_DAI_MAX) {
 		dev_err(component->dev,
 			"%s: invalid dai id: %d\n", __func__, dai_id);
 		rc = -EINVAL;
@@ -399,7 +400,7 @@ static int msm_ext_disp_audio_device_set(struct snd_kcontrol *kcontrol,
 	int dai_id = ((struct soc_multi_mixer_control *)
 				kcontrol->private_value)->shift;
 
-	if (dai_id < 0 || dai_id > DP_DAI_MAX) {
+	if (dai_id < 0 || dai_id >= DP_DAI_MAX) {
 		dev_err(component->dev,
 			"%s: invalid dai id: %d\n", __func__, dai_id);
 		rc = -EINVAL;
