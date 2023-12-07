@@ -16408,8 +16408,14 @@ QDF_STATUS csr_send_mb_start_bss_req_msg(struct mac_context *mac, uint32_t
 	value = MLME_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED_FW_DEF;
 	pMsg->vht_config.csnof_beamformer_antSup = (uint8_t)value;
 	pMsg->vht_config.mu_beam_formee = 0;
+	/* Disable shortgi160 and 80 for 2.4Ghz BSS*/
+	if (wlan_reg_is_24ghz_ch_freq(pParam->operation_chan_freq)) {
+		pMsg->vht_config.shortgi160and80plus80 = 0;
+		pMsg->vht_config.shortgi80 = 0;
+	}
 
-	sme_debug("ht capability 0x%x VHT capability 0x%x",
+	sme_debug("cur_op_freq %d ht capability 0x%x VHT capability 0x%x",
+		  pParam->operation_chan_freq,
 		  (*(uint32_t *) &pMsg->ht_config),
 		  (*(uint32_t *) &pMsg->vht_config));
 #ifdef WLAN_FEATURE_11W
