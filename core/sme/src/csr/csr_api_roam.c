@@ -17882,6 +17882,29 @@ csr_cm_roam_scan_offload_rssi_thresh(struct mac_context *mac_ctx,
 	else
 		params->hi_rssi_scan_rssi_delta =
 			roam_info->cfgParams.hi_rssi_scan_rssi_delta;
+	/*
+	 * When the STA operating band is 2.4/5 GHz and if the high RSSI delta
+	 * is configured through vendor command then the priority should be
+	 * given to it and the high RSSI delta value will be overridden with it.
+	 */
+	if (!WLAN_REG_IS_6GHZ_CHAN_FREQ(session->connectedProfile.op_freq)) {
+		uint8_t roam_high_rssi_delta;
+
+		roam_high_rssi_delta =
+		wlan_cm_get_roam_scan_high_rssi_offset(mac_ctx->psoc);
+		if (roam_high_rssi_delta)
+			params->hi_rssi_scan_rssi_delta =
+						roam_high_rssi_delta;
+		/*
+		 * Firmware will use this flag to enable 5 to 6 GHz
+		 * high RSSI roam
+		 */
+		if (roam_high_rssi_delta &&
+		    WLAN_REG_IS_5GHZ_CH_FREQ(session->connectedProfile.op_freq))
+			params->flags |=
+			ROAM_SCAN_RSSI_THRESHOLD_FLAG_ROAM_HI_RSSI_EN_ON_5G;
+	}
+
 	params->hi_rssi_scan_rssi_ub =
 		roam_info->cfgParams.hi_rssi_scan_rssi_ub;
 	params->raise_rssi_thresh_5g =
@@ -18474,6 +18497,37 @@ csr_cm_fill_rso_sae_single_pmk_info(struct mac_context *mac_ctx,
 	return false;
 }
 #endif
+
+QDF_STATUS wlan_cm_roam_scan_offload_rssi_thresh(
+		struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+		struct wlan_roam_offload_scan_rssi_params *roam_rssi_params)
+{
+	struct csr_roam_session *session;
+	struct mac_context *mac_ctx;
+
+	mac_ctx = sme_get_mac_context();
+	if (!mac_ctx) {
+		sme_err("mac_ctx is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	session = CSR_GET_SESSION(mac_ctx, vdev_id);
+	if (!session) {
+		sme_err("session is null %d", vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (WLAN_REG_IS_6GHZ_CHAN_FREQ(session->connectedProfile.op_freq)) {
+		sme_err("vdev:%d High RSSI offset can't be set in 6 GHz band",
+			 vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	csr_cm_roam_scan_offload_rssi_thresh(mac_ctx, session,
+					     roam_rssi_params);
+
+	return QDF_STATUS_SUCCESS;
+}
 #endif
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
