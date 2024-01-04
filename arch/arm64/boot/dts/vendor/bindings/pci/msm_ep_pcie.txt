@@ -79,6 +79,8 @@ Optional Properties:
     reboot/panic.
   - qcom,pme-in-wake-from-d3cold: Issue PME message in device initiated wake
     from d3cold.
+  - qcom,pcie-bme-deassert-irq: Enable BME deassert irq as part of aggregated irq
+    if it is supported by the target.
 
 Example:
 

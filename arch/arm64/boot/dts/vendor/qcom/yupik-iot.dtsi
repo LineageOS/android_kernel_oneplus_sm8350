@@ -28,3 +28,15 @@
 &gcc_usb30_sec_gdsc {
 	status = "ok";
 };
+
+&usb1 {
+	qcom,default-mode-none;
+	status = "ok";
+	dwc3@8c00000 {
+		snps,usb2-gadget-lpm-disable;
+	};
+};
+
+&usb2_phy1 {
+	status = "ok";
+};

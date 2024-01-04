@@ -990,6 +990,7 @@
 			qcom,aoss-rst-clr;
 			qcom,aux-clk = <0x11>;
 			qcom,avoid-reboot-in-d3hot;
+			qcom,pcie-bme-deassert-irq;
 
 			qcom,phy-init = <0x1240 0x01 0x0
 				0x100c 0x02 0x0
