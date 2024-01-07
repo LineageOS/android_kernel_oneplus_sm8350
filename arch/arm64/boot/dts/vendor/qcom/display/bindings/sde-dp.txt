@@ -1,7 +1,9 @@
 Qualcomm Technologies, Inc.
 sde-dp is the master Display Port device which supports DP host controllers that are compatible with VESA Display Port interface specification.
 DP Controller: Required properties:
-- compatible:           Should be "qcom,dp-display".
+- compatible:           one of the following
+			"qcom,edp-display"
+			"qcom,dp-display"
 - reg:                  Base address and length of DP hardware's memory mapped regions.
 - reg-names:            A list of strings that name the list of regs. "dp_ctrl" - DP controller memory region.
 			"dp_ahb" - AHB memory region.
@@ -117,6 +119,7 @@ Optional properties:
 				device node. Refer to pinctrl-bindings.txt
 - qcom,max-lclk-frequency-khz:	An integer specifying the max. link clock in KHz supported by Display Port.
 - qcom,mst-fixed-topology-ports: u32 values of which MST output port to reserve, start from one
+- qcom,display-type:		A property to make the edp or dp display as primary.
 
 [Optional child nodes]: These nodes are for devices which are
 dependent on msm_ext_disp. If msm_ext_disp is disabled then

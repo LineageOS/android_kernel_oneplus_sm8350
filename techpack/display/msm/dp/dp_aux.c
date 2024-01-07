@@ -766,6 +766,7 @@ static void dp_aux_set_sim_mode(struct dp_aux *dp_aux, bool en,
 static int dp_aux_configure_aux_switch(struct dp_aux *dp_aux,
 		bool enable, int orientation)
 {
+	const char *external_aux_switch = "redriver";
 	struct dp_aux_private *aux;
 	int rc = 0;
 	enum fsa_function event = FSA_USBC_DISPLAYPORT_DISCONNECTED;
@@ -783,6 +784,10 @@ static int dp_aux_configure_aux_switch(struct dp_aux *dp_aux,
 		rc = -EINVAL;
 		goto end;
 	}
+
+	if (strcmp(aux->aux_switch_node->name,
+		external_aux_switch) == 0)
+		goto end;
 
 	if (enable) {
 		switch (orientation) {
