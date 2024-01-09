@@ -15839,7 +15839,7 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 				sme_debug("Channel is 6G but country IE not present");
 			status = wlan_reg_get_best_6g_power_type(mac->psoc,
 					mac->pdev, &power_type_6g,
-					ap_6g_power_type);
+					ap_6g_power_type, pBssDescription->chan_freq);
 			if (QDF_IS_STATUS_ERROR(status))
 				break;
 			csr_join_req->best_6g_power_type = power_type_6g;
