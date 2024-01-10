@@ -14999,6 +14999,7 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 {
 	QDF_STATUS status = QDF_STATUS_SUCCESS;
 	uint8_t acm_mask = 0, uapsd_mask;
+	enum reg_6g_ap_type ap_6g_power_type = REG_INDOOR_AP;
 	uint32_t bss_freq;
 	uint16_t msgLen, ieLen;
 	tSirMacRateSet OpRateSet;
@@ -15831,16 +15832,21 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 		else
 			csr_join_req->isQosEnabled = false;
 
+		if (pIes->he_op.oper_info_6g_present) {
+			ap_6g_power_type = pIes->he_op.oper_info_6g.info.reg_info;
+		}
+
 		if (wlan_reg_is_6ghz_chan_freq(pBssDescription->chan_freq)) {
 			if (!pIes->Country.present)
 				sme_debug("Channel is 6G but country IE not present");
 			wlan_reg_read_current_country(mac->psoc,
 						      programmed_country);
 			status = wlan_reg_get_6g_power_type_for_ctry(mac->psoc,
+					mac->pdev,
 					pIes->Country.country,
 					programmed_country, &power_type_6g,
 					&ctry_code_match,
-					pSession->ap_power_type);
+					ap_6g_power_type);
 			if (QDF_IS_STATUS_ERROR(status))
 				break;
 			csr_join_req->ap_power_type_6g = power_type_6g;
@@ -16402,8 +16408,14 @@ QDF_STATUS csr_send_mb_start_bss_req_msg(struct mac_context *mac, uint32_t
 	value = MLME_VHT_CSN_BEAMFORMEE_ANT_SUPPORTED_FW_DEF;
 	pMsg->vht_config.csnof_beamformer_antSup = (uint8_t)value;
 	pMsg->vht_config.mu_beam_formee = 0;
+	/* Disable shortgi160 and 80 for 2.4Ghz BSS*/
+	if (wlan_reg_is_24ghz_ch_freq(pParam->operation_chan_freq)) {
+		pMsg->vht_config.shortgi160and80plus80 = 0;
+		pMsg->vht_config.shortgi80 = 0;
+	}
 
-	sme_debug("ht capability 0x%x VHT capability 0x%x",
+	sme_debug("cur_op_freq %d ht capability 0x%x VHT capability 0x%x",
+		  pParam->operation_chan_freq,
 		  (*(uint32_t *) &pMsg->ht_config),
 		  (*(uint32_t *) &pMsg->vht_config));
 #ifdef WLAN_FEATURE_11W
