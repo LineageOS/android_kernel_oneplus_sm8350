@@ -168,18 +168,6 @@ int snd_compress_deregister(struct snd_compr *device);
 int snd_compress_new(struct snd_card *card, int device,
 			int type, const char *id, struct snd_compr *compr);
 
-/**
- * snd_compr_use_pause_in_draining - Allow pause and resume in draining state
- * @substream: compress substream to set
- *
- * Allow pause and resume in draining state.
- * Only HW driver supports this transition can call this API.
- */
-static inline void snd_compr_use_pause_in_draining(struct snd_compr_stream *substream)
-{
-	substream->device->use_pause_in_draining = true;
-}
-
 /* dsp driver callback apis
  * For playback: driver should call snd_compress_fragment_elapsed() to let the
  * framework know that a fragment has been consumed from the ring buffer
