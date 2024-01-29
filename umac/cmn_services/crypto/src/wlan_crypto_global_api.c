@@ -172,6 +172,15 @@ static QDF_STATUS wlan_crypto_set_param(struct wlan_crypto_params *crypto_params
 	case WLAN_CRYPTO_PARAM_KEY_MGMT:
 		status = wlan_crypto_set_key_mgmt(crypto_params, value);
 		break;
+	case WLAN_CRYPTO_PARAM_ORIG_UCAST_CIPHER:
+		status = wlan_crypto_set_orig_ucastcipher(crypto_params, value);
+		break;
+	case WLAN_CRYPTO_PARAM_ORIG_MCAST_CIPHER:
+		status = wlan_crypto_set_orig_mcastcipher(crypto_params, value);
+		break;
+	case WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT:
+		status = wlan_crypto_set_orig_key_mgmt(crypto_params, value);
+		break;
 	default:
 		status = QDF_STATUS_E_INVAL;
 	}
@@ -278,6 +287,15 @@ static int32_t wlan_crypto_get_param_value(wlan_crypto_param_type param,
 		break;
 	case WLAN_CRYPTO_PARAM_KEY_MGMT:
 		value = wlan_crypto_get_key_mgmt(crypto_params);
+		break;
+	case WLAN_CRYPTO_PARAM_ORIG_UCAST_CIPHER:
+		value = wlan_crypto_get_orig_ucastcipher(crypto_params);
+		break;
+	case WLAN_CRYPTO_PARAM_ORIG_MCAST_CIPHER:
+		value = wlan_crypto_get_orig_mcastcipher(crypto_params);
+		break;
+	case WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT:
+		value = wlan_crypto_get_orig_key_mgmt(crypto_params);
 		break;
 	default:
 		value = -1;
