@@ -312,6 +312,7 @@ struct wlan_crypto_pmksa {
  * @orig_ucastcipher:   connection request unicast ciphers
  * @orig_mcastcipher:   connection request multicast cipher
  * @orig_key_mgmt:      connection request key mgmt
+ * @orig_rsn_caps:      connection request rsn_capability
  *
  * This structure holds crypto params for peer or vdev
  */
@@ -327,6 +328,7 @@ struct wlan_crypto_params {
 	uint32_t orig_ucastcipher;
 	uint32_t orig_mcastcipher;
 	uint32_t orig_key_mgmt;
+	uint16_t orig_rsn_caps;
 };
 
 typedef enum wlan_crypto_param_type {
@@ -341,6 +343,7 @@ typedef enum wlan_crypto_param_type {
 	WLAN_CRYPTO_PARAM_ORIG_UCAST_CIPHER,
 	WLAN_CRYPTO_PARAM_ORIG_MCAST_CIPHER,
 	WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT,
+	WLAN_CRYPTO_PARAM_ORIG_RSN_CAP,
 } wlan_crypto_param_type;
 
 /**

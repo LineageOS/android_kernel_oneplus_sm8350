@@ -404,3 +404,36 @@ int32_t wlan_crypto_get_orig_key_mgmt(struct wlan_crypto_params *crypto_params)
 {
 	return crypto_params->orig_key_mgmt;
 }
+
+/**
+ * wlan_crypto_set_orig_rsn_cap - called by ucfg to configure connection
+ *                                request RSN capabilities in vdev
+ * @crypto_params: pointer to crypto params structure
+ * @value: bitmap value of all supported RSN capabilities
+ *
+ * This function gets called from ucfg to configure RSN caps in vdev
+ *
+ * Return: QDF_STATUS_SUCCESS - in case of success
+ */
+QDF_STATUS
+wlan_crypto_set_orig_rsn_cap(struct wlan_crypto_params *crypto_params,
+			     uint32_t value)
+{
+	crypto_params->orig_rsn_caps = value;
+
+	return QDF_STATUS_SUCCESS;
+}
+
+/**
+ * wlan_crypto_get_orig_rsn_cap - called by ucfg to get connection request
+ *                                RSN capabilities from vdev
+ * @crypto_params: pointer to crypto params structure
+ *
+ * This function gets called from ucfg to get supported RSN capabilities
+ *
+ * Return: bitmap value of all supported RSN caps
+ */
+int32_t wlan_crypto_get_orig_rsn_cap(struct wlan_crypto_params *crypto_params)
+{
+	return crypto_params->orig_rsn_caps;
+}
