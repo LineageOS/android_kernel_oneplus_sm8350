@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  *
  */
 
@@ -16,6 +16,7 @@
 #define LLCC_AUDIO       6
 #define LLCC_MDMHPGRW    7
 #define LLCC_MDM         8
+#define LLCC_MDMHW       9
 #define LLCC_CMPT        10
 #define LLCC_GPUHTW      11
 #define LLCC_GPU         12
@@ -26,6 +27,19 @@
 #define LLCC_MDMHPFX     20
 #define LLCC_MDMPNG      21
 #define LLCC_AUDHW       22
+#define LLCC_NPU         23
+#define LLCC_WLNHW       24
+#define LLCC_PIMEM       25
+#define LLCC_DRE         26
+#define LLCC_CVP         28
+#define LLCC_MDMVPE      29
+#define LLCC_APTCM       30
+#define LLCC_WRTCH       31
+#define LLCC_CVPFW       32
+#define LLCC_CPUSS1      33
+#define LLCC_CMPT1       34
+#define LLCC_CPUHWT      36
+#define LLCC_MDMCLD2     37
 
 /**
  * llcc_slice_desc - Cache slice descriptor
@@ -39,27 +53,19 @@ struct llcc_slice_desc {
 
 /**
  * llcc_slice_config - Data associated with the llcc slice
- * @usecase_id: Unique id for the client's use case
- * @slice_id: llcc slice id for each client
- * @max_cap: The maximum capacity of the cache slice provided in KB
- * @priority: Priority of the client used to select victim line for replacement
- * @fixed_size: Boolean indicating if the slice has a fixed capacity
- * @bonus_ways: Bonus ways are additional ways to be used for any slice,
- *		if client ends up using more than reserved cache ways. Bonus
- *		ways are allocated only if they are not reserved for some
- *		other client.
- * @res_ways: Reserved ways for the cache slice, the reserved ways cannot
- *		be used by any other client than the one its assigned to.
- * @cache_mode: Each slice operates as a cache, this controls the mode of the
- *             slice: normal or TCM(Tightly Coupled Memory)
- * @probe_target_ways: Determines what ways to probe for access hit. When
- *                    configured to 1 only bonus and reserved ways are probed.
- *                    When configured to 0 all ways in llcc are probed.
- * @dis_cap_alloc: Disable capacity based allocation for a client
- * @retain_on_pc: If this bit is set and client has maintained active vote
- *               then the ways assigned to this client are not flushed on power
- *               collapse.
- * @activate_on_init: Activate the slice immediately after it is programmed
+ * @usecase_id: usecase id for which the llcc slice is used
+ * @slice_id: llcc slice id assigned to each slice
+ * @max_cap: maximum capacity of the llcc slice
+ * @priority: priority of the llcc slice
+ * @fixed_size: whether the llcc slice can grow beyond its size
+ * @bonus_ways: bonus ways associated with llcc slice
+ * @res_ways: reserved ways associated with llcc slice
+ * @cache_mode: mode of the llcc slice
+ * @probe_target_ways: Probe only reserved and bonus ways on a cache miss
+ * @dis_icap_alloc: Disable capacity based allocation
+ * @write_scid_en: Enables write cache support for a given scid.
+ * @retain_on_pc: Retain through power collapse
+ * @activate_on_init: activate the slice on init
  */
 struct llcc_slice_config {
 	u32 usecase_id;
@@ -72,6 +78,7 @@ struct llcc_slice_config {
 	u32 cache_mode;
 	u32 probe_target_ways;
 	bool dis_cap_alloc;
+	bool write_scid_en;
 	bool retain_on_pc;
 	bool activate_on_init;
 };
@@ -100,6 +107,7 @@ struct llcc_drv_data {
 	unsigned long *bitmap;
 	u32 *offsets;
 	int ecc_irq;
+	bool cap_based_alloc_and_pwr_collapse;
 };
 
 /**
@@ -163,6 +171,20 @@ int llcc_slice_activate(struct llcc_slice_desc *desc);
  */
 int llcc_slice_deactivate(struct llcc_slice_desc *desc);
 
+/**
+ * qcom_llcc_probe - program the sct table
+ * @pdev: platform device pointer
+ * @table: soc sct table
+ * @sz: Size of the config table
+ */
+int qcom_llcc_probe(struct platform_device *pdev,
+		      const struct llcc_slice_config *table, u32 sz);
+
+/**
+ * qcom_llcc_remove - remove the sct table
+ * @pdev: Platform device pointer
+ */
+int qcom_llcc_remove(struct platform_device *pdev);
 #else
 static inline struct llcc_slice_desc *llcc_slice_getd(u32 uid)
 {
@@ -191,6 +213,16 @@ static inline int llcc_slice_activate(struct llcc_slice_desc *desc)
 static inline int llcc_slice_deactivate(struct llcc_slice_desc *desc)
 {
 	return -EINVAL;
+}
+static inline int qcom_llcc_probe(struct platform_device *pdev,
+		      const struct llcc_slice_config *table, u32 sz)
+{
+	return -ENODEV;
+}
+
+static inline int qcom_llcc_remove(struct platform_device *pdev)
+{
+	return -ENODEV;
 }
 #endif
 
