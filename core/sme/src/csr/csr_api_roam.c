@@ -10822,7 +10822,7 @@ QDF_STATUS csr_fill_filter_from_vdev_crypto(struct mac_context *mac_ctx,
 	filter->ucastcipherset =
 		wlan_crypto_get_param(vdev, WLAN_CRYPTO_PARAM_UCAST_CIPHER);
 	filter->key_mgmt =
-		wlan_crypto_get_param(vdev, WLAN_CRYPTO_PARAM_KEY_MGMT);
+		wlan_crypto_get_param(vdev, WLAN_CRYPTO_PARAM_ORIG_KEY_MGMT);
 	filter->mgmtcipherset =
 		wlan_crypto_get_param(vdev, WLAN_CRYPTO_PARAM_MGMT_CIPHER);
 
@@ -18684,8 +18684,9 @@ static QDF_STATUS csr_cm_roam_scan_offload_fill_lfr3_config(
 		 * re-assoc request too. Instead of making another infra, send
 		 * the RSN-CAPS in MSB of beacon Caps.
 		 */
-		crypto_rsn = wlan_crypto_get_param(vdev,
-						   WLAN_CRYPTO_PARAM_RSN_CAP);
+		crypto_rsn =
+			wlan_crypto_get_param(vdev,
+					      WLAN_CRYPTO_PARAM_ORIG_RSN_CAP);
 		if (crypto_rsn < 0)
 			sme_err("Invalid RSN capabilities");
 		else

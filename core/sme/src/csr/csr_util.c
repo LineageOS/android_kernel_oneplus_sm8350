@@ -2565,6 +2565,8 @@ static void csr_update_ucast_cipher_crypto_param(struct wlan_objmgr_vdev *vdev,
 				   ucastcipherset);
 }
 
+#define MGMT_FRAME_FULL_PROTECTION (RSN_CAP_MFP_REQUIRED | RSN_CAP_MFP_CAPABLE)
+
 uint8_t csr_construct_rsn_ie(struct mac_context *mac, uint32_t sessionId,
 			     struct csr_roam_profile *pProfile,
 			     struct bss_description *pSirBssDesc,
@@ -2575,8 +2577,8 @@ uint8_t csr_construct_rsn_ie(struct mac_context *mac, uint32_t sessionId,
 	uint8_t *rsn_ie = (uint8_t *)pRSNIe;
 	uint8_t ie_len = 0;
 	tDot11fBeaconIEs *local_ap_ie = ap_ie;
-	uint16_t rsn_cap = 0, self_rsn_cap;
-	int32_t rsn_val;
+	uint16_t rsn_cap = 0, self_rsn_cap, orig_rsn_cap;
+	int32_t rsn_val, orig_rsn_val;
 	struct wlan_crypto_pmksa pmksa, *pmksa_peer;
 	struct csr_roam_session *session = &mac->roam.roamSession[sessionId];
 
@@ -2620,6 +2622,29 @@ uint8_t csr_construct_rsn_ie(struct mac_context *mac, uint32_t sessionId,
 	}
 	wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_RSN_CAP,
 				   self_rsn_cap);
+
+	/*
+	 * This user configure MFP capability is global and is for
+	 * multiple profiles which can be used by firmware for cross-AKM
+	 * roaming. When user configures MFP required then we should
+	 * set both MFPC and MFPR in RSN caps.
+	 */
+	orig_rsn_val = wlan_crypto_get_param(vdev, WLAN_CRYPTO_PARAM_ORIG_RSN_CAP);
+	if (orig_rsn_val < 0) {
+		sme_err("Invalid mgmt cipher");
+		wlan_objmgr_vdev_release_ref(vdev, WLAN_LEGACY_SME_ID);
+		return ie_len;
+	}
+	orig_rsn_cap = (uint16_t)orig_rsn_val;
+
+	if (orig_rsn_cap == RSN_CAP_MFP_REQUIRED)
+		orig_rsn_cap = MGMT_FRAME_FULL_PROTECTION;
+
+	self_rsn_cap = (uint16_t)rsn_val;
+	self_rsn_cap = (self_rsn_cap) & (~MGMT_FRAME_FULL_PROTECTION);
+	orig_rsn_cap = self_rsn_cap | orig_rsn_cap;
+	wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_ORIG_RSN_CAP,
+				   orig_rsn_cap);
 
 	csr_update_key_mgmt_crypto_param(vdev, local_ap_ie->RSN);
 	csr_update_ucast_cipher_crypto_param(vdev, local_ap_ie->RSN);

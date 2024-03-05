@@ -17123,6 +17123,17 @@ static void wlan_hdd_cfg80211_set_dfs_offload_feature(struct wiphy *wiphy)
 }
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
+static void wlan_hdd_set_mfp_optional(struct wiphy *wiphy)
+{
+	wiphy_ext_feature_set(wiphy, NL80211_EXT_FEATURE_MFP_OPTIONAL);
+}
+#else
+static void wlan_hdd_set_mfp_optional(struct wiphy *wiphy)
+{
+}
+#endif
+
 #ifdef WLAN_FEATURE_DSRC
 static void wlan_hdd_get_num_dsrc_ch_and_len(struct hdd_config *hdd_cfg,
 					     int *num_ch, int *ch_len)
@@ -17808,6 +17819,8 @@ void wlan_hdd_update_wiphy(struct hdd_context *hdd_ctx)
 	mac_spoofing_enabled = ucfg_scan_is_mac_spoofing_enabled(hdd_ctx->psoc);
 	if (mac_spoofing_enabled)
 		wlan_hdd_cfg80211_scan_randomization_init(wiphy);
+
+	wlan_hdd_set_mfp_optional(wiphy);
 }
 
 /**
@@ -21057,6 +21070,19 @@ hdd_populate_crypto_cipher_type(struct wlan_objmgr_vdev *vdev,
 	}
 }
 
+static inline
+uint8_t hdd_get_rsn_cap_mfp(enum nl80211_mfp mfp_state)
+{
+	switch (mfp_state) {
+	case NL80211_MFP_REQUIRED:
+		return RSN_CAP_MFP_REQUIRED;
+	case NL80211_MFP_OPTIONAL:
+		return RSN_CAP_MFP_CAPABLE;
+	default:
+		return RSN_CAP_MFP_DISABLED;
+	}
+}
+
 /**
  * hdd_populate_crypto_params() - set crypto params
  * @vdev: Pointer to vdev obh mgr
@@ -21100,6 +21126,25 @@ static void hdd_populate_crypto_params(struct wlan_objmgr_vdev *vdev,
 		HDD_SET_BIT(set_val, WLAN_CRYPTO_CIPHER_NONE);
 		wlan_crypto_set_vdev_param(vdev,
 					   WLAN_CRYPTO_PARAM_MCAST_CIPHER,
+					   set_val);
+	}
+
+	if (req->mfp) {
+		QDF_STATUS status;
+
+		set_val = (uint32_t)hdd_get_rsn_cap_mfp(req->mfp);
+
+		status = wlan_crypto_set_vdev_param(
+						vdev,
+						WLAN_CRYPTO_PARAM_ORIG_RSN_CAP,
+						set_val);
+		if (QDF_IS_STATUS_ERROR(status))
+			hdd_debug("Failed to set original RSN caps %d to crypto",
+				  set_val);
+	} else {
+		set_val = 0;
+		/* Reset to none */
+		wlan_crypto_set_vdev_param(vdev, WLAN_CRYPTO_PARAM_ORIG_RSN_CAP,
 					   set_val);
 	}
 
