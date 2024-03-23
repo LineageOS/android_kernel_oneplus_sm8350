@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -15028,9 +15028,7 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 	struct wlan_objmgr_vdev *vdev;
 	bool follow_ap_edca;
 	bool reconn_after_assoc_timeout = false;
-	uint8_t programmed_country[REG_ALPHA2_LEN + 1];
 	enum reg_6g_ap_type power_type_6g;
-	bool ctry_code_match;
 	uint8_t reg_cc[REG_ALPHA2_LEN + 1];
 
 	if (!pSession) {
@@ -15839,18 +15837,12 @@ QDF_STATUS csr_send_join_req_msg(struct mac_context *mac, uint32_t sessionId,
 		if (wlan_reg_is_6ghz_chan_freq(pBssDescription->chan_freq)) {
 			if (!pIes->Country.present)
 				sme_debug("Channel is 6G but country IE not present");
-			wlan_reg_read_current_country(mac->psoc,
-						      programmed_country);
-			status = wlan_reg_get_6g_power_type_for_ctry(mac->psoc,
-					mac->pdev,
-					pIes->Country.country,
-					programmed_country, &power_type_6g,
-					&ctry_code_match,
-					ap_6g_power_type);
+			status = wlan_reg_get_best_6g_power_type(mac->psoc,
+					mac->pdev, &power_type_6g,
+					ap_6g_power_type, pBssDescription->chan_freq);
 			if (QDF_IS_STATUS_ERROR(status))
 				break;
-			csr_join_req->ap_power_type_6g = power_type_6g;
-			csr_join_req->same_ctry_code = ctry_code_match;
+			csr_join_req->best_6g_power_type = power_type_6g;
 
 			status = csr_iterate_triplets(pIes->Country);
 		}
@@ -17882,6 +17874,29 @@ csr_cm_roam_scan_offload_rssi_thresh(struct mac_context *mac_ctx,
 	else
 		params->hi_rssi_scan_rssi_delta =
 			roam_info->cfgParams.hi_rssi_scan_rssi_delta;
+	/*
+	 * When the STA operating band is 2.4/5 GHz and if the high RSSI delta
+	 * is configured through vendor command then the priority should be
+	 * given to it and the high RSSI delta value will be overridden with it.
+	 */
+	if (!WLAN_REG_IS_6GHZ_CHAN_FREQ(session->connectedProfile.op_freq)) {
+		uint8_t roam_high_rssi_delta;
+
+		roam_high_rssi_delta =
+		wlan_cm_get_roam_scan_high_rssi_offset(mac_ctx->psoc);
+		if (roam_high_rssi_delta)
+			params->hi_rssi_scan_rssi_delta =
+						roam_high_rssi_delta;
+		/*
+		 * Firmware will use this flag to enable 5 to 6 GHz
+		 * high RSSI roam
+		 */
+		if (roam_high_rssi_delta &&
+		    WLAN_REG_IS_5GHZ_CH_FREQ(session->connectedProfile.op_freq))
+			params->flags |=
+			ROAM_SCAN_RSSI_THRESHOLD_FLAG_ROAM_HI_RSSI_EN_ON_5G;
+	}
+
 	params->hi_rssi_scan_rssi_ub =
 		roam_info->cfgParams.hi_rssi_scan_rssi_ub;
 	params->raise_rssi_thresh_5g =
@@ -18474,6 +18489,37 @@ csr_cm_fill_rso_sae_single_pmk_info(struct mac_context *mac_ctx,
 	return false;
 }
 #endif
+
+QDF_STATUS wlan_cm_roam_scan_offload_rssi_thresh(
+		struct wlan_objmgr_psoc *psoc, uint8_t vdev_id,
+		struct wlan_roam_offload_scan_rssi_params *roam_rssi_params)
+{
+	struct csr_roam_session *session;
+	struct mac_context *mac_ctx;
+
+	mac_ctx = sme_get_mac_context();
+	if (!mac_ctx) {
+		sme_err("mac_ctx is NULL");
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	session = CSR_GET_SESSION(mac_ctx, vdev_id);
+	if (!session) {
+		sme_err("session is null %d", vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	if (WLAN_REG_IS_6GHZ_CHAN_FREQ(session->connectedProfile.op_freq)) {
+		sme_err("vdev:%d High RSSI offset can't be set in 6 GHz band",
+			 vdev_id);
+		return QDF_STATUS_E_FAILURE;
+	}
+
+	csr_cm_roam_scan_offload_rssi_thresh(mac_ctx, session,
+					     roam_rssi_params);
+
+	return QDF_STATUS_SUCCESS;
+}
 #endif
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD
