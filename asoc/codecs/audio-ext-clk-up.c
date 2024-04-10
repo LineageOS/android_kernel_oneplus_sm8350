@@ -57,6 +57,8 @@ struct audio_ext_clk_priv {
 	const char *clk_name;
 	uint32_t lpass_core_hwvote_client_handle;
 	uint32_t lpass_audio_hwvote_client_handle;
+	bool supports_ext_mclk;
+	uint32_t ext_mclk_freq;
 };
 
 static struct audio_ext_clk audio_clk_array[];
@@ -70,46 +72,75 @@ static int audio_ext_clk_prepare(struct clk_hw *hw)
 {
 	struct audio_ext_clk_priv *clk_priv = to_audio_clk(hw);
 	struct pinctrl_info *pnctrl_info = &clk_priv->audio_clk.pnctrl_info;
-	int ret;
+	int ret = 0;
 	static DEFINE_RATELIMIT_STATE(rtl, 1 * HZ, 1);
 
 	if ((clk_priv->clk_src >= AUDIO_EXT_CLK_LPASS) &&
-		(clk_priv->clk_src < AUDIO_EXT_CLK_LPASS_MAX))  {
+		(clk_priv->clk_src < AUDIO_EXT_CLK_LPASS_MAX)) {
 		clk_priv->clk_cfg.enable = 1;
-		ret = afe_set_lpass_clk_cfg(IDX_RSVD_3, &clk_priv->clk_cfg);
-		if (ret < 0) {
-			if (__ratelimit(&rtl))
-				pr_err_ratelimited("%s afe_set_digital_codec_core_clock failed\n",
-				__func__);
-			return ret;
+
+		/* Case 1. Clock driver supports ext clk source && platform enables ext clk support
+		 *	- Use ext clk API
+		 * Case 2. Clock driver supports ext clk source && platform has NOT enabled ext clk support
+		 *	- We try using ext clk API, it fails; we fall back to internal clk API
+		 * Case 3. Clock driver doesn't support ext clk source
+		 *	- Use internal clk API
+		 *
+		 * NOTE: Platform, the machine driver, confirms ext clk support
+		 * by registering for the 'ext_mclk_cb' callback with
+		 * Q6AFE driver.
+		 */
+		if (clk_priv->supports_ext_mclk) {
+			ret = afe_set_lpass_clk_cfg_ext_mclk(IDX_RSVD_3,
+				&clk_priv->clk_cfg,
+				clk_priv->ext_mclk_freq);
+			if (ret == 0) {
+				goto prepare_pinctrl;
+			} else if (ret == -EOPNOTSUPP) {
+				pr_err_ratelimited("%s: ext mclk prepare failed; falling back to internal clk\n",
+						   __func__);
+			} else {
+				goto err;
+			}
 		}
+		ret = afe_set_lpass_clk_cfg(IDX_RSVD_3,
+			&clk_priv->clk_cfg);
+		if (ret < 0)
+			goto err;
 	}
 
+prepare_pinctrl:
 	if (pnctrl_info->pinctrl) {
 		ret = pinctrl_select_state(pnctrl_info->pinctrl,
-				pnctrl_info->active);
+			pnctrl_info->active);
 		if (ret) {
 			pr_err("%s: active state select failed with %d\n",
 				__func__, ret);
 			return -EIO;
 		}
 	}
-
 	if (pnctrl_info->base)
 		iowrite32(1, pnctrl_info->base);
 	return 0;
+
+err:
+	if (__ratelimit(&rtl))
+		pr_err_ratelimited("%s: afe_set_lpass_clk_cfg_ext_mclk failed with %d\n",
+					__func__, ret);
+	return ret;
+
 }
 
 static void audio_ext_clk_unprepare(struct clk_hw *hw)
 {
 	struct audio_ext_clk_priv *clk_priv = to_audio_clk(hw);
 	struct pinctrl_info *pnctrl_info = &clk_priv->audio_clk.pnctrl_info;
-	int ret;
+	int ret = 0;
 	static DEFINE_RATELIMIT_STATE(rtl, 1 * HZ, 1);
 
 	if (pnctrl_info->pinctrl) {
 		ret = pinctrl_select_state(pnctrl_info->pinctrl,
-					   pnctrl_info->sleep);
+			pnctrl_info->sleep);
 		if (ret) {
 			pr_err("%s: active state select failed with %d\n",
 				__func__, ret);
@@ -117,19 +148,34 @@ static void audio_ext_clk_unprepare(struct clk_hw *hw)
 		}
 	}
 
-	if ((clk_priv->clk_src >= AUDIO_EXT_CLK_LPASS) &&
-		(clk_priv->clk_src < AUDIO_EXT_CLK_LPASS_MAX))  {
-		clk_priv->clk_cfg.enable = 0;
-		ret = afe_set_lpass_clk_cfg(IDX_RSVD_3, &clk_priv->clk_cfg);
-		if (ret < 0) {
-			if (__ratelimit(&rtl))
-				pr_err_ratelimited("%s: afe_set_lpass_clk_cfg failed, ret = %d\n",
-				__func__, ret);
-		}
-	}
-
 	if (pnctrl_info->base)
 		iowrite32(0, pnctrl_info->base);
+
+	if ((clk_priv->clk_src >= AUDIO_EXT_CLK_LPASS) &&
+		(clk_priv->clk_src < AUDIO_EXT_CLK_LPASS_MAX))	{
+		clk_priv->clk_cfg.enable = 0;
+		if (clk_priv->supports_ext_mclk) {
+			ret = afe_set_lpass_clk_cfg_ext_mclk(IDX_RSVD_3,
+				&clk_priv->clk_cfg,
+				clk_priv->ext_mclk_freq);
+			if (ret == 0) {
+				goto exit;
+			} else if (ret == -EOPNOTSUPP) {
+				pr_err_ratelimited("%s: ext mclk unprepare failed; falling back to internal clk\n",
+							__func__);
+			} else {
+				goto exit;
+			}
+		}
+		ret = afe_set_lpass_clk_cfg(IDX_RSVD_3, &clk_priv->clk_cfg);
+		if (ret < 0)
+			goto exit;
+	}
+
+exit:
+	if (ret && __ratelimit(&rtl))
+		pr_err_ratelimited("%s: afe_set_lpass_clk_cfg failed, ret = %d\n",
+					__func__, ret);
 }
 
 static u8 audio_ext_clk_get_parent(struct clk_hw *hw)
@@ -518,6 +564,7 @@ static int audio_ref_clk_probe(struct platform_device *pdev)
 	int ret;
 	struct audio_ext_clk_priv *clk_priv;
 	u32 clk_freq = 0, clk_id = 0, clk_src = 0, use_pinctrl = 0;
+	u32 ext_mclk_src_freq = 0;
 
 	clk_priv = devm_kzalloc(&pdev->dev, sizeof(*clk_priv), GFP_KERNEL);
 	if (!clk_priv)
@@ -561,9 +608,27 @@ static int audio_ref_clk_probe(struct platform_device *pdev)
 	if (!ret)
 		clk_priv->clk_cfg.clk_id = clk_id;
 
+	if (of_property_read_bool(pdev->dev.of_node,
+				  "qcom,supports-ext-mclk"))
+		clk_priv->supports_ext_mclk = true;
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+				   "qcom,ext-mclk-src-freq",
+				   &ext_mclk_src_freq);
+	if (!ret) {
+		clk_priv->ext_mclk_freq = ext_mclk_src_freq;
+	} else if (clk_priv->supports_ext_mclk) {
+		dev_err(&pdev->dev, "%s: qcom,ext-mclk-src-freq not defined\n",
+			__func__);
+		return ret;
+	}
+
 	dev_dbg(&pdev->dev, "%s: ext-clk freq: %d, lpass clk_id: %d, clk_src: %d\n",
-			__func__, clk_priv->clk_cfg.clk_freq_in_hz,
-			clk_priv->clk_cfg.clk_id, clk_priv->clk_src);
+		__func__, clk_priv->clk_cfg.clk_freq_in_hz,
+		clk_priv->clk_cfg.clk_id, clk_priv->clk_src);
+	dev_dbg(&pdev->dev, "%s: supports-ext-mclk: %d, ext-mclk-input-freq: %d\n",
+		__func__, clk_priv->supports_ext_mclk, clk_priv->ext_mclk_freq);
+
 	platform_set_drvdata(pdev, clk_priv);
 
 	ret = of_property_read_string(pdev->dev.of_node, "pmic-clock-names",

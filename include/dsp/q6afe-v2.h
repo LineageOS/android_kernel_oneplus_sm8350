@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef __Q6AFE_V2_H__
 #define __Q6AFE_V2_H__
@@ -55,6 +55,8 @@
 /* for external mclk dynamic switch */
 #define AFE_API_VERSION_V8		8
 #define AFE_API_VERSION_V10		10
+/* for external mclk selection through mux */
+#define AFE_API_VERSION_V11		11
 
 #define AFE_SAMPLING_RATE_8KHZ 8000
 
@@ -419,6 +421,7 @@ enum afe_mclk_freq {
 	MCLK_FREQ_11P2896_MHZ = MCLK_FREQ_MIN,
 	MCLK_FREQ_12P288_MHZ,
 	MCLK_FREQ_16P384_MHZ,
+	MCLK_FREQ_19P200_MHZ,
 	MCLK_FREQ_22P5792_MHZ,
 	MCLK_FREQ_24P576_MHZ,
 	MCLK_FREQ_MAX,
@@ -603,8 +606,11 @@ int afe_port_send_afe_limiter_param(u16 port_id,
 	struct afe_param_id_port_afe_limiter_disable_t *disable_limiter);
 int afe_get_av_dev_drift(struct afe_param_id_dev_timing_stats *timing_stats,
 		u16 port);
+int afe_set_lpass_clk_cfg_ext_mclk(int index, struct afe_clk_set *cfg,
+				   uint32_t mclk_freq);
 int afe_set_lpass_clk_cfg_ext_mclk_v2(int index,
 	struct afe_param_id_clock_set_v2_t *dyn_mclk_cfg, uint32_t mclk_freq);
+int afe_set_lpass_ext_mclk_mux_cfg(const char *mux_str, uint32_t mux_val);
 int afe_get_sp_rx_tmax_xmax_logging_data(
 		struct afe_sp_rx_tmax_xmax_logging_param *xt_logging,
 		u16 port_id);
@@ -634,6 +640,14 @@ int afe_set_source_clk(u16 port_id, const char *clk_src);
 void afe_set_clk_src_array(const char *clk_src[CLK_SRC_MAX]);
 int afe_set_mclk_src_cfg(u16 port_id, uint32_t mclk_src_id, uint32_t mclk_freq);
 
+/* Client of AFE registers afe_enable_mclk_and_get_info_cb_func callback function via
+ * afe_register_ext_mclk_cb() when external clock is supported by the platform. During
+ * clock enable sequence, AFE triggers this callback before requesting DSP for clock
+ * enable. Client can provide Div2X, M, N, D and clock root as part of this callback.
+ * Client can also enable required GPIO that are essential to route external clock in
+ * this callback. During clock disable sequence, AFE triggers this callback after
+ * requesting DSP for clock disable. Client can disable required GPIOs in this callback.
+ */
 typedef int (*afe_enable_mclk_and_get_info_cb_func) (void *private_data,
 			uint32_t enable, uint32_t mclk_freq,
 			struct afe_param_id_clock_set_v2_t *dyn_mclk_cfg);

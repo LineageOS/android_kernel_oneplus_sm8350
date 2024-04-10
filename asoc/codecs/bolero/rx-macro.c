@@ -465,6 +465,7 @@ struct rx_macro_priv {
 	u16 default_clk_id;
 	int8_t rx0_gain_val;
 	int8_t rx1_gain_val;
+	u32 mclk_freq;
 };
 
 static struct snd_soc_dai_driver rx_macro_dai[];
@@ -1411,11 +1412,12 @@ static int rx_macro_mclk_event(struct snd_soc_dapm_widget *w,
 	int ret = 0;
 	struct device *rx_dev = NULL;
 	struct rx_macro_priv *rx_priv = NULL;
-	int mclk_freq = MCLK_FREQ;
+	int mclk_freq = 0;
 
 	if (!rx_macro_get_data(component, &rx_dev, &rx_priv, __func__))
 		return -EINVAL;
 
+	mclk_freq = rx_priv->mclk_freq;
 	dev_dbg(rx_dev, "%s: event = %d\n", __func__, event);
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
@@ -2689,7 +2691,8 @@ static void rx_macro_hphdelay_lutbypass(struct snd_soc_component *component,
 	}
 
 	if (hph_lut_bypass_reg && SND_SOC_DAPM_EVENT_OFF(event)) {
-		snd_soc_component_update_bits(component,
+		if (!rx_priv->is_ear_mode_on)
+			snd_soc_component_update_bits(component,
 					BOLERO_CDC_RX_RX0_RX_PATH_CFG1,
 					0x02, 0x00);
 		snd_soc_component_update_bits(component, hph_lut_bypass_reg,
@@ -4166,13 +4169,14 @@ static int rx_macro_probe(struct platform_device *pdev)
 {
 	struct macro_ops ops = {0};
 	struct rx_macro_priv *rx_priv = NULL;
-	u32 rx_base_addr = 0, muxsel = 0;
+	u32 rx_base_addr = 0, muxsel = 0, mclk_freq = 0;
 	char __iomem *rx_io_base = NULL, *muxsel_io = NULL;
 	int ret = 0;
 	u8 bcl_pmic_params[3];
 	u32 default_clk_id = 0;
 	u32 is_used_rx_swr_gpio = 1;
 	const char *is_used_rx_swr_gpio_dt = "qcom,is-used-swr-gpio";
+	const char *cdc_mclk_clk_rate = "qcom,cdc-mclk-clk-rate";
 
 	if (!bolero_is_va_macro_registered(&pdev->dev)) {
 		dev_err(&pdev->dev,
@@ -4207,6 +4211,15 @@ static int rx_macro_probe(struct platform_device *pdev)
 			__func__, "qcom,default-clk-id");
 		default_clk_id = RX_CORE_CLK;
 	}
+	ret = of_property_read_u32(pdev->dev.of_node, cdc_mclk_clk_rate,
+				   &mclk_freq);
+	if (ret) {
+		rx_priv->mclk_freq = MCLK_FREQ;
+	} else {
+		rx_priv->mclk_freq = mclk_freq;
+	}
+	dev_dbg(rx_priv->dev,
+		"%s: mclk_freq = %u\n", __func__, rx_priv->mclk_freq);
 	if (of_find_property(pdev->dev.of_node, is_used_rx_swr_gpio_dt,
 			     NULL)) {
 		ret = of_property_read_u32(pdev->dev.of_node,
