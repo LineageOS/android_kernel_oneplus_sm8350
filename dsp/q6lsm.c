@@ -2460,6 +2460,12 @@ int q6lsm_set_one_param(struct lsm_client *client,
 				       sizeof(struct param_hdr_v2);
 
 		if (param_type == LSM_REG_MULTI_SND_MODEL) {
+			if(list_empty(&client->stage_cfg[p_info->stage_idx].sound_models)) {
+				 pr_err("%s: sound_models list is empty \n",
+                                 __func__);
+				 return -EINVAL;
+			}
+
 			list_for_each_entry(sm,
 					    &client->stage_cfg[p_info->stage_idx].sound_models,
 					    list) {
