@@ -554,11 +554,20 @@ static void usb_cser_start_rx(struct f_cdev *port);
 static void usb_cser_resume(struct usb_function *f)
 {
 	struct f_cdev *port = func_to_port(f);
+	struct usb_composite_dev *cdev	= f->config->cdev;
 	unsigned long flags;
 	int ret;
 
 	struct usb_request *req, *t;
 	struct usb_ep *in;
+
+	/*
+	 * Bail out if the interface is in USB3 Function Suspend state.
+	 * In that case resume is done by Function Resume request (write).
+	 */
+	if ((cdev->gadget->speed >= USB_SPEED_SUPER) &&
+			port->func_is_suspended)
+		return;
 
 	pr_debug("%s\n", __func__);
 	port->is_suspended = false;
