@@ -5860,9 +5860,6 @@ static int battery_get_property(struct power_supply *psy,
 				val->intval = g_oplus_chip->batt_fcc * 1000;
 			}
 			break;
-		case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-			val->intval = 0;
-			break;
 		default:
 			rc = oplus_battery_get_property(psy, psp, val);
 			break;

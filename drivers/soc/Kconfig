@@ -21,6 +21,7 @@ source "drivers/soc/ux500/Kconfig"
 source "drivers/soc/versatile/Kconfig"
 source "drivers/soc/xilinx/Kconfig"
 source "drivers/soc/zte/Kconfig"
+
 #ifdef VENDOR_EDIT
 source "drivers/soc/oplus/system/Kconfig"
 #endif /* VENDOR_EDIT */
@@ -33,8 +34,11 @@ source "drivers/soc/oplus/device_info/Kconfig"
 source "drivers/soc/oplus/sensor/Kconfig"
 #endif /* OPLUS_FEATURE_SENSOR_SMEM */
 
+#ifdef OPLUS_FEATURE_SENSOR_CONSUMER_IR
+source "drivers/soc/oplus/oplus_consumer_ir/Kconfig"
+#endif /* OPLUS_FEATURE_SENSOR_CONSUMER_IR */
+
 #ifdef OPLUS_FEATURE_ESIM
 source "drivers/soc/oplus/misc/Kconfig"
 #endif /* OPLUS_FEATURE_ESIM */
-
 endmenu

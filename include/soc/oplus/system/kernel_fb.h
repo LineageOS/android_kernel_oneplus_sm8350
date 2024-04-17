@@ -12,7 +12,8 @@ typedef enum {
 	FB_STORAGE,
 	FB_SENSOR,
 	FB_BOOT,
-	FB_MAX_TYPE = FB_BOOT,
+	FB_CAMERA,
+	FB_MAX_TYPE = FB_CAMERA,
 } fb_tag;
 
 #define FB_STABILITY_ID_CRASH	"202007272030"
@@ -23,7 +24,11 @@ typedef enum {
 
 #ifdef CONFIG_OPLUS_KEVENT_UPLOAD
 #include <linux/version.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
+#include <../../../arch/arm64/kernel/secureguard/rootguard/oplus_kevent.h>
+#else
 #include <linux/oplus_kevent.h>
+#endif
 int oplus_kevent_fb(fb_tag tag_id, const char *event_id, unsigned char *payload);
 int oplus_kevent_fb_str(fb_tag tag_id, const char *event_id, unsigned char *str);
 #else

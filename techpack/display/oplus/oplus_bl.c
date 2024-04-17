@@ -38,13 +38,13 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, char hbm_switch)
 		if(enable_hbm_enter_dly_on_flags)
 			enable_hbm_enter_dly_on_flags++;
 		if(0 == oplus_global_hbm_flags) {
-			if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)){
+			if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)) {
 				DSI_ERR("Failed to send DSI_CMD_DLY_ON commands\n");
 				return 0;
 			}
 			enable_hbm_enter_dly_on_flags = 1;
 		} else if (4 == enable_hbm_enter_dly_on_flags) {
-			if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)){
+			if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)) {
 				DSI_ERR("Failed to send DSI_CMD_DLY_OFF commands\n");
 				return 0;
 			}
@@ -52,7 +52,7 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, char hbm_switch)
 		}
 	} else {
 		if(oplus_global_hbm_flags == 1) {
-			if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)){
+			if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_ON)) {
 				DSI_ERR("Failed to send DSI_CMD_DLY_ON commands\n");
 				return 0;
 			}
@@ -63,7 +63,7 @@ static int oplus_display_panel_dly(struct dsi_panel *panel, char hbm_switch)
 				enable_hbm_exit_dly_on_flags++;
 			if(3 == enable_hbm_exit_dly_on_flags) {
 				enable_hbm_exit_dly_on_flags = 0;
-				if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)){
+				if(dsi_panel_tx_cmd_set(panel, DSI_CMD_DLY_OFF)) {
 					DSI_ERR("Failed to send DSI_CMD_DLY_OFF commands\n");
 					return 0;
 				}
@@ -95,8 +95,8 @@ int oplus_display_panel_backlight_mapping(struct dsi_panel *panel, u32 *backligh
 	if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01")) {
 		if(bl_lvl <= PANEL_MAX_NOMAL_BRIGHTNESS) {
 			bl_lvl = backlight_buf[bl_lvl];
-		} else if(bl_lvl > HBM_BASE_600NIT) {
-			if(panel->panel_id2 <= 2) {
+		} else if (bl_lvl > HBM_BASE_600NIT) {
+			if (panel->panel_id2 <= 2) {
 					bl_lvl = HBM_BASE_600NIT;
 			} else {
 				oplus_display_panel_dly(panel, 1);
@@ -111,7 +111,7 @@ int oplus_display_panel_backlight_mapping(struct dsi_panel *panel, u32 *backligh
 			}
 		} else if (bl_lvl > PANEL_MAX_NOMAL_BRIGHTNESS) {
 			if(oplus_global_hbm_flags == 1) {
-				if(dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_EXIT_SWITCH)){
+				if (dsi_panel_tx_cmd_set(panel, DSI_CMD_HBM_EXIT_SWITCH)) {
 					DSI_ERR("Failed to send DSI_CMD_HBM_EXIT_SWITCH commands\n");
 					return 0;
 				}

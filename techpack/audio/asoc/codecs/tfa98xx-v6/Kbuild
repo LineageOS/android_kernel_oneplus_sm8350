@@ -78,8 +78,11 @@ ifdef CONFIG_SND_SOC_TFA98XX
 	TFA98XX_OBJS += tfa98xx_v6.o
 	TFA98XX_OBJS += tfa_dsp_v6.o
 	TFA98XX_OBJS += tfa_init_v6.o
+ifdef CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+	TFA98XX_OBJS += oplus_tfa98xx_feedback.o
+endif
 ifdef OPLUS_FEATURE_SMARTPA_PM
-	TFA98XX_OBJS += ../smartpa_pm/smartpa_pm.o
+	TFA98XX_OBJS += smartpa_pm/smartpa_pm.o
 endif
 endif
 

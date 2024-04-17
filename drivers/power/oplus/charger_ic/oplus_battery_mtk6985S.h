@@ -19,8 +19,7 @@
 #include "../../../../../kernel-5.15/drivers/gpu/drm/mediatek/mediatek_v2/mtk_disp_notify.h"
 #endif
 
-/*add for dx-2 bringup*/
-/*#include "../../../base/kernelFwUpdate/kernelFwUpdate.h"*/
+#include "../../../base/kernelFwUpdate/kernelFwUpdate.h"
 
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
@@ -440,6 +439,7 @@ struct mtk_charger {
 	int chargeric_temp_volt;
 	int chargeric_temp;
 	bool support_ntc_01c_precision;
+	bool ntc_temp_volt_1840mv;
 
 	struct tcpc_device *tcpc;
 	struct adapter_power_cap srccap;
@@ -447,6 +447,7 @@ struct mtk_charger {
 	bool chrdet_state;
 	bool wd0_detect;
 	bool bc12_complete;
+	bool wait_hard_reset_complete;
 	struct delayed_work status_keep_clean_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
@@ -512,6 +513,7 @@ extern void mt_usb_disconnect(void);
 int oplus_get_chargeric_temp(void);
 extern bool is_meta_mode(void);
 int oplus_get_fast_chg_type(void);
+extern bool oplus_get_wd0_stat(bool wd0_status);
 #endif
 #endif /* __MTK_CHARGER_H */
 

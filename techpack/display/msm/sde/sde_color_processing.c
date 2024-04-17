@@ -314,13 +314,11 @@ static int set_dspp_pcc_feature(struct sde_hw_dspp *hw_dspp,
 	}
 
 	display = get_main_display();
-	if (!display->panel->oplus_priv.dc_apollo_sync_enable || !dc_apollo_enable) {
-		if (OPLUS_DISPLAY_POWER_DOZE_SUSPEND == get_oplus_display_power_status() ||
-				OPLUS_DISPLAY_POWER_DOZE == get_oplus_display_power_status() ||
-				(cstate->aod_skip_pcc == true) ||
-				cstate->fingerprint_mode) {
-			hw_cfg->payload = NULL;
-		}
+	if (OPLUS_DISPLAY_POWER_DOZE_SUSPEND == get_oplus_display_power_status() ||
+			OPLUS_DISPLAY_POWER_DOZE == get_oplus_display_power_status() ||
+			(cstate->aod_skip_pcc == true) ||
+			cstate->fingerprint_mode) {
+		hw_cfg->payload = NULL;
 	}
 
 	if (display->panel->oplus_priv.dc_apollo_sync_enable && dc_apollo_enable

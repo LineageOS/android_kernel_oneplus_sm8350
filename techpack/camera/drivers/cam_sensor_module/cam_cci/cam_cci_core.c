@@ -8,7 +8,6 @@
 #include "cam_cci_dev.h"
 #include "cam_req_mgr_workq.h"
 #include "cam_common_util.h"
-#define DUMP_CCI_REGISTERS
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 //#define DUMP_CCI_REGISTERS 1
 #include "cam_cci_ctrl_interface.h"
@@ -48,11 +47,6 @@ static void cam_cci_flush_queue(struct cci_device *cci_dev,
 		&cci_dev->soc_info;
 	void __iomem *base = soc_info->reg_map[0].mem_base;
 
-    uint32_t reg_offset = 0x114;
-    uint32_t read_val = cam_io_r_mb(base + reg_offset);
-
-    CAM_INFO(CAM_CCI, "before halt offset = 0x%X value = 0x%X", reg_offset, read_val);
-
 	cam_io_w_mb(1 << master, base + CCI_HALT_REQ_ADDR);
 	if (!cci_dev->cci_master_info[master].status)
 		reinit_completion(&cci_dev->cci_master_info[master]
@@ -65,10 +59,6 @@ static void cam_cci_flush_queue(struct cci_device *cci_dev,
 			cci_dev->soc_info.index, master);
 
 		/* Set reset pending flag to true */
-		CAM_ERR(CAM_CCI, "wait timeout on cci dev %d cci master %d",
-            cci_dev->soc_info.index, master);
-        read_val = cam_io_r_mb(base + reg_offset);
-        CAM_INFO(CAM_CCI, "after timeout offset = 0x%X value = 0x%X", reg_offset, read_val);
 		cci_dev->cci_master_info[master].reset_pending = true;
 		cci_dev->cci_master_info[master].status = 0;
 
@@ -89,10 +79,6 @@ static void cam_cci_flush_queue(struct cci_device *cci_dev,
 				"Retry:: wait timeout for reset complete for cci: %d master: %d",
 				cci_dev->soc_info.index, master);
 		}
-
-        read_val = cam_io_r_mb(base + reg_offset);
-        CAM_INFO(CAM_CCI, "after reset offset = 0x%X value = 0x%X", reg_offset, read_val);
-
 		cci_dev->cci_master_info[master].status = 0;
 	}
 

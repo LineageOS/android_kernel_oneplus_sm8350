@@ -24,6 +24,9 @@
 
 #define PANEL_REG_MAX_LENS 28
 #define PANEL_TX_MAX_BUF 256
+#define PANEL_NAME_LENS 50
+#define PANEL_ID_BIT 12
+#define RGB_COLOR_WEIGHT 3
 
 struct panel_id
 {
@@ -39,6 +42,10 @@ struct panel_info {
 
 struct panel_serial_number {
 	char serial_number[40];
+};
+
+struct panel_name {
+	char name[PANEL_NAME_LENS];
 };
 
 struct display_timing_info {
@@ -74,6 +81,8 @@ struct panel_reg_rw {
 int oplus_display_panel_get_id(void *buf);
 int oplus_display_panel_get_max_brightness(void *buf);
 int oplus_display_panel_set_max_brightness(void *buf);
+int oplus_display_panel_get_lcd_max_brightness(void *buf);
+int oplus_display_panel_set_brightness(void *buf);
 int oplus_display_panel_get_brightness(void *buf);
 int oplus_display_panel_get_vendor(void *buf);
 int oplus_display_panel_get_ccd_check(void *buf);
@@ -95,6 +104,8 @@ int oplus_display_panel_set_dynamic_osc_clock(void *data);
 int oplus_display_panel_get_dynamic_osc_clock(void *data);
 int oplus_display_get_softiris_color_status(void *data);
 int oplus_display_panel_hbm_lightspot_check(void);
+int oplus_display_panel_get_panel_bpp(void *buf);
+int oplus_display_panel_get_panel_name(void *buf);
 int oplus_display_set_dither_status(void *buf);
 int oplus_display_get_dither_status(void *buf);
 int oplus_display_panel_get_oplus_max_brightness(void *buf);

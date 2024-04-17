@@ -180,8 +180,7 @@ static int oplus_mos_ctrl_probe(struct platform_device *pdev)
 
 	if (batt_authenticate != true || sub_batt_authenticate != true) {
 		error_status = SWITCH_ERROR_I2C_ERROR;
-		chg_err("gauge i2c error! error_status:%d\n",
-			batt_authenticate, sub_batt_authenticate, error_status);
+		chg_err("gauge i2c error! error_status:%d\n", error_status);
 	}
 
 	mos_dev = devm_kzalloc(&pdev->dev, sizeof(*mos_dev), GFP_KERNEL);

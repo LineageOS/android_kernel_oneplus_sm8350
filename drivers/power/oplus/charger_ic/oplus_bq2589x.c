@@ -1309,6 +1309,7 @@ static irqreturn_t bq2589x_irq_handler(int irq, void *data)
 	prev_pg = bq->power_good;
 	bq->power_good = !!(reg_val & BQ2589X_PG_STAT_MASK);
 	chg_info("(%d, %d)\n", prev_pg, bq->power_good);
+	oplus_chg_track_check_wired_charging_break(bq->power_good);
 	oplus_bq2589x_set_mivr_by_battery_vol();
 
 	if (dumpreg_by_irq)
@@ -1666,6 +1667,38 @@ static int bq2589x_detect_device(struct bq2589x *bq)
 	}
 
 	return ret;
+}
+
+static void register_charger_devinfo(struct bq2589x *bq)
+{
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
+	int ret = 0;
+	char *version;
+	char *manufacture;
+
+	if(!bq) {
+		chg_err("No bq2589x device found!\n");
+		return;
+        }
+	switch(bq->part_no) {
+	case BQ2589X_PART_NO:
+		version = "bq2589x";
+		manufacture = "TI";
+        	break;
+	default:
+		version = "sy6970";
+		manufacture = "silergy corp";
+		break;
+	}
+	if (strcmp(bq->chg_dev_name, "primary_chg") == 0) {
+		ret = register_device_proc("charger", version, manufacture);
+	} else {
+		ret = register_device_proc("secondary_charger", version, manufacture);
+	}
+	if(ret) {
+		pr_err("register_charger_devinfo failed\n");
+	}
+#endif
 }
 
 static void bq2589x_dump_regs(struct bq2589x *bq)
@@ -3329,6 +3362,16 @@ static void oplus_mt_power_off(void)
 	}
 }
 
+static int oplus_bq2589x_get_rtc_spare_oplus_fg_value(void)
+{
+	return 0;
+}
+
+static int oplus_bq2589x_set_rtc_spare_oplus_fg_value(int soc)
+{
+	return 0;
+}
+
 static void bq2589x_init_work_handler(struct work_struct *work)
 {
 	int boot_mode = get_boot_mode();
@@ -3421,8 +3464,13 @@ struct oplus_chg_operations  oplus_chg_bq2589x_ops = {
 	.get_boot_mode = (int (*)(void))get_boot_mode,
 	.get_boot_reason = (int (*)(void))get_boot_reason,
 	.get_instant_vbatt = oplus_battery_meter_get_battery_voltage,
+#ifdef CONFIG_OPLUS_CHARGER_MTK
+	.get_rtc_soc = oplus_bq2589x_get_rtc_spare_oplus_fg_value,
+	.set_rtc_soc = oplus_bq2589x_set_rtc_spare_oplus_fg_value,
+#else
 	.get_rtc_soc = oplus_get_rtc_ui_soc,
 	.set_rtc_soc = oplus_set_rtc_ui_soc,
+#endif
 	.set_power_off = oplus_mt_power_off,
 	.usb_connect = mt_usb_connect,
 	.usb_disconnect = mt_usb_disconnect,
@@ -3611,6 +3659,7 @@ static int bq2589x_charger_probe(struct i2c_client *client,
 	bq2589x_disable_batfet_rst(bq);
 	/*Enable AICL for sy6970*/
 	bq2589x_enable_ico(bq, true);
+	register_charger_devinfo(bq);
 
 	INIT_DELAYED_WORK(&bq->bq2589x_aicr_setting_work, aicr_setting_work_callback);
 	INIT_DELAYED_WORK(&bq->bq2589x_vol_convert_work, vol_convert_work);
