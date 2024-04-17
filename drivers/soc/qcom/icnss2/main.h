@@ -472,6 +472,11 @@ struct icnss_priv {
 	struct icnss_dms_data dms;
 	u8 use_nv_mac;
 	u32 wlan_en_delay_ms;
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+	unsigned long loadBdfState;
+	unsigned long loadRegdbState;
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 	bool psf_supported;
 	struct notifier_block psf_nb;
 	struct power_supply *batt_psy;
@@ -481,6 +486,18 @@ struct icnss_priv {
 	unsigned long device_config;
 	struct timer_list recovery_timer;
 };
+
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+enum cnss_load_state {
+	CNSS_LOAD_BDF_FAIL = 1,
+	CNSS_LOAD_BDF_SUCCESS,
+	CNSS_LOAD_REGDB_FAIL,
+	CNSS_LOAD_REGDB_SUCCESS,
+	CNSS_PROBE_FAIL,
+	CNSS_PROBE_SUCCESS,
+};
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 
 struct icnss_reg_info {
 	uint32_t mem_type;

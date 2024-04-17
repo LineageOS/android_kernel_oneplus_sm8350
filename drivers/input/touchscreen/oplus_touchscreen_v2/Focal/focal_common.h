@@ -13,6 +13,7 @@
 #include "../touchpanel_common.h"
 #include "../touch_comon_api/touch_comon_api.h"
 #include "../touchpanel_autotest/touchpanel_autotest.h"
+#include "../touchpanel_healthinfo/touchpanel_healthinfo.h"
 
 /*********PART2:Define Area**********************/
 /*create apk debug channel*/
@@ -78,6 +79,9 @@ enum {
 	TYPE_TEST4                   = 0x04,
 	TYPE_TEST5                   = 0x05,
 	TYPE_TEST6                   = 0x06,
+	TYPE_TEST7                   = 0x07,
+	TYPE_TEST8                   = 0x08,
+	TYPE_TEST9                   = 0x09,
 	TYPE_TEST_MAX                = 0xFF,
 };
 
@@ -107,6 +111,15 @@ struct focal_auto_test_operations {
 	int (*test6)(struct seq_file *s, void *chip_data,
 		     struct auto_testdata *focal_testdata,
 		     struct test_item_info *p_test_item_info);
+	int (*test7)(struct seq_file *s, void *chip_data,
+		     struct auto_testdata *focal_testdata,
+		     struct test_item_info *p_test_item_info);
+	int (*test8)(struct seq_file *s, void *chip_data,
+	             struct auto_testdata *focal_testdata,
+	             struct test_item_info *p_test_item_info);
+	int (*test9)(struct seq_file *s, void *chip_data,
+	             struct auto_testdata *focal_testdata,
+	             struct test_item_info *p_test_item_info);
 	int (*auto_test_preoperation)(struct seq_file *s, void *chip_data,
 				      struct auto_testdata *focal_testdata,
 				      struct test_item_info *p_test_item_info);
@@ -115,9 +128,9 @@ struct focal_auto_test_operations {
 				      struct test_item_info *p_test_item_info);
 };
 
-/*int fts_create_proc(struct touchpanel_data *ts,
+int fts_create_proc(struct touchpanel_data *ts,
 		    struct fts_proc_operations *syna_ops);
-*/
+
 /*********PART3:Struct Area**********************/
 struct focal_debug_func {
 	void (*esd_check_enable)(void *chip_data, bool enable);
@@ -129,6 +142,7 @@ struct focal_debug_func {
 };
 
 /*********PART4:function declare*****************/
+int focal_create_sysfs_spi(struct spi_device *spi);
 int focal_create_sysfs(struct i2c_client *client);
 int focal_create_apk_debug_channel(struct touchpanel_data *ts);
 void ft_limit_read_std(struct seq_file *s, struct touchpanel_data *ts);

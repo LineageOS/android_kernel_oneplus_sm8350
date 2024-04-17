@@ -12,42 +12,6 @@
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 #include "oplus_cam_sensor_core.h"
 #endif
-static int cam_sensor_subdev_close_internal(struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh)
-{
-	struct cam_sensor_ctrl_t *s_ctrl =
-		v4l2_get_subdevdata(sd);
-
-	if (!s_ctrl) {
-		CAM_ERR(CAM_SENSOR, "s_ctrl ptr is NULL");
-		return -EINVAL;
-	}
-
-	mutex_lock(&(s_ctrl->cam_sensor_mutex));
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if(!cam_ftm_if_do())
-		cam_sensor_shutdown(s_ctrl);
-#else
-	cam_sensor_shutdown(s_ctrl);
-#endif
-	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
-
-	return 0;
-}
-
-static int cam_sensor_subdev_close(struct v4l2_subdev *sd,
-	struct v4l2_subdev_fh *fh)
-{
-	bool crm_active = cam_req_mgr_is_open(CAM_SENSOR);
-
-	if (crm_active) {
-		CAM_DBG(CAM_SENSOR, "CRM is ACTIVE, close should be from CRM");
-		return 0;
-	}
-
-	return cam_sensor_subdev_close_internal(sd, fh);
-}
-
 static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
 {
@@ -77,20 +41,35 @@ static long cam_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 		rc = cam_sensor_stop(s_ctrl);
 		break;
 #endif
-	case CAM_SD_SHUTDOWN:
-		if (!cam_req_mgr_is_shutdown()) {
-			CAM_ERR(CAM_CORE, "SD shouldn't come from user space");
-			return 0;
-		}
-
-		rc = cam_sensor_subdev_close_internal(sd, NULL);
-		break;
 	default:
 		CAM_ERR(CAM_SENSOR, "Invalid ioctl cmd: %d", cmd);
 		rc = -ENOIOCTLCMD;
 		break;
 	}
 	return rc;
+}
+
+static int cam_sensor_subdev_close(struct v4l2_subdev *sd,
+	struct v4l2_subdev_fh *fh)
+{
+	struct cam_sensor_ctrl_t *s_ctrl =
+		v4l2_get_subdevdata(sd);
+
+	if (!s_ctrl) {
+		CAM_ERR(CAM_SENSOR, "s_ctrl ptr is NULL");
+		return -EINVAL;
+	}
+
+	mutex_lock(&(s_ctrl->cam_sensor_mutex));
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	if(!cam_ftm_if_do())
+		cam_sensor_shutdown(s_ctrl);
+#else
+	cam_sensor_shutdown(s_ctrl);
+#endif
+	mutex_unlock(&(s_ctrl->cam_sensor_mutex));
+
+	return 0;
 }
 
 #ifdef CONFIG_COMPAT

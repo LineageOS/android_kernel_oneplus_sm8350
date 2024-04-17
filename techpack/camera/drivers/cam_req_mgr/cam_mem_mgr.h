@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _CAM_MEM_MGR_H_
@@ -39,7 +39,6 @@ enum cam_smmu_mapping_client {
  * @vaddr:          IOVA of buffer
  * @kmdvaddr:       Kernel virtual address
  * @active:         state of the buffer
- * @release_deferred: Buffer is deferred for release.
  * @is_imported:    Flag indicating if buffer is imported from an FD in user space
  * @is_internal:    Flag indicating kernel allocated buffer
  * @timestamp:      Timestamp at which this entry in tbl was made
@@ -60,7 +59,6 @@ struct cam_mem_buf_queue {
 	uint64_t vaddr;
 	uintptr_t kmdvaddr;
 	bool active;
-	bool release_deferred;
 	bool is_imported;
 	bool is_internal;
 	struct timespec64 timestamp;

@@ -23,16 +23,8 @@
 #include <linux/kobject.h>
 #include <linux/platform_device.h>
 #include <asm/atomic.h>
-
-/* #include <linux/xlog.h> */
-/* #include <upmu_common.h> */
-/* #include <mt-plat/mtk_gpio.h> */
 #include <linux/dma-mapping.h>
-
-/* #include <mt-plat/battery_meter.h> */
 #include <linux/module.h>
-#include <soc/oplus/device_info.h>
-
 #else
 #include <linux/i2c.h>
 #include <linux/debugfs.h>
@@ -49,10 +41,12 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/regulator/machine.h>
-#include <soc/oplus/device_info.h>
 #endif
 #include <linux/firmware.h>
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
+#include <soc/oplus/device_info.h>
 #include <soc/oplus/system/oplus_project.h>
+#endif
 #include <oplus_chg_module.h>
 #include <oplus_chg.h>
 #include <oplus_chg_ic.h>
@@ -1247,12 +1241,13 @@ static int op10_driver_probe(struct i2c_client *client, const struct i2c_device_
 	}
 	ic_cfg.name = node->name;
 	ic_cfg.index = ic_index;
-	sprintf(ic_cfg.manu_name, "op10");
-	sprintf(ic_cfg.fw_id, "0x00");
+	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "asic-op10");
+	snprintf(ic_cfg.fw_id, OPLUS_CHG_IC_FW_ID_MAX - 1, "0x00");
 	ic_cfg.type = ic_type;
 	ic_cfg.get_func = op10_get_func;
 	ic_cfg.virq_data = op10_virq_table;
 	ic_cfg.virq_num = ARRAY_SIZE(op10_virq_table);
+	ic_cfg.of_node = node;
 	chip->ic_dev =
 		devm_oplus_chg_ic_register(chip->dev, &ic_cfg);
 	if (!chip->ic_dev) {
@@ -1304,12 +1299,21 @@ error:
 	return rc;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
 static int op10_driver_remove(struct i2c_client *client)
+#else
+static void op10_driver_remove(struct i2c_client *client)
+#endif
 {
 	struct op10_chip *chip = i2c_get_clientdata(client);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
 	if (chip == NULL)
 		return 0;
+#else
+	if (chip == NULL)
+		return;
+#endif
 
 	if (chip->ic_dev->online)
 		op10_exit(chip->ic_dev);
@@ -1317,7 +1321,11 @@ static int op10_driver_remove(struct i2c_client *client)
 	i2c_set_clientdata(client, NULL);
 	devm_kfree(&client->dev, chip);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
 	return 0;
+#else
+	return;
+#endif
 }
 
 static void op10_shutdown(struct i2c_client *client)

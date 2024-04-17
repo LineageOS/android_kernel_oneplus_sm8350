@@ -13,9 +13,14 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include <oplus_chg_voter.h>
+#include <oplus_chg.h>
 
 #define NUM_MAX_CLIENTS		32
 #define DEBUG_FORCE_CLIENT	"DEBUG_FORCE_CLIENT"
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0))
+#define pde_data(inode) PDE_DATA(inode)
+#endif
 
 static DEFINE_SPINLOCK(votable_list_slock);
 static LIST_HEAD(votable_list);
@@ -480,8 +485,8 @@ int vote(struct votable *votable, const char *client_str, bool enabled, int val,
 	 * Note that the callback is called with a NULL string and -EINVAL
 	 * result when there are no enabled votes
 	 */
-	if (!votable->voted_on
-			|| (effective_result != votable->effective_result)) {
+	if (!votable->voted_on ||
+	    (effective_result != votable->effective_result)) {
 		votable->effective_client_id = effective_id;
 		votable->effective_result = effective_result;
 		pr_debug("%s: effective vote is now %d voted by %s,%d\n",
@@ -493,6 +498,12 @@ int vote(struct votable *votable, const char *client_str, bool enabled, int val,
 			rc = votable->callback(votable, votable->data,
 					effective_result,
 					get_client_str(votable, effective_id), step);
+	} else if (effective_id != votable->effective_client_id) {
+		votable->effective_client_id = effective_id;
+		pr_debug("%s: effective vote is now %d voted by %s,%d, \n",
+			votable->name, effective_result,
+			get_client_str(votable, effective_id),
+			effective_id);
 	}
 
 	votable->voted_on = true;
@@ -564,12 +575,18 @@ int rerun_election(struct votable *votable, bool step)
 		return -EINVAL;
 
 	lock_votable(votable);
-	effective_result = get_effective_result_locked(votable);
-	if (votable->callback)
-		rc = votable->callback(votable,
-			votable->data,
-			effective_result,
-			get_client_str(votable, votable->effective_client_id), step);
+	if (votable->force_active) {
+		if (votable->callback)
+			rc = votable->callback(votable, votable->data,
+				votable->force_val, DEBUG_FORCE_CLIENT, false);
+	} else {
+		effective_result = get_effective_result_locked(votable);
+		if (votable->callback)
+			rc = votable->callback(votable,
+				votable->data,
+				effective_result,
+				get_client_str(votable, votable->effective_client_id), step);
+	}
 	unlock_votable(votable);
 	return rc;
 }
@@ -582,12 +599,18 @@ int rerun_election_unlock(struct votable *votable, bool step)
 	if (!votable)
 		return -EINVAL;
 
-	effective_result = get_effective_result_locked(votable);
-	if (votable->callback)
-		rc = votable->callback(votable,
-			votable->data,
-			effective_result,
-			get_client_str(votable, votable->effective_client_id), step);
+	if (votable->force_active) {
+		if (votable->callback)
+			rc = votable->callback(votable, votable->data,
+				votable->force_val, DEBUG_FORCE_CLIENT, false);
+	} else {
+		effective_result = get_effective_result_locked(votable);
+		if (votable->callback)
+			rc = votable->callback(votable,
+				votable->data,
+				effective_result,
+				get_client_str(votable, votable->effective_client_id), step);
+	}
 	return rc;
 }
 
@@ -622,7 +645,7 @@ out:
 static ssize_t votable_status_read(struct file *file, char __user *buff,
 				   size_t count, loff_t *off)
 {
-	struct votable *votable = PDE_DATA(file_inode(file));
+	struct votable *votable = pde_data(file_inode(file));
 	int i;
 	char *type_str = "Unkonwn";
 	const char *effective_client_str;
@@ -657,6 +680,9 @@ static ssize_t votable_status_read(struct file *file, char __user *buff,
 	case VOTE_SET_ANY:
 		type_str = "Set_any";
 		break;
+	default:
+		chg_err("unknown votable type, type=%d\n", votable->type);
+		return -EINVAL;
 	}
 
 	effective_client_str = get_effective_client_locked(votable);
@@ -692,7 +718,7 @@ static ssize_t votable_force_active_write(struct file *file,
 					  const char __user *buff, size_t len,
 					  loff_t *data)
 {
-	struct votable *votable = PDE_DATA(file_inode(file));
+	struct votable *votable = pde_data(file_inode(file));
 	char buf[128] = { 0 };
 	u32 val;
 	ssize_t rc = len;
@@ -740,7 +766,7 @@ out:
 static ssize_t votable_force_active_read(struct file *file, char __user *buff,
 					 size_t count, loff_t *off)
 {
-	struct votable *votable = PDE_DATA(file_inode(file));
+	struct votable *votable = pde_data(file_inode(file));
 	char buf[128] = { 0 };
 	size_t len;
 	ssize_t rc;
@@ -772,7 +798,7 @@ static ssize_t votable_force_val_write(struct file *file,
 					  const char __user *buff, size_t len,
 					  loff_t *data)
 {
-	struct votable *votable = PDE_DATA(file_inode(file));
+	struct votable *votable = pde_data(file_inode(file));
 	char buf[128] = { 0 };
 	u32 val;
 
@@ -797,7 +823,7 @@ static ssize_t votable_force_val_write(struct file *file,
 static ssize_t votable_force_val_read(struct file *file, char __user *buff,
 				      size_t count, loff_t *off)
 {
-	struct votable *votable = PDE_DATA(file_inode(file));
+	struct votable *votable = pde_data(file_inode(file));
 	char buf[128] = { 0 };
 	size_t len;
 	ssize_t rc;

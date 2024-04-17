@@ -21,25 +21,38 @@ struct ic_devres {
 	struct oplus_chg_ic_dev *ic_dev;
 };
 
-static DEFINE_MUTEX(list_lock);
-static LIST_HEAD(ic_list);
-#ifdef CONFIG_OPLUS_CHG_IC_DEBUG
-static DEFINE_IDA(oplus_chg_ic_ida);
-#define OPLUS_CHG_IC_MAX 256
-static struct class *oplus_chg_ic_class;
-static dev_t oplus_chg_ic_devno;
+struct oplus_chg_ic_call_head {
+	const char *name;
+	struct list_head list;
+	struct delayed_work callback_work;
+	ic_callback_t call;
+	void *data;
+	bool delete;
+};
 
 static const char * const err_type_text[] = {
 	[OPLUS_IC_ERR_UNKNOWN]		= "Unknown",
 	[OPLUS_IC_ERR_I2C]		= "I2C",
-	[OPLUS_IC_ERR_OCP]		= "OCP",
-	[OPLUS_IC_ERR_OVP]		= "OVP",
-	[OPLUS_IC_ERR_UCP]		= "UCP",
-	[OPLUS_IC_ERR_UVP]		= "UVP",
-	[OPLUS_IC_ERR_TIMEOUT]		= "Timeout",
-	[OPLUS_IC_ERR_OVER_HEAT]	= "Overheat",
-	[OPLUS_IC_ERR_COLD]		= "Cold",
+	[OPLUS_IC_ERR_GPIO]		= "GPIO",
+	[OPLUS_IC_ERR_PLAT_PMIC]	= "PlatformPMIC",
+	[OPLUS_IC_ERR_BUCK_BOOST]	= "Buck/Boost",
+	[OPLUS_IC_ERR_GAUGE]		= "Gauge",
+	[OPLUS_IC_ERR_WLS_RX]		= "WirelessRX",
+	[OPLUS_IC_ERR_CP]		= "ChargePump",
+	[OPLUS_IC_ERR_CC_LOGIC]		= "CCLogic",
+	[OPLUS_IC_ERR_PARALLEL_UNBALANCE]	= "ParallelUnbalance",
+	[OPLUS_IC_ERR_MOS_ERROR]	= "MosError",
 };
+
+static DEFINE_MUTEX(list_lock);
+static LIST_HEAD(ic_list);
+static DEFINE_MUTEX(wait_list_lock);
+static LIST_HEAD(oplus_chg_ic_wait_list);
+#ifdef CONFIG_OPLUS_CHG_IC_DEBUG
+static DEFINE_IDA(oplus_chg_ic_ida);
+#define OPLUS_CHG_IC_MAX 256
+static struct class oplus_chg_ic_class;
+static dev_t oplus_chg_ic_devno;
 
 int oplus_chg_ic_get_new_minor(void)
 {
@@ -63,7 +76,7 @@ void oplus_chg_ic_list_unlock(void)
 	mutex_unlock(&list_lock);
 }
 
-struct oplus_chg_ic_dev *oplsu_chg_ic_find_by_name(const char *name)
+struct oplus_chg_ic_dev *oplus_chg_ic_find_by_name(const char *name)
 {
 	struct oplus_chg_ic_dev *dev_temp;
 
@@ -96,7 +109,19 @@ struct oplus_chg_ic_dev *of_get_oplus_chg_ic(struct device_node *node,
 		return NULL;
 
 	chg_debug("search %s\n", ic_node->name);
-	return oplsu_chg_ic_find_by_name(ic_node->name);
+	return oplus_chg_ic_find_by_name(ic_node->name);
+}
+
+const char *of_get_oplus_chg_ic_name(struct device_node *node,
+				     const char *prop_name, int index)
+{
+	struct device_node *ic_node;
+
+	ic_node = of_parse_phandle(node, prop_name, index);
+	if (!ic_node)
+		return NULL;
+
+	return ic_node->name;
 }
 
 #ifdef OPLUS_CHG_REG_DUMP_ENABLE
@@ -128,7 +153,7 @@ int oplus_chg_ic_reg_dump_by_name(const char *name)
 		chg_err("ic name is NULL\n");
 		return -EINVAL;
 	}
-	ic_dev = oplsu_chg_ic_find_by_name(name);
+	ic_dev = oplus_chg_ic_find_by_name(name);
 	if (ic_dev == NULL) {
 		chg_err("%s ic not found\n", name);
 		return -ENODEV;
@@ -149,38 +174,165 @@ void oplus_chg_ic_reg_dump_all(void)
 }
 #endif /* OPLUS_CHG_REG_DUMP_ENABLE */
 
-int oplus_chg_ic_func_table_sort(enum oplus_chg_ic_func *func_table,
+static void quicksort(int arr[], int left, int right)
+{
+	int i = left;
+	int j = right;
+	int pivot = arr[(left + right) / 2];
+
+	while (i <= j) {
+		while (arr[i] < pivot)
+			i++;
+		while (arr[j] > pivot)
+			j--;
+		if (i <= j) {
+			int temp = arr[i];
+			arr[i] = arr[j];
+			arr[j] = temp;
+			i++;
+			j--;
+		}
+	}
+
+	if (left < j)
+		quicksort(arr, left, j);
+	if (i < right)
+		quicksort(arr, i, right);
+}
+
+int oplus_chg_ic_func_table_sort(enum oplus_chg_ic_func *table,
 				 int func_num)
 {
-	/* TODO */
+	if (table == NULL) {
+		chg_err("table is NULL\n");
+		return -EINVAL;
+	}
+	if (func_num <= 0) {
+		chg_err("func_num <= 0\n");
+		return -EINVAL;
+	}
+	quicksort((int *)table, 0, func_num - 1);
 	return 0;
 }
 
-bool oplus_chg_ic_func_is_support(enum oplus_chg_ic_func *func_table,
-				  int func_num, enum oplus_chg_ic_func func_id)
+int oplus_chg_ic_irq_table_sort(enum oplus_chg_ic_virq_id *table,
+				int irq_num)
 {
-	int i;
-
-	/* TODO: Use binary search to calculate and send*/
-	for (i = 0; i < func_num; i++) {
-		if (func_id == func_table[i])
-			return true;
+	if (table == NULL) {
+		chg_err("table is NULL\n");
+		return -EINVAL;
 	}
-	return false;
+	if (irq_num <= 0) {
+		chg_err("irq_num <= 0\n");
+		return -EINVAL;
+	}
+	quicksort((int *)table, 0, irq_num - 1);
+	return 0;
 }
 
-bool oplus_chg_ic_virq_is_support(enum oplus_chg_ic_virq_id *virq_table,
-				  int virq_num,
-				  enum oplus_chg_ic_virq_id virq_id)
+static int binary_search(int arr[], int left, int right, int x)
 {
-	int i;
-
-	/* TODO: Use binary search to calculate and send*/
-	for (i = 0; i < virq_num; i++) {
-		if (virq_id == virq_table[i])
-			return true;
+	while (left <= right) {
+		int mid = left + (right - left) / 2;
+		if (arr[mid] == x)
+			return mid;
+		if (arr[mid] < x)
+			left = mid + 1;
+		else
+			right = mid - 1;
 	}
-	return false;
+	return -EINVAL;
+}
+
+bool oplus_chg_ic_func_check_support_by_table(enum oplus_chg_ic_func *func_table,
+					      int func_num, enum oplus_chg_ic_func func_id)
+{
+	int rc;
+
+	if (func_table == NULL) {
+		chg_err("table is NULL\n");
+		return false;
+	}
+	if (func_num <= 0) {
+		chg_err("func_num <= 0\n");
+		return false;
+	}
+
+	rc = binary_search((int *)func_table, 0, func_num - 1, func_id);
+	if (rc < 0)
+		return false;
+	return true;
+}
+
+bool oplus_chg_ic_virq_check_support_by_table(enum oplus_chg_ic_virq_id *virq_table,
+					      int virq_num, enum oplus_chg_ic_virq_id virq_id)
+{
+	int rc;
+
+	if (virq_table == NULL) {
+		chg_err("table is NULL\n");
+		return false;
+	}
+	if (virq_num <= 0) {
+		chg_err("virq_num <= 0\n");
+		return false;
+	}
+
+	rc = binary_search((int *)virq_table, 0, virq_num - 1, virq_id);
+	if (rc < 0)
+		return false;
+	return true;
+}
+
+bool oplus_chg_ic_func_is_support(struct oplus_chg_ic_dev *ic, enum oplus_chg_ic_func func_id)
+{
+	int rc;
+
+	if (ic == NULL)
+		return false;
+
+	switch (func_id) {
+	case OPLUS_IC_FUNC_INIT:
+	case OPLUS_IC_FUNC_EXIT:
+		return true; /* must support */
+	default:
+		break;
+	}
+
+	/* The default configuration is true */
+	if (ic->support.funcs == NULL)
+		return true;
+
+	rc = binary_search((int *)ic->support.funcs, 0, ic->support.func_num - 1, func_id);
+	if (rc < 0)
+		return false;
+	return true;
+}
+
+bool oplus_chg_ic_virq_is_support(struct oplus_chg_ic_dev *ic, enum oplus_chg_ic_virq_id virq_id)
+{
+	int rc;
+
+	if (ic == NULL)
+		return false;
+
+	switch (virq_id) {
+	case OPLUS_IC_VIRQ_ERR:
+	case OPLUS_IC_VIRQ_ONLINE:
+	case OPLUS_IC_VIRQ_OFFLINE:
+		return true; /* must support */
+	default:
+		break;
+	}
+
+	/* The default configuration is true */
+	if (ic->support.virqs == NULL)
+		return true;
+
+	rc = binary_search((int *)ic->support.virqs, 0, ic->support.virq_num - 1, virq_id);
+	if (rc < 0)
+		return false;
+	return true;
 }
 
 #ifdef CONFIG_OPLUS_CHG_IC_DEBUG
@@ -443,12 +595,23 @@ static ssize_t overwrite_store(struct device *dev,
 	struct oplus_chg_ic_overwrite_data *overwrite_data;
 	int i;
 
-	if (!oplus_chg_ic_func_is_support(ic_dev->debug.overwrite_funcs,
-					  ic_dev->debug.func_num,
-					  ic_dev->debug.func_id)) {
+	if (!oplus_chg_ic_func_check_support_by_table(ic_dev->debug.overwrite_funcs,
+						      ic_dev->debug.func_num,
+						      ic_dev->debug.func_id)) {
 		chg_err("this func(=%d) not support overwrite\n", ic_dev->debug.func_id);
 		return -ENOTSUPP;
 	}
+
+	mutex_lock(&ic_dev->debug.overwrite_list_lock);
+	list_for_each_entry_rcu(overwrite_data, &ic_dev->debug.overwrite_list, list) {
+		if (overwrite_data->func_id == ic_dev->debug.func_id) {
+			list_del_rcu(&overwrite_data->list);
+			synchronize_rcu();
+			devm_kfree(dev, overwrite_data);
+			break;
+		}
+	}
+	mutex_unlock(&ic_dev->debug.overwrite_list_lock);
 
 	if (!oplus_chg_ic_debug_data_check((const void *)buf, count))
 		return -EINVAL;
@@ -565,6 +728,55 @@ static ssize_t fw_id_show(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RO(fw_id);
 
+static ssize_t online_show(struct device *dev, struct device_attribute *attr,
+			   char *buf)
+{
+	struct oplus_chg_ic_dev *ic_dev = dev_get_drvdata(dev);
+
+	return sprintf(buf, "%d\n", ic_dev->online);
+}
+static DEVICE_ATTR_RO(online);
+
+static ssize_t supported_funcs_show(struct device *dev, struct device_attribute *attr,
+				    char *buf)
+{
+	struct oplus_chg_ic_dev *ic_dev = dev_get_drvdata(dev);
+	struct oplus_chg_ic_support_info *support = &ic_dev->support;
+	int i;
+	int size = 0;
+
+	if (support->funcs == NULL)
+		return sprintf(buf, "all\n");
+
+	for (i = 0; i < support->func_num; i++)
+		size += snprintf(buf + size, PAGE_SIZE - size, "%d,", support->funcs[i]);
+	if (i > 0)
+		size += snprintf(buf + size - 1, PAGE_SIZE - size - 1, "\n");
+
+	return size;
+}
+static DEVICE_ATTR_RO(supported_funcs);
+
+static ssize_t supported_virqs_show(struct device *dev, struct device_attribute *attr,
+				    char *buf)
+{
+	struct oplus_chg_ic_dev *ic_dev = dev_get_drvdata(dev);
+	struct oplus_chg_ic_support_info *support = &ic_dev->support;
+	int i;
+	int size = 0;
+
+	if (support->virqs == NULL)
+		return sprintf(buf, "all\n");
+
+	for (i = 0; i < support->virq_num; i++)
+		size += snprintf(buf + size, PAGE_SIZE - size, "%d,", support->virqs[i]);
+	if (i > 0)
+		size += snprintf(buf + size - 1, PAGE_SIZE - size - 1, "\n");
+
+	return size;
+}
+static DEVICE_ATTR_RO(supported_virqs);
+
 static struct device_attribute *oplus_chg_ic_attributes[] = {
 	&dev_attr_func_id,
 	&dev_attr_data,
@@ -574,9 +786,56 @@ static struct device_attribute *oplus_chg_ic_attributes[] = {
 	&dev_attr_name,
 	&dev_attr_manu_name,
 	&dev_attr_fw_id,
+	&dev_attr_online,
+	&dev_attr_supported_funcs,
+	&dev_attr_supported_virqs,
 	NULL
 };
+
+static ssize_t version_show(struct class *C, struct class_attribute *attr,
+			     char *buf)
+{
+	return sprintf(buf, "%s", OPLUS_CHG_IC_CFG_VERSION);
+}
+static CLASS_ATTR_RO(version);
+
+static struct attribute *oplus_chg_ic_class_attrs[] = {
+	&class_attr_version.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(oplus_chg_ic_class);
 #endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
+
+int oplus_chg_ic_set_parent(struct oplus_chg_ic_dev *ic_dev, struct oplus_chg_ic_dev *parent)
+{
+#if IS_ENABLED(CONFIG_OPLUS_CHG_IC_DEBUG)
+	int rc;
+#endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
+
+	if (ic_dev == NULL) {
+		chg_err("ic_dev is NULL\n");
+		return -EINVAL;
+	}
+
+	if (ic_dev->parent != NULL) {
+#if IS_ENABLED(CONFIG_OPLUS_CHG_IC_DEBUG)
+		sysfs_remove_link(&ic_dev->debug_dev->kobj, "parent");
+#endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
+	}
+	ic_dev->parent = NULL;
+
+	if (parent == NULL)
+		return 0;
+
+#if IS_ENABLED(CONFIG_OPLUS_CHG_IC_DEBUG)
+	rc = sysfs_create_link(&ic_dev->debug_dev->kobj, &parent->debug_dev->kobj, "parent");
+	if (rc < 0)
+		chg_err("creat parent link error, rc=%d\n", rc);
+#endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
+	ic_dev->parent = parent;
+
+	return 0;
+}
 
 int oplus_chg_ic_virq_register(struct oplus_chg_ic_dev *ic_dev,
 			       enum oplus_chg_ic_virq_id virq_id,
@@ -588,6 +847,8 @@ int oplus_chg_ic_virq_register(struct oplus_chg_ic_dev *ic_dev,
 
 	if (ic_dev == NULL)
 		return -ENODEV;
+	if (!oplus_chg_ic_virq_is_support(ic_dev, virq_id))
+		goto err;
 
 	for (i = 0; i < ic_dev->virq_num; i++) {
 		virq = &ic_dev->virq_data[i];
@@ -598,6 +859,7 @@ int oplus_chg_ic_virq_register(struct oplus_chg_ic_dev *ic_dev,
 		}
 	}
 
+err:
 	chg_err("%s not support this virq_id(=%d)\n", ic_dev->name, virq_id);
 	return -ENOTSUPP;
 }
@@ -637,6 +899,8 @@ int oplus_chg_ic_virq_trigger(struct oplus_chg_ic_dev *ic_dev,
 
 	if (ic_dev == NULL)
 		return -ENODEV;
+	if (!oplus_chg_ic_virq_is_support(ic_dev, virq_id))
+		goto err;
 
 	for (i = 0; i < ic_dev->virq_num; i++) {
 		virq = &ic_dev->virq_data[i];
@@ -652,14 +916,16 @@ int oplus_chg_ic_virq_trigger(struct oplus_chg_ic_dev *ic_dev,
 		}
 	}
 
+err:
 	chg_err("%s not support this virq_id(=%d)\n", ic_dev->name, virq_id);
 	return -ENOTSUPP;
 }
+EXPORT_SYMBOL(oplus_chg_ic_virq_trigger);
 
-__printf(3, 4)
+__printf(4, 5)
 int oplus_chg_ic_creat_err_msg(struct oplus_chg_ic_dev *ic_dev,
-			     enum oplus_chg_ic_err err_type, const char *format,
-			     ...)
+			       enum oplus_chg_ic_err err_type, int sub_err_type,
+			       const char *format, ...)
 {
 	va_list args;
 	struct oplus_chg_ic_err_msg *err_msg;
@@ -677,6 +943,7 @@ int oplus_chg_ic_creat_err_msg(struct oplus_chg_ic_dev *ic_dev,
 
 	err_msg->ic = ic_dev;
 	err_msg->type = err_type;
+	err_msg->sub_type = sub_err_type;
 	va_start(args, format);
 	length = vsnprintf(err_msg->msg, IC_ERR_MSG_MAX - 1, format, args);
 	va_end(args);
@@ -736,6 +1003,194 @@ const char *oplus_chg_ic_err_text(enum oplus_chg_ic_err err_type)
 	return err_type_text[err_type];
 }
 
+static void ic_register_callback_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_chg_ic_call_head *head = container_of(dwork, struct oplus_chg_ic_call_head, callback_work);
+
+	mutex_lock(&wait_list_lock);
+	if (head->delete) {
+		mutex_unlock(&wait_list_lock);
+		return;
+	}
+	head->delete = true;
+	list_del(&head->list);
+	mutex_unlock(&wait_list_lock);
+
+	head->call(NULL, head->data, true);
+	kfree(head);
+}
+
+static int __oplus_chg_ic_wait_ic(const char *name, ic_callback_t call, void *data, unsigned long delay)
+{
+	struct oplus_chg_ic_dev *ic_dev;
+	struct oplus_chg_ic_call_head *head;
+
+	ic_dev = oplus_chg_ic_find_by_name(name);
+	if (ic_dev != NULL) {
+		call(ic_dev, data, false);
+		return 0;
+	}
+
+	head = kzalloc(sizeof(struct oplus_chg_ic_call_head), GFP_KERNEL);
+	if (head == NULL) {
+		chg_err("alloc call_head memory error\n");
+		return -ENODEV;
+	}
+	head->name = name;
+	head->call = call;
+	head->data = data;
+
+	INIT_DELAYED_WORK(&head->callback_work, ic_register_callback_work);
+	mutex_lock(&wait_list_lock);
+	list_add(&head->list, &oplus_chg_ic_wait_list);
+	mutex_unlock(&wait_list_lock);
+	head->delete = false;
+
+	if (delay)
+		schedule_delayed_work(&head->callback_work, delay);
+
+	return 0;
+}
+
+int oplus_chg_ic_wait_ic(const char *name, ic_callback_t call, void *data)
+{
+	if (name == NULL) {
+		chg_err("name is NULL\n");
+		return -EINVAL;
+	}
+
+	return __oplus_chg_ic_wait_ic(name, call, data, 0);
+}
+
+int oplus_chg_ic_wait_ic_timeout(const char *name, ic_callback_t call, void *data, unsigned long delay)
+{
+	if (name == NULL) {
+		chg_err("name is NULL\n");
+		return -EINVAL;
+	}
+
+	return __oplus_chg_ic_wait_ic(name, call, data, delay);
+}
+
+static void oplus_chg_ic_call(struct oplus_chg_ic_dev *ic_dev)
+{
+	struct oplus_chg_ic_call_head *head, *tmp;
+	LIST_HEAD(tmp_list);
+
+	mutex_lock(&wait_list_lock);
+	list_for_each_entry_safe(head, tmp, &oplus_chg_ic_wait_list, list) {
+		if (strcmp(head->name, ic_dev->name) != 0)
+			continue;
+		head->delete = true;
+		list_del(&head->list);
+		list_add(&head->list, &tmp_list);
+	}
+	mutex_unlock(&wait_list_lock);
+
+	list_for_each_entry_safe(head, tmp, &tmp_list, list) {
+		cancel_delayed_work_sync(&head->callback_work);
+		head->call(ic_dev, head->data, false);
+		list_del(&head->list);
+		kfree(head);
+	}
+}
+
+static void oplus_chg_ic_get_cfg(struct oplus_chg_ic_dev *ic_dev, struct oplus_chg_ic_cfg *cfg)
+{
+	struct device_node *node;
+	struct device_node *group_node = NULL;
+	enum oplus_chg_ic_type ic_type;
+	int ic_index;
+	int rc;
+
+	if (IS_ERR_OR_NULL(cfg->of_node))
+		node = ic_dev->dev->of_node;
+	else
+		node = cfg->of_node;
+
+	/* use dts configuration first */
+	rc = of_property_read_u32(node, "oplus,ic_type", &ic_type);
+	if (rc < 0)
+		ic_type = cfg->type;
+	rc = of_property_read_u32(node, "oplus,ic_index", &ic_index);
+	if (rc < 0)
+		ic_index = cfg->index;
+
+	if (cfg->name != NULL)
+		ic_dev->name = cfg->name;
+	else
+		ic_dev->name = node->name;
+	ic_dev->index = ic_index;
+	memcpy(ic_dev->manu_name, cfg->manu_name, OPLUS_CHG_IC_MANU_NAME_MAX);
+	memcpy(ic_dev->fw_id, cfg->fw_id, OPLUS_CHG_IC_FW_ID_MAX);
+	ic_dev->type = ic_type;
+	ic_dev->get_func = cfg->get_func;
+	ic_dev->virq_data = cfg->virq_data;
+	ic_dev->virq_num = cfg->virq_num;
+	ic_dev->priv_data = cfg->priv_data;
+
+	group_node = of_parse_phandle(node, "oplus,ic_func_group", 0);
+	if (group_node == NULL) {
+		chg_debug("%s: oplus,ic_func_group not found\n", ic_dev->name);
+		ic_dev->support.funcs = NULL;
+		ic_dev->support.func_num = 0;
+		ic_dev->support.virqs = NULL;
+		ic_dev->support.virq_num = 0;
+		return;
+	}
+
+	rc = of_property_count_elems_of_size(group_node, "functions", sizeof(u32));
+	if (rc < 0) {
+		chg_debug("%s: functions group not found\n", ic_dev->name);
+		ic_dev->support.funcs = NULL;
+		ic_dev->support.func_num = 0;
+	} else {
+		ic_dev->support.funcs = devm_kzalloc(ic_dev->dev, sizeof(enum oplus_chg_ic_func) * rc, GFP_KERNEL);
+		if (ic_dev->support.funcs == NULL) {
+			chg_err("alloc %s functions group memory error\n", ic_dev->name);
+			ic_dev->support.func_num = 0;
+		} else {
+			ic_dev->support.func_num = rc;
+			rc = of_property_read_u32_array(group_node, "functions", (u32 *)ic_dev->support.funcs,
+							ic_dev->support.func_num);
+			if (rc) {
+				chg_err("get %s functions group data error\n", ic_dev->name);
+				devm_kfree(ic_dev->dev, ic_dev->support.funcs);
+				ic_dev->support.funcs = NULL;
+				ic_dev->support.func_num = 0;
+			} else {
+				(void)oplus_chg_ic_func_table_sort(ic_dev->support.funcs, ic_dev->support.func_num);
+			}
+		}
+	}
+
+	rc = of_property_count_elems_of_size(group_node, "virqs", sizeof(u32));
+	if (rc < 0) {
+		chg_debug("%s: virqs group not found\n", ic_dev->name);
+		ic_dev->support.virqs = NULL;
+		ic_dev->support.virq_num = 0;
+	} else {
+		ic_dev->support.virqs = devm_kzalloc(ic_dev->dev, sizeof(enum oplus_chg_ic_func) * rc, GFP_KERNEL);
+		if (ic_dev->support.virqs == NULL) {
+			chg_err("alloc %s virqs group memory error\n", ic_dev->name);
+			ic_dev->support.virq_num = 0;
+		} else {
+			ic_dev->support.virq_num = rc;
+			rc = of_property_read_u32_array(group_node, "virqs", (u32 *)ic_dev->support.virqs,
+							ic_dev->support.virq_num);
+			if (rc) {
+				chg_err("get %s virqs group data error\n", ic_dev->name);
+				devm_kfree(ic_dev->dev, ic_dev->support.virqs);
+				ic_dev->support.virqs = NULL;
+				ic_dev->support.virq_num = 0;
+			} else {
+				(void)oplus_chg_ic_irq_table_sort(ic_dev->support.virqs, ic_dev->support.virq_num);
+			}
+		}
+	}
+}
+
 static struct oplus_chg_ic_dev *
 __oplus_chg_ic_register(struct device *dev, struct oplus_chg_ic_cfg *cfg)
 {
@@ -757,25 +1212,14 @@ __oplus_chg_ic_register(struct device *dev, struct oplus_chg_ic_cfg *cfg)
 		chg_err("alloc oplus_chg_ic error\n");
 		return NULL;
 	}
-	ic_dev->name = cfg->name;
-	ic_dev->index = cfg->index;
-	memcpy(ic_dev->manu_name, cfg->manu_name, OPLUS_CHG_IC_MANU_NAME_MAX);
-	memcpy(ic_dev->fw_id, cfg->fw_id, OPLUS_CHG_IC_FW_ID_MAX);
-	ic_dev->type = cfg->type;
-	ic_dev->get_func = cfg->get_func;
-	ic_dev->virq_data = cfg->virq_data;
-	ic_dev->virq_num = cfg->virq_num;
 	ic_dev->dev = dev;
+	oplus_chg_ic_get_cfg(ic_dev, cfg);
 
 	INIT_LIST_HEAD(&ic_dev->err_list);
 	spin_lock_init(&ic_dev->err_list_lock);
 #ifdef CONFIG_OPLUS_CHG_IC_DEBUG
 	mutex_init(&ic_dev->debug.overwrite_list_lock);
 	INIT_LIST_HEAD(&ic_dev->debug.overwrite_list);
-	if (IS_ERR_OR_NULL(oplus_chg_ic_class)) {
-		chg_err("oplus_chg_ic_class is null or error\n");
-		goto get_minor_err;
-	}
 
 	ic_dev->minor = oplus_chg_ic_get_new_minor();
 	if (ic_dev->minor < 0) {
@@ -785,7 +1229,7 @@ __oplus_chg_ic_register(struct device *dev, struct oplus_chg_ic_cfg *cfg)
 	snprintf(ic_dev->cdev_name, sizeof(ic_dev->cdev_name), "vic-%d",
 		 ic_dev->minor);
 	ic_dev->debug_dev =
-		device_create(oplus_chg_ic_class, ic_dev->dev,
+		device_create(&oplus_chg_ic_class, ic_dev->dev,
 			      MKDEV(MAJOR(oplus_chg_ic_devno), ic_dev->minor),
 			      ic_dev, "vic-%d", ic_dev->minor);
 	if (IS_ERR(ic_dev->debug_dev)) {
@@ -828,6 +1272,7 @@ __oplus_chg_ic_register(struct device *dev, struct oplus_chg_ic_cfg *cfg)
 #ifdef CONFIG_OPLUS_CHG_IC_DEBUG
 	kobject_uevent(&ic_dev->debug_dev->kobj, KOBJ_CHANGE);
 #endif
+	oplus_chg_ic_call(ic_dev);
 
 	return ic_dev;
 
@@ -839,7 +1284,7 @@ name_err:
 device_create_file_err:
 	cdev_del(&ic_dev->cdev);
 cdev_add_err:
-	device_destroy(oplus_chg_ic_class,
+	device_destroy(&oplus_chg_ic_class,
 		       MKDEV(MAJOR(oplus_chg_ic_devno), ic_dev->minor));
 device_create_err:
 	oplus_chg_ic_free_minor(ic_dev->minor);
@@ -872,11 +1317,21 @@ int oplus_chg_ic_unregister(struct oplus_chg_ic_dev *ic_dev)
 	while ((attr = *attrs++))
 		device_remove_file(ic_dev->debug_dev, attr);
 	cdev_del(&ic_dev->cdev);
-	device_destroy(oplus_chg_ic_class,
+	device_destroy(&oplus_chg_ic_class,
 		       MKDEV(MAJOR(oplus_chg_ic_devno), ic_dev->minor));
 	oplus_chg_ic_free_minor(ic_dev->minor);
 #endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
 
+	if (ic_dev->support.funcs != NULL) {
+		devm_kfree(ic_dev->dev, ic_dev->support.funcs);
+		ic_dev->support.funcs = NULL;
+		ic_dev->support.func_num = 0;
+	}
+	if (ic_dev->support.virqs != NULL) {
+		devm_kfree(ic_dev->dev, ic_dev->support.virqs);
+		ic_dev->support.virqs = NULL;
+		ic_dev->support.virq_num = 0;
+	}
 	mutex_lock(&list_lock);
 	list_del(&ic_dev->list);
 	mutex_unlock(&list_lock);
@@ -897,7 +1352,7 @@ static void devm_oplus_chg_ic_release(struct device *dev, void *res)
 	while ((attr = *attrs++))
 		device_remove_file(this->ic_dev->debug_dev, attr);
 	cdev_del(&this->ic_dev->cdev);
-	device_destroy(oplus_chg_ic_class,
+	device_destroy(&oplus_chg_ic_class,
 		       MKDEV(MAJOR(oplus_chg_ic_devno), this->ic_dev->minor));
 	oplus_chg_ic_free_minor(this->ic_dev->minor);
 #endif /* CONFIG_OPLUS_CHG_IC_DEBUG */
@@ -938,6 +1393,7 @@ struct oplus_chg_ic_dev *devm_oplus_chg_ic_register(struct device *dev,
 
 	return ic_dev;
 }
+EXPORT_SYMBOL(devm_oplus_chg_ic_register);
 
 int devm_oplus_chg_ic_unregister(struct device *dev,
 				 struct oplus_chg_ic_dev *ic_dev)
@@ -958,17 +1414,18 @@ int devm_oplus_chg_ic_unregister(struct device *dev,
 
 	return 0;
 }
+EXPORT_SYMBOL(devm_oplus_chg_ic_unregister);
 
 static __init int oplus_chg_ic_class_init(void)
 {
 	int rc = 0;
 
 #ifdef CONFIG_OPLUS_CHG_IC_DEBUG
-	oplus_chg_ic_class = class_create(THIS_MODULE, "virtual_ic");
-
-	if (IS_ERR(oplus_chg_ic_class)) {
-		rc = PTR_ERR(oplus_chg_ic_class);
-		chg_err("oplus_chg_ic_class create fail!\n");
+	oplus_chg_ic_class.name = "virtual_ic";
+	oplus_chg_ic_class.class_groups = oplus_chg_ic_class_groups;
+	rc = class_register(&oplus_chg_ic_class);
+	if (rc < 0) {
+		chg_err("Failed to create oplus_chg_ic_class, rc=%d\n", rc);
 		goto err;
 	}
 
@@ -981,7 +1438,7 @@ static __init int oplus_chg_ic_class_init(void)
 
 	return 0;
 err:
-	class_destroy(oplus_chg_ic_class);
+	class_unregister(&oplus_chg_ic_class);
 #endif
 	return rc;
 }
@@ -990,7 +1447,7 @@ static __exit void oplus_chg_ic_class_exit(void)
 {
 #ifdef CONFIG_OPLUS_CHG_IC_DEBUG
 	unregister_chrdev_region(oplus_chg_ic_devno, OPLUS_CHG_IC_MAX);
-	class_destroy(oplus_chg_ic_class);
+	class_unregister(&oplus_chg_ic_class);
 #endif
 }
 

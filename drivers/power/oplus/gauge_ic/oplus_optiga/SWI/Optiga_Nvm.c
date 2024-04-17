@@ -1,8 +1,8 @@
 #include "Optiga_Nvm.h"
 #include "../Platform/board.h"
 #include <linux/delay.h>
-
-
+#include "../oplus_optiga.h"
+#include "../../../oplus_charger.h"
 
 extern uint32_t g_culNvmTimeout;	//6ms
 static uint8_t ubUID;
@@ -527,3 +527,73 @@ uint16_t Nvm_ReadODC(uint8_t *ubODC, uint8_t *ubPUBKEY, NVM_OPS ReadMode)
   return ret;
 }
 
+
+/**
+*@brief Read data from NVM Page
+*@param page NVM start page number to be read
+*@param page_count Number of contineous pages to be read
+*@param data Data read from NVM page
+*/
+uint16_t nvm_read_page(uint8_t page, uint8_t page_count, uint8_t *data)
+{
+	uint8_t ubData[NVM_PAGE_SIZE];
+	uint16_t ret = APP_NVM_INIT;
+	uint8_t p = 0;
+	unsigned long flags;
+	struct oplus_optiga_chip *chip = oplus_get_optiga_info();
+
+	chg_info(" nvm_read_page enter\n");
+
+	if (!chip) {
+		chg_err(" chip null! return! \n");
+		return ret;
+	}
+
+	spin_lock_irqsave(&chip->slock, flags);
+	if (page > NVM_MAX_PAGE_COUNT) {
+		chg_err(" nvm_read_page page out of size \n");
+		spin_unlock_irqrestore(&chip->slock, flags);
+		return APP_NVM_E_INVALID_PAGE;
+	}
+
+	ret = Nvm_IsReady();
+	if (ret != APP_NVM_READY) {
+		spin_unlock_irqrestore(&chip->slock, flags);
+		chg_err(" nvm_read_page nvm not ready, error:0x%x\n", ret);
+		return ret;
+	}
+	spin_unlock_irqrestore(&chip->slock, flags);
+
+	for (p = 0; p < page_count; p++) {
+		spin_lock_irqsave(&chip->slock, flags);
+		/*!< Copy selected NVM page from NVM page to WIP2 */
+		Swi_WriteRegisterSpaceNoIrq(NVM_ADDR_REG, 0x18, 0x1F);
+		/*!< Set NVM data length read/write to 8 bytes to WIP */
+		/*!< Activate NVM and Read mode */
+		Swi_WriteRegisterSpaceNoIrq(CTRL2_NVM_REG, (uint8_t)(CTRL2_NVM_REG__NVM_ACT + page + p), REGISTER_OVERWRITE);
+
+		ret = Nvm_IsReady();
+		if (ret != APP_NVM_READY) {
+			chg_err(" nvm_read_page nvm not ready, page:%d error:0x%x\n", p, ret);
+			spin_unlock_irqrestore(&chip->slock, flags);
+			return ret;
+		}
+
+		ret = Swi_ReadWIPRegisterBurst(NVM_WIP2_REG, ubData);
+
+		if (ret != INF_SWI_SUCCESS) {
+			ret = APP_NVM_E_READ_BURST;
+			spin_unlock_irqrestore(&chip->slock, flags);
+			chg_err(" nvm_read_page Swi_ReadWIPRegisterBurst fail, page:%d error:0x%x\n", p, ret);
+			return ret;
+		}
+		spin_unlock_irqrestore(&chip->slock, flags);
+		memcpy(data + (p * 8), ubData, NVM_PAGE_SIZE);
+	}
+
+	if (ret == APP_NVM_READY)
+		ret = INF_SWI_SUCCESS;
+
+	chg_info(" nvm_read_page ret:0x%x\n", ret);
+	return ret;
+}

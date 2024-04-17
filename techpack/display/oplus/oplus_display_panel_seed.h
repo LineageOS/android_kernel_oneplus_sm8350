@@ -35,4 +35,4 @@ int dsi_panel_seed_mode(struct dsi_panel *panel, int mode);
 int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode);
 int dsi_display_seed_mode(struct dsi_display *display, int mode);
 int dsi_panel_loading_effect_mode_unlock(struct dsi_panel *panel, int mode);
-#endif
+#endif /* _OPLUS_DISPLAY_PANEL_SEED_H_ */

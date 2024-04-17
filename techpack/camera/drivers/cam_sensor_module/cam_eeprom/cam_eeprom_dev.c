@@ -9,9 +9,6 @@
 #include "cam_eeprom_core.h"
 #include "cam_debug_util.h"
 #include "camera_main.h"
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-extern bool chip_version_old;
-#endif
 
 static int cam_eeprom_subdev_close_internal(struct v4l2_subdev *sd,
 	struct v4l2_subdev_fh *fh)
@@ -43,6 +40,10 @@ static int cam_eeprom_subdev_close(struct v4l2_subdev *sd,
 
 	return cam_eeprom_subdev_close_internal(sd, fh);
 }
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+extern bool chip_version_old;
+#endif
 
 static long cam_eeprom_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)

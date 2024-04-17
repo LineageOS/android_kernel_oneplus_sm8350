@@ -172,7 +172,6 @@ camera-$(CONFIG_SPECTRA_SENSOR) += \
 	cam_sensor_module/cam_sensor_utils/cam_sensor_util.o \
 	cam_sensor_module/cam_res_mgr/cam_res_mgr.o
 
-
 camera-$(CONFIG_SPECTRA_OPLUS) += \
 	oplus/cam_sensor_module/cam_ois/onsemi_fw/fw_download_interface.o \
 	oplus/cam_sensor_module/cam_ois/onsemi_fw/LC898124/HighLevelCmd.o \
@@ -188,6 +187,7 @@ camera-$(CONFIG_SPECTRA_OPLUS) += \
 	oplus/cam_sensor_module/cam_eeprom/oplus_cam_eeprom_core.o\
 	oplus/cam_sensor_module/cam_sensor/oplus_cam_sensor_core.o\
 	oplus/cam_sensor_module/cam_flash/oplus_cam_flash_dev.o
+
 camera-$(CONFIG_LEDS_QPNP_FLASH_V2) += \
 	cam_sensor_module/cam_flash/cam_flash_dev.o \
 	cam_sensor_module/cam_flash/cam_flash_core.o \

@@ -24,10 +24,15 @@
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
 
+#if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
+#include "oplus_chg_symbol.h"
+#endif
+
 #define RT9471D 0
 #define RT9467 1
 #define BQ2589X 2
 #define BQ2591X 3
+#define SGM41512 4
 
 #define CHARGING_INTERVAL 10
 #define CHARGING_FULL_INTERVAL 20
@@ -493,6 +498,8 @@ struct mtk_charger {
 
 	int chargeric_temp_volt;
 	int chargeric_temp;
+	int chargeric_temp_cal;
+	int battery_btb_temp_cal;
 	bool support_ntc_01c_precision;
 
 	struct tcpc_device *tcpc;
@@ -503,6 +510,11 @@ struct mtk_charger {
 	struct delayed_work status_keep_clean_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
+/*.add for doki disable hvdcp func .*/
+	bool hvdcp_disabled;
+	bool ntc_switch_used;
+	bool wait_hard_reset_complete;
+	bool support_mt6375_charger;
 #endif
 };
 
@@ -544,5 +556,18 @@ extern void mt_usb_connect(void);
 extern void mt_usb_disconnect(void);
 extern bool is_meta_mode(void);
 int oplus_get_fast_chg_type(void);
+
+/* extern for 6375 charge track */
+void oplus_mt6375_record_qc_type(void (*type)(void));
+void oplus_mt6375_wired_charging_break(int (*vbus_status)(int vbus_on));
+int mt6375_get_hvdcp_type(void);
+void mt6375_enable_hvdcp_detect(void);
+int mt6375_set_hvdcp_to_5v(void);
+int mt6375_set_hvdcp_to_9v(void);
+void oplus_notify_hvdcp_detect_stat(void);
+void oplus_set_hvdcp_flag_clear(void);
+int oplus_battery_meter_get_battery_voltage(void);
+bool mt6375_int_chrdet_attach(void);
 #endif
+
 #endif /* __MTK_CHARGER_H */

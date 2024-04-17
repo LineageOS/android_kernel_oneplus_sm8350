@@ -4722,6 +4722,9 @@ static int cam_csid_evt_bottom_half_handler(
 	struct cam_ife_csid_hw *csid_hw;
 	struct cam_csid_evt_payload *evt_payload;
 	int i;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	int rc = 0;
+#endif
 	struct cam_isp_hw_event_info event_info;
 	const struct cam_ife_csid_reg_offset    *csid_reg;
 	int udi_start_idx = CAM_IFE_CSID_IRQ_REG_UDI_0;
@@ -4834,7 +4837,6 @@ static int cam_csid_evt_bottom_half_handler(
 		csid_hw->event_cb(NULL,
 			CAM_ISP_HW_EVENT_ERROR, (void *)&event_info);
 	}
-
 #ifdef OPLUS_FEATURE_CAMERA_COMMON //lanhe todo:
 	if(csid_hw->use_rdi_sof &&
 		(evt_payload->evt_type == CAM_ISP_HW_ERROR_NONE))
@@ -4844,7 +4846,7 @@ static int cam_csid_evt_bottom_half_handler(
 		if(evt_payload->irq_status[CAM_IFE_CSID_IRQ_REG_RDI_2] & CSID_PATH_INFO_INPUT_SOF)
 		{
 		    event_info.res_id = CAM_ISP_HW_VFE_IN_RDI0;
-		    csid_hw->event_cb(csid_hw->priv, CAM_ISP_HW_EVENT_SOF, (void *)&event_info);
+		    rc = csid_hw->event_cb(csid_hw->priv, CAM_ISP_HW_EVENT_SOF, (void *)&event_info);
 		}
 	}
 #endif

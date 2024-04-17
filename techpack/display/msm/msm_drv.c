@@ -2339,6 +2339,7 @@ static int __init msm_drm_register(void)
 static void __exit msm_drm_unregister(void)
 {
 	DBG("fini");
+
 	platform_driver_unregister(&msm_platform_driver);
 	sde_wb_unregister();
 	msm_hdmi_unregister();

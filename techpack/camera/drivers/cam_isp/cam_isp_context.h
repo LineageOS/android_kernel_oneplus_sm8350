@@ -280,7 +280,8 @@ struct cam_isp_context_event_record {
  *                             decide whether to apply request in offline ctx
  * @workq:                     Worker thread for offline ife
  * @trigger_id:                ID provided by CRM for each ctx on the link
- * @last_bufdone_err_apply_req_id:  last bufdone error apply request id
+ * @last_bufdone_error_apply_req_id:  last bufdone error apply request id
+ * @apply_fail_cnt_on_bubble:  Count of apply fails after bubble
  *
  */
 struct cam_isp_context {

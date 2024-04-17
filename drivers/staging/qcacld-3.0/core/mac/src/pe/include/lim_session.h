@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2012-2020 The Linux Foundation. All rights reserved.
- * Copyright (c) 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for
  * any purpose with or without fee is hereby granted, provided that the
@@ -578,8 +577,8 @@ struct pe_session {
 	uint16_t prot_status_code;
 	tSirResultCodes result_code;
 	uint32_t dfs_regdomain;
-	uint8_t ap_defined_power_type_6g;
-	uint8_t best_6g_power_type;
+	/* AP power type */
+	uint8_t ap_power_type;
 };
 
 /*-------------------------------------------------------------------------

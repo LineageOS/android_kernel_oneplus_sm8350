@@ -79,19 +79,6 @@ static int cam_ois_subdev_close_internal(struct v4l2_subdev *sd,
 	}
 
 	mutex_lock(&(o_ctrl->ois_mutex));
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	if(o_ctrl->cam_ois_download_fw_in_advance){
-		//when close ois,should be disable ois
-		mutex_lock(&(o_ctrl->ois_power_down_mutex));
-		if (o_ctrl->ois_power_state == CAM_OIS_POWER_ON){
-			RamWrite32A_oneplus(o_ctrl,0xf012,0x0);
-		}
-		mutex_unlock(&(o_ctrl->ois_power_down_mutex));
-		mutex_lock(&(o_ctrl->do_ioctl_ois));
-		o_ctrl->ois_fd_have_close_state = CAM_OIS_IS_DOING_CLOSE;
-		mutex_unlock(&(o_ctrl->do_ioctl_ois));
-	}
-#endif
 	cam_ois_shutdown(o_ctrl);
 	mutex_unlock(&(o_ctrl->ois_mutex));
 
@@ -115,8 +102,10 @@ static long cam_ois_subdev_ioctl(struct v4l2_subdev *sd,
 	unsigned int cmd, void *arg)
 {
 	int                       rc     = 0;
-	struct cam_ois_ctrl_t *o_ctrl = v4l2_get_subdevdata(sd);
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 	uint32_t gyro_vendor = 0;
+#endif
+	struct cam_ois_ctrl_t *o_ctrl = v4l2_get_subdevdata(sd);
 
 	switch (cmd) {
 	case VIDIOC_CAM_CONTROL:
@@ -124,13 +113,6 @@ static long cam_ois_subdev_ioctl(struct v4l2_subdev *sd,
 		if (rc)
 			CAM_ERR(CAM_OIS,
 				"Failed with driver cmd: %d", rc);
-		break;
-	case CAM_SD_SHUTDOWN:
-		if (!cam_req_mgr_is_shutdown()) {
-			CAM_ERR(CAM_CORE, "SD shouldn't come from user space");
-			return 0;
-		}
-		rc = cam_ois_subdev_close_internal(sd, NULL);
 		break;
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 	case VIDIOC_CAM_SENSOR_STATR:

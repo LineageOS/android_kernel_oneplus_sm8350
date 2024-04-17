@@ -19,7 +19,6 @@ config OPLUS_SYSTEM_KERNEL_MTK
   default n
   help
 	define this config to Distinguish between qcom and mtk platform
-
 #endif
 
 source "scripts/Kconfig.include"

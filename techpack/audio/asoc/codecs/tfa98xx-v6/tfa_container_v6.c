@@ -2007,6 +2007,36 @@ int tfa_cnt_get_app_name_v6(struct tfa_device *tfa, char *name)
 }
 
 /*
+ * Get profile index of the fres calibration profile.
+ * Returns: (profile index) if found, (-2) if no
+ * calibration profile is found or (-1) on error
+ */
+int tfaContGetFresCalProfile(struct tfa_device *tfa)
+{
+	int prof, cal_idx = -2;
+	int ret = 0;
+
+	if ((tfa->dev_idx < 0) || (tfa->dev_idx >= tfa->cnt->ndev)) {
+		ret = -1;
+		return ret;
+	}
+
+	/* search for the calibration profile in the list of profiles */
+	for (prof = 0; prof < tfa->cnt->nprof; prof++) {
+		if (strstr(tfaContProfileName_v6(tfa->cnt, tfa->dev_idx, prof),
+				"frescalibrate") != NULL) {
+			cal_idx = prof;
+			pr_debug("Using calibration profile: '%s'\n",
+				tfaContProfileName_v6(tfa->cnt, tfa->dev_idx,
+					prof));
+			break;
+		}
+	}
+
+	return cal_idx;
+}
+
+/*
  * Get profile index of the calibration profile.
  * Returns: (profile index) if found, (-2) if no
  * calibration profile is found or (-1) on error
@@ -2106,6 +2136,9 @@ nxpTfaLiveDataList_t *tfaContGet1stLiveDataList_v6(nxpTfaContainer_t * cont)
 
 	// get last devlist
 	dev = tfaContGetDevList_v6(cont, maxdev - 1);
+	if(dev == NULL)
+		return NULL;
+
 	// the 1st livedata starts after the last device list
 	b = (uint8_t *) dev + sizeof(nxpTfaDeviceList_t) +
 	    dev->length * (sizeof(nxpTfaDescPtr_t));

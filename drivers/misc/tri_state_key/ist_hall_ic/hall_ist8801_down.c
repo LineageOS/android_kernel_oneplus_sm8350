@@ -160,6 +160,8 @@ static int ist8801_i2c_write_block(struct ist8801_data_t *ist8801_data,
 		case IST8801_REG_OPF:
 			ist8801_data->reg.map.opf = data[0];
 			break;
+		default :
+			break;
 		}
 	}
 
@@ -574,6 +576,8 @@ static int ist8801_set_operation_mode(struct ist8801_data_t *ist8801_data,
 		TRI_KEY_ERR("operation mode :OPERATION_MODE_SUSPEND\n");
 
 		usleep_range(5000, 5100);
+		break;
+	default :
 		break;
 	}
 

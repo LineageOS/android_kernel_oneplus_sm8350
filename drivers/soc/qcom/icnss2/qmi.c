@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define pr_fmt(fmt) "icnss2_qmi: " fmt
@@ -33,9 +32,13 @@
 
 #if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_BDF2)
 //Modify for: multi projects using different bdf
-#include <soc/oplus/oplus_project.h>
 #include <linux/fs.h>
 #endif /* CONFIG_OPLUS_FEATURE_WIFI_BDF2 */
+
+#ifdef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
+#include <soc/oplus/system/oplus_project.h>
+#endif /* OPLUS_FEATURE_WIFI_BDF */
 
 #define WLFW_SERVICE_WCN_INS_ID_V01	3
 #define WLFW_SERVICE_INS_ID_V01		0
@@ -49,6 +52,11 @@
 #define BIN_BDF_FILE_NAME_PREFIX	"bdwlan.b"
 #define REGDB_FILE_NAME			"regdb.bin"
 #define DUMMY_BDF_FILE_NAME		"bdwlan.dmy"
+
+#ifdef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
+#define ELF_BDF_FILE_SEC		"bdwlanu.elf"
+#endif /* OPLUS_FEATURE_WIFI_BDF */
 
 #define QDSS_TRACE_CONFIG_FILE "qdss_trace_config.cfg"
 
@@ -717,9 +725,11 @@ int wlfw_cap_send_sync_msg(struct icnss_priv *priv)
 	    resp->rd_card_chain_cap == WLFW_RD_CARD_CHAIN_CAP_1x1_V01)
 		priv->is_chain1_supported = false;
 
-	icnss_pr_dbg("Capability, chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x, fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s",
+	icnss_pr_dbg("Capability, chip_id: 0x%x, chip_family: 0x%x, board_id: 0x%x, soc_id: 0x%x",
 		     priv->chip_info.chip_id, priv->chip_info.chip_family,
-		     priv->board_id, priv->soc_id,
+		     priv->board_id, priv->soc_id);
+
+	icnss_pr_dbg("fw_version: 0x%x, fw_build_timestamp: %s, fw_build_id: %s",
 		     priv->fw_version_info.fw_version,
 		     priv->fw_version_info.fw_build_timestamp,
 		     priv->fw_build_id);
@@ -948,6 +958,42 @@ void icnss_dms_deinit(struct icnss_priv *priv)
 	qmi_handle_release(&priv->qmi_dms);
 }
 
+#ifdef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
+static bool is_secondory_BDF() {
+	int pcbVersion =  get_PCB_Version();
+	icnss_pr_dbg("pcbVersion: %d", pcbVersion);
+	if (pcbVersion != 16 &&
+		pcbVersion != 24 &&
+		pcbVersion != 32 &&
+		pcbVersion != 40) {
+		return true;
+		}
+	return false;
+}
+
+static void icnss_get_oplus_bdf_file_name(char* file_name, u32 filename_len) {
+	int project_id = get_project();
+	icnss_pr_dbg("project id: %d", project_id);
+
+	if (project_id == 22055 || project_id == 22101) {
+		if (is_secondory_BDF()) {
+//Modify for: Solve the problem that the wifi cannot be turned on due
+//to the failure of the second bdf to load after flashing the boot image
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_WIFI_BDF2)
+			snprintf(file_name, filename_len, ELF_BDF_FILE_SEC);
+#else
+			snprintf(file_name, filename_len, ELF_BDF_FILE_NAME);
+#endif /* CONFIG_OPLUS_FEATURE_WIFI_BDF2 */
+		} else {
+			snprintf(file_name, filename_len, ELF_BDF_FILE_NAME);
+		}
+	} else {
+		snprintf(file_name, filename_len, ELF_BDF_FILE_NAME);
+	}
+}
+#endif /* OPLUS_FEATURE_WIFI_BDF */
+
 static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 				   u32 bdf_type, char *filename,
 				   u32 filename_len)
@@ -958,7 +1004,12 @@ static int icnss_get_bdf_file_name(struct icnss_priv *priv,
 	switch (bdf_type) {
 	case ICNSS_BDF_ELF:
 		if (priv->board_id == 0xFF)
+#ifndef OPLUS_FEATURE_WIFI_BDF
+//Modify for: multi projects using different bdf
 			snprintf(filename_tmp, filename_len, ELF_BDF_FILE_NAME);
+#else
+			icnss_get_oplus_bdf_file_name(filename_tmp,filename_len);
+#endif /* OPLUS_FEATURE_WIFI_BDF */
 		else if (priv->board_id < 0xFF)
 			snprintf(filename_tmp, filename_len,
 				 ELF_BDF_FILE_NAME_PREFIX "%02x",
@@ -1106,6 +1157,14 @@ request_bdf:
 	remaining = fw_entry->size;
 
 bypass_bdf:
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+	if (bdf_type == ICNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_SUCCESS, &priv->loadRegdbState);
+	} else if (bdf_type == ICNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_SUCCESS, &priv->loadBdfState);
+	}
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 	icnss_pr_dbg("Downloading %s: %s, size: %u\n",
 		     icnss_bdf_type_to_str(bdf_type), filename, remaining);
 
@@ -1194,6 +1253,14 @@ err_send:
 	if (bdf_type != ICNSS_BDF_DUMMY)
 		release_firmware(fw_entry);
 err_req_fw:
+#ifdef OPLUS_FEATURE_WIFI_DCS_SWITCH
+//Add for: check fw status for switch issue
+	if (bdf_type == ICNSS_BDF_REGDB) {
+		set_bit(CNSS_LOAD_REGDB_FAIL, &priv->loadRegdbState);
+	} else if (bdf_type == ICNSS_BDF_ELF){
+		set_bit(CNSS_LOAD_BDF_FAIL, &priv->loadBdfState);
+	}
+#endif /* OPLUS_FEATURE_WIFI_DCS_SWITCH */
 	if (bdf_type != ICNSS_BDF_REGDB)
 		ICNSS_QMI_ASSERT();
 	kfree(req);
@@ -1277,7 +1344,7 @@ int icnss_wlfw_qdss_data_send_sync(struct icnss_priv *priv, char *file_name,
 		    (resp->seg_id_valid == 1 && resp->seg_id == req->seg_id) &&
 		    (resp->data_valid == 1 &&
 		     resp->data_len <= QMI_WLFW_MAX_DATA_SIZE_V01) &&
-		    resp->data_len <= remaining) {
+		     resp->data_len <= remaining) {
 			memcpy(p_qdss_trace_data_temp,
 			       resp->data, resp->data_len);
 		} else {

@@ -27,6 +27,7 @@
 #include "tof8801_driver.h"
 #include "tof8801_pdrv.h"
 /*end OPLUS_FEATURE_CAMERA_COMMON*/
+
 #if IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2) || \
 	IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)
 #include "cam_flash_dev.h"

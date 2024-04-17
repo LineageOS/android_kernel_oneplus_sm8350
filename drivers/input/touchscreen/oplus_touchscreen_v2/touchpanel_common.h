@@ -694,7 +694,10 @@ struct touchpanel_snr {
 	uint16_t y;
 	uint8_t channel_x;
 	uint8_t channel_y;
+	uint8_t width_major;
+	uint8_t area_len;
 	uint8_t point_status;
+	u64 *data;
 	bool doing;
 	int max;
 	int min;

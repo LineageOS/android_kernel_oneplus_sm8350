@@ -21,6 +21,17 @@
 #include "wcd938x-registers.h"
 #include "internal.h"
 
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#ifdef dev_err
+#undef dev_err
+#define dev_err dev_err_fb
+#endif
+#ifdef pr_err
+#undef pr_err
+#define pr_err pr_err_fb
+#endif
+#endif /* CONFIG_OPLUS_FEATURE_MM_FEEDBACK */
 #define WCD938X_ZDET_SUPPORTED          true
 
 /* Z value defined in milliohm */
@@ -1105,8 +1116,12 @@ int wcd938x_mbhc_init(struct wcd938x_mbhc **mbhc,
 
 	pdata = dev_get_platdata(component->dev);
 	if (!pdata) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		dev_err_fb_delay(component->dev, "%s: pdata pointer is NULL\n", __func__);
+#else
 		dev_err(component->dev, "%s: pdata pointer is NULL\n",
 			__func__);
+#endif
 		ret = -EINVAL;
 		goto err;
 	}
@@ -1123,13 +1138,13 @@ int wcd938x_mbhc_init(struct wcd938x_mbhc **mbhc,
 				wcd_mbhc->enable_hp_impedance_detect = false;
 			}
 		} else
-			dev_err(component->dev, "%s: Looking up %s property in node %s failed\n",
+			dev_info(component->dev, "%s: Looking up %s property in node %s failed\n",
 				__func__, mbhc_enable_hp_impedance_detect, component->dev->of_node->full_name);
 	} else {
 		dev_info(component->dev, "%s: oplus,mbhc_enable_hp_impedance_detect DT property not found\n",
 			__func__);
 	}
-	dev_err(component->dev, "%s:wcd_mbhc->enable_hp_impedance_detect(%d)\n",__func__, wcd_mbhc->enable_hp_impedance_detect);
+	dev_info(component->dev, "%s:wcd_mbhc->enable_hp_impedance_detect(%d)\n",__func__, wcd_mbhc->enable_hp_impedance_detect);
 	#endif /* OPLUS_ARCH_EXTENDS */
 
 	#ifdef OPLUS_ARCH_EXTENDS
@@ -1148,8 +1163,12 @@ int wcd938x_mbhc_init(struct wcd938x_mbhc **mbhc,
 	#endif /* OPLUS_ARCH_EXTENDS */
 
 	if (ret) {
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		dev_err_fb_delay(component->dev, "%s: mbhc initialization failed\n", __func__);
+#else
 		dev_err(component->dev, "%s: mbhc initialization failed\n",
 			__func__);
+#endif
 		goto err;
 	}
 

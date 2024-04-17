@@ -653,7 +653,6 @@ struct cam_ife_csid_hw {
 #ifdef OPLUS_FEATURE_CAMERA_COMMON //lanhe todo:
 	bool                             use_rdi_sof;//for hack RDI SOF just for timestamp backup
 #endif
-
 	uint32_t                         irq_debug_cnt;
 	uint32_t                         error_irq_count;
 	uint32_t                         device_enabled;

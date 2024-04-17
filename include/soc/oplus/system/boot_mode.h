@@ -1,14 +1,7 @@
-/************************************************************************************
-** File: - android\kernel\arch\arm\mach-msm\include\mach\oplus_boot.h
-** VENDOR_EDIT
-** Copyright (C), 2008-2012, OPLUS Mobile Comm Corp., Ltd
-** 
-** Description:  
-**     change define of boot_mode here for other place to use it
-** Version: 1.0 
-** --------------------------- Revision History: --------------------------------
-** 	           <author>	           <data>			    <desc>
-************************************************************************************/
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Copyright (C) 2018-2020 Oplus. All rights reserved.
+ */
 #ifndef _OPLUS_BOOT_H
 #define _OPLUS_BOOT_H
 enum{
@@ -27,17 +20,24 @@ enum{
 };
 
 extern int get_boot_mode(void);
-#ifdef VENDOR_EDIT
-extern bool qpnp_is_power_off_charging(void);
-#endif
-#ifdef VENDOR_EDIT
-extern bool qpnp_is_charger_reboot(void);
-#endif /*VENDOR_EDIT*/
-#endif  /*_OPLUS_BOOT_H*/
-
-#ifdef VENDOR_EDIT
-#ifdef PHOENIX_PROJECT
+#if IS_ENABLED(CONFIG_OPLUS_SYSTEM_KERNEL_QCOM)
 extern bool op_is_monitorable_boot(void);
 #endif
+extern int phx_get_normal_mode(void);
+extern bool phx_is_userdebug(void);
+extern int phx_is_long_time(void);
+
+#ifdef OPLUS_BUG_STABILITY
+/*add for charge*/
+extern bool qpnp_is_power_off_charging(void);
 #endif
+#ifdef OPLUS_BUG_STABILITY
+/*add for detect charger when reboot */
+extern bool qpnp_is_charger_reboot(void);
+#endif /*OPLUS_BUG_STABILITY*/
+#endif  /*_OPLUS_BOOT_H*/
+
+#ifdef CONFIG_ARCH_LITO
+extern int get_hw_board_version(void);
+#endif /*add for hw board version*/
 
