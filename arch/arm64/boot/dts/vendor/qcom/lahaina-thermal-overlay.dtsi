@@ -16,16 +16,6 @@
 				cooling-device = <&msm_gpu 2 2>;
 			};
 
-			vbat_cpu4 {
-				trip = <&b_bcl_lvl0>;
-				cooling-device = <&cpu4_isolate 1 1>;
-			};
-
-			vbat_cpu5 {
-				trip = <&b_bcl_lvl0>;
-				cooling-device = <&cpu5_isolate 1 1>;
-			};
-
 			vbat_cdsp0 {
 				trip = <&b_bcl_lvl0>;
 				cooling-device = <&cdsp_sw 2 2>;
@@ -79,16 +69,6 @@
 			vph_gpu0 {
 				trip = <&c_bcl_lvl0>;
 				cooling-device = <&msm_gpu 2 2>;
-			};
-
-			vph_cpu4 {
-				trip = <&c_bcl_lvl0>;
-				cooling-device = <&cpu4_isolate 1 1>;
-			};
-
-			vph_cpu5 {
-				trip = <&c_bcl_lvl0>;
-				cooling-device = <&cpu5_isolate 1 1>;
 			};
 
 			vph_cdsp0 {

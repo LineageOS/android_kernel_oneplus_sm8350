@@ -22,7 +22,7 @@
 #include "wcd-mbhc-adc.h"
 #include <asoc/wcd-mbhc-v2.h>
 #include <asoc/pdata.h>
-#ifdef OPLUS_FEATURE_MM_FEEDBACK
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 #include <soc/oplus/system/oplus_mm_kevent_fb.h>
 #endif
 
@@ -681,13 +681,18 @@ static void wcd_mbhc_adc_detect_plug_type(struct wcd_mbhc *mbhc)
 	pr_debug("%s: enter\n", __func__);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
+	#ifndef OPLUS_ARCH_EXTENDS
 	if (mbhc->mbhc_cb->hph_pull_down_ctrl)
+	#else
+	if ((mbhc->mbhc_cb->hph_pull_down_ctrl) && (mbhc->need_cross_conn))
+	#endif /* OPLUS_ARCH_EXTENDS */
 		mbhc->mbhc_cb->hph_pull_down_ctrl(component, false);
 
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 0);
 	#ifdef OPLUS_ARCH_EXTENDS
 	/* change micbias to 1v first */
 	if (mbhc->need_cross_conn) {
+		pr_debug("%s: change micbias to 1v\n", __func__);
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_MICB2_VOUT, 0x00);
 	}
 	#endif /* OPLUS_ARCH_EXTENDS */
@@ -765,7 +770,11 @@ static void wcd_mbhc_detect_plug_type_new(struct work_struct *work)
 	WCD_MBHC_RSC_LOCK(mbhc);
 	WCD_MBHC_RSC_ASSERT_LOCKED(mbhc);
 
+	#ifndef OPLUS_ARCH_EXTENDS
 	if (mbhc->mbhc_cb->hph_pull_down_ctrl)
+	#else
+	if ((mbhc->mbhc_cb->hph_pull_down_ctrl) && (mbhc->need_cross_conn))
+	#endif /* OPLUS_ARCH_EXTENDS */
 		mbhc->mbhc_cb->hph_pull_down_ctrl(component, false);
 
 	WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_DETECTION_DONE, 0);
@@ -871,7 +880,9 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	int ret = 0;
 	int spl_hs_count = 0;
 	int output_mv = 0;
-	int cross_conn;
+	#ifdef OPLUS_ARCH_EXTENDS
+	int cross_conn = 0;
+	#endif /* OPLUS_ARCH_EXTENDS */
 	int try = 0;
 	int hs_threshold, micbias_mv;
 	#ifdef OPLUS_ARCH_EXTENDS
@@ -883,7 +894,7 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	int output_mv_second = 0;
 	bool swap_type_cnt = false;
 	#endif /* OPLUS_ARCH_EXTENDS */
-	#ifdef OPLUS_FEATURE_MM_FEEDBACK
+	#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 	int retry = 0;
 	char buf[MM_KEVENT_MAX_PAYLOAD_SIZE] = {0};
 	#endif
@@ -1097,11 +1108,11 @@ correct_plug_type:
 			is_pa_on = mbhc->mbhc_cb->hph_pa_on_status(
 					mbhc->component);
 
-		#ifdef OPLUS_FEATURE_MM_FEEDBACK
+		#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 		retry++;
 		#endif /* OPLUS_FEATURE_MM_FEEDBACK */
 		#ifdef OPLUS_ARCH_EXTENDS
-		if (mbhc->need_cross_conn && swap_type_cnt) {
+		if (mbhc->need_cross_conn && !swap_type_cnt) {
 		#endif /* OPLUS_ARCH_EXTENDS */
 		if ((output_mv <= hs_threshold) &&
 		    (!is_pa_on)) {
@@ -1123,7 +1134,18 @@ correct_plug_type:
 					 */
 					pr_debug("%s: switch did not work\n",
 						 __func__);
+					#ifndef OPLUS_ARCH_EXTENDS
 					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+					#else
+					if ((!!ret && !cross_conn) &&
+						(mbhc->mbhc_cfg->enable_usbc_analog) && (!wcd_swch_level_remove(mbhc))) {
+						pr_info("%s: special headphone insert need check mic adc to figure out type\n", __func__);
+						plug_type = wcd_mbhc_get_plug_from_adc(mbhc, output_mv);
+						pr_err("%s: output_mv = %d, plug_type = %d\n", __func__, output_mv, plug_type);
+					} else {
+					    plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
+					}
+					#endif /* OPLUS_ARCH_EXTENDS */
 					goto report;
 				} else {
 					plug_type = MBHC_PLUG_TYPE_GND_MIC_SWAP;
@@ -1412,7 +1434,7 @@ exit:
 
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
 
-	#ifdef OPLUS_FEATURE_MM_FEEDBACK
+	#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
 	if ((plug_type != MBHC_PLUG_TYPE_HEADSET) &&
 	    (plug_type != MBHC_PLUG_TYPE_HEADPHONE) &&
 	    !((plug_type == MBHC_PLUG_TYPE_HIGH_HPH) && (retry == HIGH_HPH_DETECT_RETRY_CNT))) {

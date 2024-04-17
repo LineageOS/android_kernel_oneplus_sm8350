@@ -10,9 +10,6 @@ ifdef CONFIG_OPLUS_SYSTEM_KERNEL_QCOM
 obj-$(CONFIG_OPLUS_FEATURE_PROJECTINFO)	+=  project_info/
 endif
 
-#ifdef OPLUS_FEATURE_MM_FEEDBACK
-obj-$(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)         += oplus_mm_fb/
-#endif /* OPLUS_FEATURE_MM_FEEDBACK */
-#ifdef OPLUS_FEATURE_ACM
-obj-$(CONFIG_OPLUS_FEATURE_ACM)     += acm/
-#endif /* OPLUS_FEATURE_ACM */
+#ifdef OPLUS_FEATURE_MISC
+obj-y += misc/
+#endif /* OPLUS_FEATURE_MISC */

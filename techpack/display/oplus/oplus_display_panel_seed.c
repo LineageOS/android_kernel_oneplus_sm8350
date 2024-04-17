@@ -27,7 +27,15 @@ DEFINE_MUTEX(oplus_seed_lock);
 
 int oplus_display_get_seed_mode(void)
 {
-	return seed_mode;
+	int mode = 0;
+
+	mutex_lock(&oplus_seed_lock);
+
+	mode = seed_mode;
+
+	mutex_unlock(&oplus_seed_lock);
+
+	return mode;
 }
 
 int __oplus_display_set_seed(int mode)
@@ -40,6 +48,7 @@ int __oplus_display_set_seed(int mode)
 	oplus_set_color_mode = true;
 
 	mutex_unlock(&oplus_seed_lock);
+
 	return 0;
 }
 
@@ -64,14 +73,11 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 		else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE0);
 		}
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE0 cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_MODE0 cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
 		break;
-
 	case 1:
 		if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
 			if (oplus_seed_backlight != oplus_seed_last_backlight) {
@@ -82,14 +88,11 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 		else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE1);
 		}
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE1 cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_MODE1 cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
 		break;
-
 	case 2:
 		if (!oplus_set_color_mode && oplus_seed_backlight && !strcmp(panel->name, "samsung AMS643YE01 dsc cmd mode panel")) {
 			if (oplus_seed_backlight != oplus_seed_last_backlight) {
@@ -100,54 +103,40 @@ int dsi_panel_seed_mode_unlock(struct dsi_panel *panel, int mode)
 		else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE2);
 		}
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE2 cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_MODE2 cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
 		break;
-
 	case 3:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE3);
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE3 cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_MODE3 cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
 		break;
-
 	case 4:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE4);
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE4 cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_MODE4 cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
 		break;
-
 	case 8:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_MODE8);
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_MODE8 cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_MODE8 cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
 		break;
-
 	default:
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SEED_OFF);
-
 		if (rc) {
-			pr_err("[%s] failed to send DSI_CMD_SEED_OFF cmds, rc=%d\n",
-			       panel->name, rc);
+			DSI_ERR("[%s] failed to send DSI_CMD_SEED_OFF cmds, rc=%d\n",
+					panel->oplus_priv.vendor_name, rc);
 		}
-
-		pr_err("[%s] seed mode Invalid %d\n",
-		       panel->name, mode);
+		DSI_ERR("[%s] Invalid seed mode %d\n",
+				panel->oplus_priv.vendor_name, mode);
 	}
 
 	if (oplus_set_color_mode) {
@@ -170,67 +159,63 @@ int dsi_panel_loading_effect_mode_unlock(struct dsi_panel *panel, int mode)
 		if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && ((panel->panel_id2 <= 0x06) || (panel->panel_id2 == 0x15))) {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE1_ID6);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE1_ID6 cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE1_ID6 cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		} else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE1);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE1 cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE1 cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		}
 		break;
-
 	case PANEL_LOADING_EFFECT_MODE2:
 		if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && ((panel->panel_id2 <= 0x06) || (panel->panel_id2 == 0x15))) {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE2_ID6);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE2_ID6 cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE2_ID6 cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		} else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_MODE2);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE2 cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_MODE2 cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		}
 		break;
-
 	case PANEL_LOADING_EFFECT_OFF:
 		if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && ((panel->panel_id2 <= 0x06) || (panel->panel_id2 == 0x15))) {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF_ID6);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF_ID6 cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF_ID6 cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		} else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		}
 		break;
-
 	default:
 		if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && ((panel->panel_id2 <= 0x06) || (panel->panel_id2 == 0x15))) {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF_ID6);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF_ID6 cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF_ID6 cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		} else {
 			rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_LOADING_EFFECT_OFF);
 			if (rc) {
-				pr_err("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF cmds, rc=%d\n",
-					panel->name, rc);
+				DSI_ERR("[%s] failed to send DSI_CMD_LOADING_EFFECT_OFF cmds, rc=%d\n",
+						panel->oplus_priv.vendor_name, rc);
 			}
 		}
-
-		pr_err("[%s] loading effect mode Invalid %d\n",
-		       panel->name, mode);
+		DSI_ERR("[%s] Invalid loading effect mode %d\n",
+				panel->oplus_priv.vendor_name, mode);
 	}
 
 	return rc;
@@ -245,31 +230,33 @@ int dsi_panel_seed_mode(struct dsi_panel *panel, int mode)
 		return -EINVAL;
 	}
 
-	//mutex_lock(&panel->panel_lock);
+	/* mutex_lock(&panel->panel_lock); */
 
 	if (!strcmp(panel->oplus_priv.vendor_name, "S6E3HC3") && (mode >= PANEL_LOADING_EFFECT_FLAG)) {
 		rc = dsi_panel_loading_effect_mode_unlock(panel, mode);
 	} else if (!strcmp(panel->oplus_priv.vendor_name, "ANA6706") && (mode >= PANEL_LOADING_EFFECT_FLAG)) {
 		mode = mode - PANEL_LOADING_EFFECT_FLAG;
 		rc = dsi_panel_seed_mode_unlock(panel, mode);
-		seed_mode = mode;
+		__oplus_display_set_seed(mode);
 	} else if (!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01") && (mode >= PANEL_LOADING_EFFECT_FLAG)) {
 		mode = mode - PANEL_LOADING_EFFECT_FLAG;
 		rc = dsi_panel_seed_mode_unlock(panel, mode);
-		seed_mode = mode;
-	} else if(!strcmp(panel->oplus_priv.vendor_name, "AMB655X") && (mode >= PANEL_LOADING_EFFECT_FLAG)){
+		__oplus_display_set_seed(mode);
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "AMB655X") && (mode >= PANEL_LOADING_EFFECT_FLAG)) {
 		rc = dsi_panel_loading_effect_mode_unlock(panel, mode);
-	} else if(!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && (mode >= PANEL_LOADING_EFFECT_FLAG)){
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") && (mode >= PANEL_LOADING_EFFECT_FLAG)) {
 		rc = dsi_panel_loading_effect_mode_unlock(panel, mode);
 	} else if ((mode >= PANEL_LOADING_EFFECT_FLAG) &&
 		(!strcmp(panel->oplus_priv.vendor_name, "S6E3XA1") ||
 		 !strcmp(panel->oplus_priv.vendor_name, "NT37701"))) {
 		rc = dsi_panel_loading_effect_mode_unlock(panel, mode);
+	} else if (!strcmp(panel->oplus_priv.vendor_name, "JDI_ILI7807S")) {
+		return 0;
 	} else {
 		rc = dsi_panel_seed_mode_unlock(panel, mode);
 	}
 
-	//mutex_unlock(&panel->panel_lock);
+	/* mutex_unlock(&panel->panel_lock); */
 	return rc;
 }
 
@@ -278,7 +265,7 @@ int dsi_display_seed_mode(struct dsi_display *display, int mode)
 	int rc = 0;
 
 	if (!display || !display->panel) {
-		pr_err("Invalid params\n");
+		DSI_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -287,7 +274,7 @@ int dsi_display_seed_mode(struct dsi_display *display, int mode)
 	/* enable the clk vote for CMD mode panels */
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
 		dsi_display_clk_ctrl(display->dsi_clk_handle,
-				     DSI_CORE_CLK, DSI_CLK_ON);
+				DSI_CORE_CLK, DSI_CLK_ON);
 	}
 
 	mutex_lock(&display->panel->panel_lock);
@@ -297,13 +284,13 @@ int dsi_display_seed_mode(struct dsi_display *display, int mode)
 	mutex_unlock(&display->panel->panel_lock);
 
 	if (rc) {
-		pr_err("[%s] failed to dsi_panel_seed_or_loading_effect_on, rc=%d\n",
-		       display->name, rc);
+		DSI_ERR("[%s] failed to seed or loading_effect on, rc=%d\n",
+				display->panel->oplus_priv.vendor_name, rc);
 	}
 
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
 		rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
-					  DSI_CORE_CLK, DSI_CLK_OFF);
+				DSI_CORE_CLK, DSI_CLK_OFF);
 	}
 
 	mutex_unlock(&display->display_lock);
@@ -315,7 +302,7 @@ int oplus_dsi_update_seed_mode(struct dsi_display *display)
 	int ret = 0;
 
 	if (!display) {
-		pr_err("failed for: %s %d\n", __func__, __LINE__);
+		DSI_ERR("Invalid params\n");
 		return -EINVAL;
 	}
 
@@ -327,9 +314,14 @@ int oplus_dsi_update_seed_mode(struct dsi_display *display)
 int oplus_display_panel_get_seed(void *data)
 {
 	uint32_t *temp = data;
-	printk(KERN_INFO "oplus_display_get_seed = %d\n", seed_mode);
 
+	mutex_lock(&oplus_seed_lock);
+
+	DSI_INFO("get seed mode = %d\n", seed_mode);
 	(*temp) = seed_mode;
+
+	mutex_unlock(&oplus_seed_lock);
+
 	return 0;
 }
 
@@ -338,27 +330,29 @@ int oplus_display_panel_set_seed(void *data)
 	uint32_t *temp_save = data;
 	uint32_t panel_id = (*temp_save >> 12);
 	struct dsi_display *display = get_main_display();
-	seed_mode = (*temp_save & 0x0fff);
-	printk(KERN_INFO "%s oplus_display_set_seed = %d, panel_id = %d\n", __func__, seed_mode, panel_id);
+	int mode = (*temp_save & 0x0fff);
 
-	__oplus_display_set_seed(seed_mode);
+	DSI_INFO("set seed mode = %d, panel_id = %d\n",
+			mode, panel_id);
+
+	__oplus_display_set_seed(mode);
 
 	if (1 == panel_id) {
 		display = get_sec_display();
 	}
 
-	if (display == NULL) {
-		printk(KERN_INFO "oplus_display_set_seed and main display is null");
+	if (!display || !display->panel) {
+		DSI_ERR("Invalid params\n");
 		return -EINVAL;
 	}
-	if ((get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) && (display->panel->power_mode != SDE_MODE_DPMS_ON)) {
-		printk(KERN_ERR
-			"<%s> %s oplus_display_set_seed = %d, but now display panel power_mode is not on\n",
-			display->panel->oplus_priv.vendor_name, __func__, seed_mode);
+	if ((get_oplus_display_power_status() != OPLUS_DISPLAY_POWER_ON) &&
+			(display->panel->power_mode != SDE_MODE_DPMS_ON)) {
+		DSI_ERR("[%s] failed to set seed mode:%d, because display is not on\n",
+				display->panel->oplus_priv.vendor_name, mode);
 		return -EINVAL;
 	}
 
-	dsi_display_seed_mode(display, seed_mode);
+	dsi_display_seed_mode(display, mode);
 
 	return 0;
 }

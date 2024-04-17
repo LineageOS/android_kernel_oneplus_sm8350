@@ -20,14 +20,21 @@
 #include <linux/regmap.h>
 #include <linux/list.h>
 #include <linux/of_irq.h>
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 #include <soc/oplus/system/boot_mode.h>
 #include <soc/oplus/device_info.h>
 #include <soc/oplus/system/oplus_project.h>
+#endif
 #include <oplus_chg.h>
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
 #include <oplus_hal_vooc.h>
 #include <oplus_mms_gauge.h>
+#include <oplus_chg_comm.h>
+#include <oplus_chg_vooc.h>
+
+/*Add for audio switch */
+#include "oplus_chg_audio_switch.c"
 
 struct oplus_virtual_asic_gpio {
 	int switch_ctrl_gpio;
@@ -65,11 +72,13 @@ struct oplus_virtual_asic_child {
 struct oplus_virtual_asic_ic {
 	struct device *dev;
 	struct oplus_chg_ic_dev *ic_dev;
+	struct oplus_chg_ic_dev *dpdm_switch;
 	struct oplus_chg_ic_dev *asic;
 	struct oplus_virtual_asic_child *asic_list;
 	struct oplus_virtual_asic_gpio gpio;
 	int asic_num;
-
+	bool use_audio_switch;
+	bool use_dpdm_switch_ic;
 	enum oplus_chg_vooc_ic_type vooc_ic_type;
 	enum oplus_chg_vooc_switch_mode switch_mode;
 
@@ -93,6 +102,15 @@ static int oplus_chg_va_init(struct oplus_chg_ic_dev *ic_dev)
 	va = oplus_chg_ic_get_drvdata(ic_dev);
 	node = va->dev->of_node;
 
+	if (va->use_dpdm_switch_ic) {
+		va->dpdm_switch = of_get_oplus_chg_ic(node, "oplus,dpdm_switch_ic", 0);
+		if (va->dpdm_switch == NULL) {
+			chg_debug("dpdm_switch_ic not found\n");
+			return -EAGAIN;
+		}
+	}
+
+	/* First make sure that the sub-IC can call the interface of the parent IC */
 	ic_dev->online = true;
 	for (i = 0; i < va->asic_num; i++) {
 		if (va->asic_list[i].initialized)
@@ -104,7 +122,7 @@ static int oplus_chg_va_init(struct oplus_chg_ic_dev *ic_dev)
 			retry = true;
 			continue;
 		}
-		va->asic_list[i].ic_dev->parent = ic_dev;
+		oplus_chg_ic_set_parent(va->asic_list[i].ic_dev, ic_dev);
 		rc = oplus_chg_ic_func(va->asic_list[i].ic_dev, OPLUS_IC_FUNC_INIT);
 		va->asic_list[i].initialized = true;
 		if (rc >= 0) {
@@ -147,7 +165,7 @@ static int oplus_chg_va_exit(struct oplus_chg_ic_dev *ic_dev)
 
 	oplus_chg_ic_virq_release(va->asic, OPLUS_IC_VIRQ_ERR, va);
 	oplus_chg_ic_func(va->asic, OPLUS_IC_FUNC_EXIT);
-	ic_dev->parent = NULL;
+	oplus_chg_ic_set_parent(ic_dev, NULL);
 
 	return 0;
 }
@@ -714,9 +732,12 @@ static int oplus_chg_va_get_data_gpio_val(struct oplus_chg_ic_dev *ic_dev,
 	return 0;
 }
 
-static int oplus_chg_va_get_data_bit(struct oplus_chg_ic_dev *ic_dev, bool *bit)
+#define DATA_SHIFT_BIT	6
+static int oplus_chg_va_get_data(struct oplus_chg_ic_dev *ic_dev, int *data)
 {
 	struct oplus_virtual_asic_ic *va;
+	int i;
+	int bit;
 	int rc = 0;
 
 	if (ic_dev == NULL) {
@@ -725,25 +746,28 @@ static int oplus_chg_va_get_data_bit(struct oplus_chg_ic_dev *ic_dev, bool *bit)
 	}
 	va = oplus_chg_ic_get_drvdata(ic_dev);
 
-	rc = oplus_chg_va_set_clock_active(va->ic_dev);
-	if (rc < 0) {
-		chg_err("set clock active error\n");
-		return -ENODEV;
+	for (i = 0; i < 7; i++) {
+		rc = oplus_chg_va_set_clock_active(va->ic_dev);
+		if (rc < 0) {
+			chg_err("set clock active error\n");
+			return -ENODEV;
+		}
+		usleep_range(1000, 1000);
+		rc = oplus_chg_va_set_clock_sleep(va->ic_dev);
+		if (rc < 0) {
+			chg_err("set clock sleep error\n");
+			return -ENODEV;
+		}
+		usleep_range(19000, 19000);
+		bit = gpio_get_value(va->gpio.data_gpio);
+		*data |= bit << (DATA_SHIFT_BIT - i);
 	}
-	usleep_range(1000, 1000);
-	rc = oplus_chg_va_set_clock_sleep(va->ic_dev);
-	if (rc < 0) {
-		chg_err("set clock sleep error\n");
-		return -ENODEV;
-	}
-	usleep_range(19000, 19000);
-	*bit = gpio_get_value(va->gpio.data_gpio);
 
 	return 0;
 }
 
 static int oplus_chg_va_reply_data(struct oplus_chg_ic_dev *ic_dev, int data,
-				   int data_width)
+				   int data_width, int curr_ma)
 {
 	struct oplus_virtual_asic_ic *va;
 	int i;
@@ -777,11 +801,101 @@ static int oplus_chg_va_reply_data(struct oplus_chg_ic_dev *ic_dev, int data,
 	return 0;
 }
 
+#define SWITCH_RETRY_MAX	10
+static int oplus_chg_va_switch_to_normal(struct oplus_virtual_asic_ic *va)
+{
+	int retry;
+	int rc;
+	int status;
+
+	if (va->use_dpdm_switch_ic) {
+		rc = oplus_chg_ic_func(va->dpdm_switch,
+			OPLUS_IC_FUNC_SET_DPDM_SWITCH_MODE, DPDM_SWITCH_TO_AP);
+		if (rc < 0) {
+			chg_err("set dpdm switch mode to vooc error, rc=%d\n", rc);
+			return rc;
+		}
+	} else {
+		rc = pinctrl_select_state(va->gpio.pinctrl, va->gpio.asic_switch_normal);
+		if (rc < 0) {
+			chg_err("set asic_switch_normal error, rc=%d\n", rc);
+			return rc;
+		}
+		if (!va->use_audio_switch) {
+			rc = pinctrl_select_state(va->gpio.pinctrl, va->gpio.gpio_switch_ctrl_ap);
+			if (rc < 0) {
+				chg_err("set gpio_switch_ctrl_ap error, rc=%d\n", rc);
+				return rc;
+			}
+		} else {
+			chg_info("use_audio_switch, typec_switch_status0 = %d, switch to normal\n",
+				 oplus_get_audio_switch_status());
+			retry = SWITCH_RETRY_MAX;
+			do {
+				oplus_set_audio_switch_status(0);
+				status = oplus_get_audio_switch_status();
+				if (status & TYPEC_AUDIO_SWITCH_STATE_DPDM) {
+					chg_err("set switch to normal retry = %d failed, status = 0x%x.\n",
+						retry, status);
+				} else {
+					chg_info("set switch to normal normal retry = %d success.\n", retry);
+					break;
+				}
+			} while (--retry > 0);
+			if (retry <= 0)
+				return -EFAULT;
+		}
+	}
+	chg_info("switch to normal mode\n");
+
+	return 0;
+}
+
+static int oplus_chg_va_switch_to_vooc(struct oplus_virtual_asic_ic *va)
+{
+	int rc;
+	int status;
+
+	if (va->use_dpdm_switch_ic) {
+		rc = oplus_chg_ic_func(va->dpdm_switch,
+			OPLUS_IC_FUNC_SET_DPDM_SWITCH_MODE, DPDM_SWITCH_TO_VOOC);
+		if (rc < 0) {
+			chg_err("set dpdm switch mode to vooc error, rc=%d\n", rc);
+			return rc;
+		}
+	} else {
+		rc = pinctrl_select_state(va->gpio.pinctrl, va->gpio.asic_switch_vooc);
+		if (rc < 0) {
+			chg_err("set asic_switch_vooc error, rc=%d\n", rc);
+			return rc;
+		}
+		if (!va->use_audio_switch) {
+			rc = pinctrl_select_state(va->gpio.pinctrl, va->gpio.gpio_switch_ctrl_asic);
+			if (rc < 0) {
+				chg_err("set gpio_switch_ctrl_asic error, rc=%d\n", rc);
+				return rc;
+			}
+		} else {
+			chg_info("use_audio_switch switch to vooc mode\n");
+
+			oplus_set_audio_switch_status(1);
+			status = oplus_get_audio_switch_status();
+			if (0 == (TYPEC_AUDIO_SWITCH_STATE_FAST_CHG & status)) {
+				chg_err("set switch to vooc modefailed, status = 0x%x\n", status);
+				return -EFAULT;
+			}
+		}
+	}
+	chg_info("switch to vooc mode\n");
+
+	return 0;
+}
+
 static int oplus_chg_va_set_switch_mode(struct oplus_chg_ic_dev *ic_dev,
 					int mode)
 {
 	struct oplus_virtual_asic_ic *va;
-	int retry = 10;
+	int retry = SWITCH_RETRY_MAX;
 	int rc = 0;
 
 	if (ic_dev == NULL) {
@@ -809,46 +923,29 @@ static int oplus_chg_va_set_switch_mode(struct oplus_chg_ic_dev *ic_dev,
 	case VOOC_SWITCH_MODE_VOOC:
 		do {
 			if (gpio_get_value(va->gpio.reset_gpio) == 1) {
-				rc = pinctrl_select_state(
-					va->gpio.pinctrl,
-					va->gpio.asic_switch_vooc);
-				if (rc < 0) {
-					chg_err("set asic_switch_vooc error, rc=%d\n",
-						rc);
-					goto err;
-				}
-				rc = pinctrl_select_state(
-					va->gpio.pinctrl,
-					va->gpio.gpio_switch_ctrl_asic);
-				if (rc < 0) {
-					chg_err("set gpio_switch_ctrl_asic error, rc=%d\n",
-						rc);
-					goto err;
-				}
-				chg_info("switch to vooc mode\n");
-				break;
+				rc = oplus_chg_va_switch_to_vooc(va);
+				if (rc >= 0)
+					break;
+				chg_err("switch to vooc mode error, retry=%d, rc=%d\n", retry, rc);
 			}
 			usleep_range(5000, 5000);
 		} while (--retry > 0);
+		if (retry <= 0) {
+			rc = -EFAULT;
+			goto err;
+		}
 		break;
 	case VOOC_SWITCH_MODE_HEADPHONE:
 		chg_info("switch to headphone mode\n");
 		break;
 	case VOOC_SWITCH_MODE_NORMAL:
 	default:
-		rc = pinctrl_select_state(va->gpio.pinctrl,
-					  va->gpio.asic_switch_normal);
+		rc = oplus_chg_va_switch_to_normal(va);
 		if (rc < 0) {
-			chg_err("set asic_switch_normal error, rc=%d\n", rc);
+			chg_err("switch to normal mode error rc=%d\n", rc);
+			va->switch_mode = mode;
 			goto err;
 		}
-		rc = pinctrl_select_state(va->gpio.pinctrl,
-					  va->gpio.gpio_switch_ctrl_ap);
-		if (rc < 0) {
-			chg_err("set gpio_switch_ctrl_ap error, rc=%d\n", rc);
-			goto err;
-		}
-		chg_info("switch to normal mode\n");
 		break;
 	}
 	va->switch_mode = mode;
@@ -856,8 +953,12 @@ static int oplus_chg_va_set_switch_mode(struct oplus_chg_ic_dev *ic_dev,
 	return 0;
 
 err:
-	pinctrl_select_state(va->gpio.pinctrl, va->gpio.asic_switch_normal);
-	pinctrl_select_state(va->gpio.pinctrl, va->gpio.gpio_switch_ctrl_ap);
+	if (!va->use_dpdm_switch_ic) {
+		pinctrl_select_state(va->gpio.pinctrl, va->gpio.asic_switch_normal);
+		pinctrl_select_state(va->gpio.pinctrl, va->gpio.gpio_switch_ctrl_ap);
+	} else {
+		oplus_chg_va_switch_to_normal(va);
+	}
 	mutex_unlock(&va->gpio.pinctrl_mutex);
 	return rc;
 }
@@ -867,6 +968,8 @@ static int oplus_chg_va_get_switch_mode(struct oplus_chg_ic_dev *ic_dev,
 {
 	struct oplus_virtual_asic_ic *va;
 	int switch1_val, switch2_val;
+	enum oplus_dpdm_switch_mode dpdm_mode;
+	int rc;
 
 	if (ic_dev == NULL) {
 		chg_err("oplus_chg_ic_dev is NULL");
@@ -874,11 +977,28 @@ static int oplus_chg_va_get_switch_mode(struct oplus_chg_ic_dev *ic_dev,
 	}
 	va = oplus_chg_ic_get_drvdata(ic_dev);
 
+	if (va->use_dpdm_switch_ic) {
+		rc = oplus_chg_ic_func(va->dpdm_switch,
+			OPLUS_IC_FUNC_GET_DPDM_SWITCH_MODE, &dpdm_mode);
+		if (rc < 0) {
+			chg_err("get dpdm switch mode error, rc=%d\n", rc);
+			return rc;
+		}
+		if (dpdm_mode == DPDM_SWITCH_TO_AP)
+			*mode = VOOC_SWITCH_MODE_NORMAL;
+		else if (dpdm_mode == DPDM_SWITCH_TO_HEADPHONE)
+			*mode = VOOC_SWITCH_MODE_HEADPHONE;
+		else
+			*mode = VOOC_SWITCH_MODE_VOOC;
+		return 0;
+	}
+
 	if (!gpio_is_valid(va->gpio.asic_switch2_gpio))
 		switch2_val = 1;
 	else
 		switch2_val = gpio_get_value(va->gpio.asic_switch2_gpio);
 	switch1_val = gpio_get_value(va->gpio.asic_switch1_gpio);
+	chg_info("switch1_val = %d, switch2_val = %d", switch1_val, switch2_val);
 
 	if (switch1_val == 0 && switch2_val == 1)
 		*mode = VOOC_SWITCH_MODE_NORMAL;
@@ -929,6 +1049,93 @@ static int oplus_chg_va_get_asic(struct oplus_chg_ic_dev *ic_dev,
 	va = oplus_chg_ic_get_drvdata(ic_dev);
 
 	*asic = va->asic;
+
+	return 0;
+}
+
+#define OPLUS_SMART_QUICK_GAIN_LED_ON_DEVIATION         1000
+#define OPLUS_SMART_QUICK_GAIN_LED_OFF_DEVIATION        250
+static bool oplus_chg_get_led_status(void)
+{
+	bool led_status = false;
+	struct oplus_mms *comm_topic = NULL;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	comm_topic = oplus_mms_get_by_name("common");
+	if (!comm_topic)
+		return 0;
+
+	rc = oplus_mms_get_item_data(comm_topic, COMM_ITEM_LED_ON, &data, true);
+	if (!rc)
+		led_status = !!data.intval;
+
+	return led_status;
+}
+
+static int oplus_chg_get_gauge_current(void)
+{
+	int icharging = 0;
+	struct oplus_mms *gauge_topic = NULL;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	gauge_topic = oplus_mms_get_by_name("gauge");
+	if (!gauge_topic)
+		return -1;
+
+	rc = oplus_mms_get_item_data(gauge_topic, GAUGE_ITEM_CURR, &data, true);
+	if (!rc)
+		icharging = data.intval;
+
+	return icharging;
+}
+
+static int oplus_vooc_asic_batt_curve_current(int *curr)
+{
+	int icharging = 0;
+	bool led_on = false;
+
+	if (!curr)
+		return -1;
+
+	icharging = oplus_chg_get_gauge_current();
+	led_on = oplus_chg_get_led_status();
+
+	if (led_on)
+		*curr = (-icharging + OPLUS_SMART_QUICK_GAIN_LED_ON_DEVIATION);
+	else
+		*curr = (-icharging + OPLUS_SMART_QUICK_GAIN_LED_OFF_DEVIATION);
+
+	if (*curr < 0)
+		*curr = 0;
+
+	chg_debug("icharging = %d to curr = %d, led_on = %d\n",
+		  icharging, *curr, led_on);
+
+	return 0;
+}
+
+static int oplus_chg_va_get_curve_current(struct oplus_chg_ic_dev *ic_dev, int *curr)
+{
+	struct oplus_virtual_asic_ic *va = NULL;
+	int rc = 0;
+
+	if (!ic_dev || !curr) {
+		chg_err("oplus_chg_ic_dev or curr is NULL");
+		return -ENODEV;
+	}
+
+	va = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!va->asic) {
+		chg_err("no active asic found");
+		return -ENODEV;
+	}
+	rc = oplus_vooc_asic_batt_curve_current(curr);
+	if (rc < 0) {
+		chg_err("get curr error, rc=%d\n", rc);
+		return rc;
+	}
 
 	return 0;
 }
@@ -1042,9 +1249,9 @@ static void *oplus_chg_va_get_func(struct oplus_chg_ic_dev *ic_dev,
 			OPLUS_IC_FUNC_VOOC_GET_DATA_GPIO_VAL,
 			oplus_chg_va_get_data_gpio_val);
 		break;
-	case OPLUS_IC_FUNC_VOOC_READ_DATA_BIT:
-		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_READ_DATA_BIT,
-					       oplus_chg_va_get_data_bit);
+	case OPLUS_IC_FUNC_VOOC_READ_DATA:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_READ_DATA,
+					       oplus_chg_va_get_data);
 		break;
 	case OPLUS_IC_FUNC_VOOC_REPLY_DATA:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_REPLY_DATA,
@@ -1067,6 +1274,11 @@ static void *oplus_chg_va_get_func(struct oplus_chg_ic_dev *ic_dev,
 	case OPLUS_IC_FUNC_VOOC_GET_IC_DEV:
 		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_GET_IC_DEV,
 					       oplus_chg_va_get_asic);
+		break;
+
+	case OPLUS_IC_FUNC_VOOC_GET_CURVE_CURR:
+		func = OPLUS_CHG_IC_FUNC_CHECK(OPLUS_IC_FUNC_VOOC_GET_CURVE_CURR,
+					       oplus_chg_va_get_curve_current);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
@@ -1147,38 +1359,48 @@ static int oplus_va_gpio_init(struct oplus_virtual_asic_ic *chip)
 		return -ENODEV;
 	}
 
-	asic_gpio->switch_ctrl_gpio =
-		of_get_named_gpio(node, "oplus,switch_ctrl-gpio", 0);
-	if (!gpio_is_valid(asic_gpio->switch_ctrl_gpio)) {
-		chg_err("Couldn't read oplus,switch_ctrl-gpio, %d\n",
-			asic_gpio->switch_ctrl_gpio);
-		return -ENODEV;
-	}
-	rc = gpio_request(asic_gpio->switch_ctrl_gpio, "switch_ctrl-gpio");
-	if (rc != 0) {
-		chg_err("unable to request switch_ctrl-gpio:%d\n",
-			asic_gpio->switch_ctrl_gpio);
-		return rc;
-	}
-	asic_gpio->gpio_switch_ctrl_ap =
-		pinctrl_lookup_state(asic_gpio->pinctrl, "switch_ctrl_ap");
-	if (IS_ERR_OR_NULL(asic_gpio->gpio_switch_ctrl_ap)) {
-		chg_err("get switch_ctrl_ap fail\n");
-		rc = -EINVAL;
-		goto free_switch_ctrl_gpio;
-	}
-	asic_gpio->gpio_switch_ctrl_asic =
-		pinctrl_lookup_state(asic_gpio->pinctrl, "switch_ctrl_asic");
-	if (IS_ERR_OR_NULL(asic_gpio->gpio_switch_ctrl_asic)) {
-		chg_err("get switch_ctrl_asic fail\n");
-		rc = -EINVAL;
-		goto free_switch_ctrl_gpio;
-	}
-	rc = pinctrl_select_state(asic_gpio->pinctrl,
-				  asic_gpio->gpio_switch_ctrl_ap);
-	if (rc < 0) {
-		chg_err("set gpio switch_ctrl_ap error, rc=%d\n", rc);
-		goto free_switch_ctrl_gpio;
+	if (chip->use_dpdm_switch_ic)
+		goto skip_ctrl_gpio_init;
+
+	if (!chip->use_audio_switch) {
+		asic_gpio->switch_ctrl_gpio =
+			of_get_named_gpio(node, "oplus,switch_ctrl-gpio", 0);
+		if (!gpio_is_valid(asic_gpio->switch_ctrl_gpio)) {
+			chg_err("Couldn't read oplus,switch_ctrl-gpio, %d\n",
+				asic_gpio->switch_ctrl_gpio);
+			return -ENODEV;
+		}
+
+		rc = gpio_request(asic_gpio->switch_ctrl_gpio, "switch_ctrl-gpio");
+		if (rc != 0) {
+			chg_err("unable to request switch_ctrl-gpio:%d\n",
+				asic_gpio->switch_ctrl_gpio);
+			return rc;
+		}
+
+		asic_gpio->gpio_switch_ctrl_ap =
+			pinctrl_lookup_state(asic_gpio->pinctrl, "switch_ctrl_ap");
+		if (IS_ERR_OR_NULL(asic_gpio->gpio_switch_ctrl_ap)) {
+			chg_err("get switch_ctrl_ap fail\n");
+			rc = -EINVAL;
+			goto free_switch_ctrl_gpio;
+		}
+
+		asic_gpio->gpio_switch_ctrl_asic =
+			pinctrl_lookup_state(asic_gpio->pinctrl, "switch_ctrl_asic");
+		if (IS_ERR_OR_NULL(asic_gpio->gpio_switch_ctrl_asic)) {
+			chg_err("get switch_ctrl_asic fail\n");
+			rc = -EINVAL;
+			goto free_switch_ctrl_gpio;
+		}
+		rc = pinctrl_select_state(asic_gpio->pinctrl,
+			asic_gpio->gpio_switch_ctrl_ap);
+		if (rc < 0) {
+			chg_err("set gpio switch_ctrl_ap error, rc=%d\n", rc);
+			goto free_switch_ctrl_gpio;
+		}
+	} else {
+		/*TODO: need to check the default AUIDIO SWITCH state is DPDM and set to DPDM state.*/
 	}
 
 	asic_gpio->asic_switch1_gpio =
@@ -1230,6 +1452,7 @@ static int oplus_va_gpio_init(struct oplus_virtual_asic_ic *chip)
 		goto free_asic_switch2_gpio;
 	}
 
+skip_ctrl_gpio_init:
 	asic_gpio->reset_gpio =
 		of_get_named_gpio(node, "oplus,asic_reset-gpio", 0);
 	if (!gpio_is_valid(asic_gpio->reset_gpio)) {
@@ -1275,7 +1498,7 @@ static int oplus_va_gpio_init(struct oplus_virtual_asic_ic *chip)
 	}
 	rc = gpio_request(asic_gpio->clock_gpio, "asic_clock-gpio");
 	if (rc != 0) {
-		chg_err("unable to request asic_reset-gpio:%d\n",
+		chg_err("unable to request asic_clock-gpio:%d\n",
 			asic_gpio->clock_gpio);
 		goto free_reset_gpio;
 	}
@@ -1310,7 +1533,7 @@ static int oplus_va_gpio_init(struct oplus_virtual_asic_ic *chip)
 	}
 	rc = gpio_request(asic_gpio->data_gpio, "asic_data-gpio");
 	if (rc != 0) {
-		chg_err("unable to request asic_reset-gpio:%d\n",
+		chg_err("unable to request asic_data-gpio:%d\n",
 			asic_gpio->data_gpio);
 		goto free_clock_gpio;
 	}
@@ -1496,6 +1719,14 @@ static int oplus_virtual_asic_probe(struct platform_device *pdev)
 
 	INIT_WORK(&chip->data_handler_work, oplus_va_data_handler_work);
 
+	chip->use_dpdm_switch_ic = of_property_read_bool(node, "oplus,dpdm_switch_ic");
+	if (!chip->use_dpdm_switch_ic) {
+		chip->use_audio_switch = of_property_read_bool(node, "oplus,use_audio_switch");
+		chg_info(" use_audio_switch = %d\n", chip->use_audio_switch);
+		audio_switch_init();
+	} else {
+		chg_info("user dpdm switch ic");
+	}
 	rc = oplus_va_child_init(chip);
 	if (rc < 0) {
 		chg_err("child list init error, rc=%d\n", rc);
@@ -1520,12 +1751,13 @@ static int oplus_virtual_asic_probe(struct platform_device *pdev)
 	}
 	ic_cfg.name = node->name;
 	ic_cfg.index = ic_index;
-	sprintf(ic_cfg.manu_name, "virtual asic");
-	sprintf(ic_cfg.fw_id, "0x00");
+	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "asic-virtual");
+	snprintf(ic_cfg.fw_id, OPLUS_CHG_IC_FW_ID_MAX - 1, "0x00");
 	ic_cfg.type = ic_type;
 	ic_cfg.get_func = oplus_chg_va_get_func;
 	ic_cfg.virq_data = oplus_va_virq_table;
 	ic_cfg.virq_num = ARRAY_SIZE(oplus_va_virq_table);
+	ic_cfg.of_node = node;
 	chip->ic_dev = devm_oplus_chg_ic_register(chip->dev, &ic_cfg);
 	if (!chip->ic_dev) {
 		rc = -ENODEV;
@@ -1592,11 +1824,31 @@ static int oplus_virtual_asic_remove(struct platform_device *pdev)
 	return 0;
 }
 
+
+static bool oplus_vooc_get_fastchg_started(void)
+{
+	bool fastchg_started_status = false;
+	struct oplus_mms *vooc_topic;
+	union mms_msg_data data = { 0 };
+	int rc = 0;
+
+	vooc_topic = oplus_mms_get_by_name("vooc");
+	if (!vooc_topic)
+		return false;
+
+	rc = oplus_mms_get_item_data(vooc_topic, VOOC_ITEM_VOOC_STARTED, &data, true);
+	if (!rc)
+		fastchg_started_status = !!data.intval;
+
+	chg_info("get fastchg started status = %d\n", fastchg_started_status);
+	return fastchg_started_status;
+}
+
 static void oplus_virtual_asic_shutdown(struct platform_device *pdev)
 {
-/* TODO
 	struct oplus_virtual_asic_ic *chip = platform_get_drvdata(pdev);
 
+	chg_info("enter\n");
 	oplus_chg_va_set_switch_mode(chip->ic_dev, VOOC_SWITCH_MODE_NORMAL);
 	msleep(10);
 	if (oplus_vooc_get_fastchg_started() == true) {
@@ -1604,8 +1856,6 @@ static void oplus_virtual_asic_shutdown(struct platform_device *pdev)
 		msleep(10);
 		oplus_chg_va_reset_active(chip->ic_dev);
 	}
-	msleep(80);
-*/
 }
 
 static const struct of_device_id oplus_virtual_asic_match[] = {

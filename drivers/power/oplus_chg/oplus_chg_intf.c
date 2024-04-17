@@ -781,7 +781,7 @@ static int oplus_chg_intf_usb_set_prop(struct oplus_chg_mod *ocm,
 				rc = -EINVAL;
 				pr_err("unwakelock testing , this test not allowed.\n");
 			} else {
-				pr_info("disable charge\n");
+				pr_err("disable charge\n");
 				chip->chg_ops->debug_disable_chg(true);
 				chip->mmi_chg = 0;
 				oplus_chg_turn_off_charging(chip);
@@ -807,7 +807,7 @@ static int oplus_chg_intf_usb_set_prop(struct oplus_chg_mod *ocm,
 				if (usb_chg_enable) {
 					pr_debug("usb charge is enabled\n");
 				} else {
-					pr_info("enable charge\n");
+					pr_err("enable charge\n");
 					chip->chg_ops->debug_disable_chg(false);
 					chip->mmi_chg = 1;
 					if (chip->mmi_fastchg == 0) {
@@ -825,7 +825,8 @@ static int oplus_chg_intf_usb_set_prop(struct oplus_chg_mod *ocm,
 		pr_err("%s Vbus!\n", (bool)pval->intval ? "Disconnect" : "Connect");
 		break;
 	case OPLUS_CHG_PROP_OTG_SWITCH:
-		chip->otg_switch = (bool)pval->intval && chip->chg_ops->otg_set_switch((bool)pval->intval);
+		chip->otg_switch = chip->chg_ops->otg_set_switch((bool)pval->intval);
+		chip->otg_switch &= (bool)pval->intval;
 		pr_err("%s set otg switch!\n", chip->otg_switch ? "Enable" : "Disable");
 		break;
 #ifndef CONFIG_OPLUS_CHG_OOS
@@ -1192,7 +1193,7 @@ static int oplus_chg_intf_usb_changed_notifier_call(struct notifier_block *nb,
 
 static int oplus_chg_intf_mmi_chg_enable(struct oplus_chg_chip *chip, bool en)
 {
-	pr_info("set mmi_chg = [%d].\n", en);
+	pr_err("set mmi_chg = [%d].\n", en);
 	chip->charging_suspend = !en;
 	if (!en) {
 		if(chip->unwakelock_chg == 1) {
@@ -1247,6 +1248,55 @@ static ssize_t oplus_chg_intf_batt_voltage_now_cell_show(struct device *dev,
 		ret = sprintf(buf, "%d\n", chip->batt_volt * 1000);
 
 	return ret;
+}
+
+#define AGING_FFC_DEBUG_DATA_LEN 36
+static ssize_t oplus_chg_intf_batt_aging_ffc_data_show(struct device *dev, struct device_attribute *attr,
+		char *buf)
+{
+	struct oplus_chg_chip *chip = NULL;
+	int ffc1_voltage_offset = 0;
+	int ffc2_voltage_offset = 0;
+
+	chip = oplus_chg_get_chg_struct();
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -ENODEV;
+	}
+
+	oplus_chg_get_aging_ffc_offset(chip, &ffc1_voltage_offset, &ffc2_voltage_offset);
+
+	return snprintf(buf, AGING_FFC_DEBUG_DATA_LEN, "%d,%d,%d,%d,%d,%d,%d,%d\n",
+			chip->aging_ffc_version,
+			chip->vbatt_num,
+			chip->debug_batt_cc,
+			chip->batt_cc,
+			chip->limits.default_ffc1_normal_vfloat_sw_limit + ffc1_voltage_offset,
+			chip->limits.default_ffc1_warm_vfloat_sw_limit + ffc1_voltage_offset,
+			chip->limits.default_ffc2_normal_vfloat_sw_limit + ffc2_voltage_offset,
+			chip->limits.default_ffc2_warm_vfloat_sw_limit + ffc2_voltage_offset);
+}
+
+static ssize_t oplus_chg_intf_batt_aging_ffc_data_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	int val = 0;
+	struct oplus_chg_chip *chip = NULL;
+
+	chip = oplus_chg_get_chg_struct();
+	if (!chip) {
+		chg_err("chip is NULL\n");
+		return -ENODEV;
+	}
+
+	if (kstrtos32(buf, 0, &val)) {
+		chg_err("buf error\n");
+		return -EINVAL;
+	}
+
+	chip->debug_batt_cc = val;
+
+	return count;
 }
 
 static enum oplus_chg_mod_property oplus_chg_intf_batt_props[] = {
@@ -1347,6 +1397,7 @@ static enum oplus_chg_mod_property oplus_chg_intf_batt_uevent_props[] = {
 
 static struct oplus_chg_exten_prop oplus_chg_intf_batt_exten_props[] = {
 	OPLUS_CHG_EXTEN_ROATTR(OPLUS_CHG_EXTERN_PROP_VOLTAGE_NOW_CELL, oplus_chg_intf_batt_voltage_now_cell),
+	OPLUS_CHG_EXTEN_RWATTR(OPLUS_CHG_EXTERN_PROP_AGING_FFC_DATA, oplus_chg_intf_batt_aging_ffc_data),
 };
 
 #ifdef CONFIG_OPLUS_CHG_OOS
@@ -1561,7 +1612,7 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = chip->batt_fcc * 1000;
 		break;
 	case OPLUS_CHG_PROP_TIME_TO_FULL_AVG:
-		pval->intval = 5000;
+		pval->intval = 0;
 		break;
 	case OPLUS_CHG_PROP_TIME_TO_FULL_NOW:
 		rc = oplus_gauge_get_batt_ttf();
@@ -1782,7 +1833,7 @@ static int oplus_chg_intf_batt_set_prop(struct oplus_chg_mod *ocm,
 		oplus_dev->debug_soc = pval->intval;
 		break;
 	case OPLUS_CHG_PROP_MMI_CHARGING_ENABLE:
-		pr_info("set mmi_chg = [%d].\n", pval->intval);
+		pr_err("set mmi_chg = [%d].\n", pval->intval);
 		rc = oplus_chg_intf_mmi_chg_enable(chip, !!pval->intval);
 		break;
 	case OPLUS_CHG_PROP_BATTERY_NOTIFY_CODE:
@@ -1887,6 +1938,7 @@ static int oplus_chg_intf_batt_prop_is_writeable(struct oplus_chg_mod *ocm,
 	case OPLUS_CHG_PROP_SHORT_IC_VOLT_THRESH:
 #endif
 #endif /* CONFIG_OPLUS_CHG_OOS */
+	case OPLUS_CHG_EXTERN_PROP_AGING_FFC_DATA:
 		return 1;
 	default:
 		break;
