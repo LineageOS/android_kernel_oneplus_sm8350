@@ -1175,6 +1175,7 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	int rc = 0x1, ret;
 	u32 mask;
 	int te_rechecks = 1;
+	char task_com[TASK_COMM_LEN];
 
 	if (!dsi_display || !dsi_display->panel)
 		return -EINVAL;
@@ -1193,9 +1194,13 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 		goto release_panel_lock;
 
 #ifdef OPLUS_BUG_STABILITY
-	if (atomic_read(&panel->esd_pending)) {
-		DSI_WARN("Skip the check because esd is pending\n");
-		goto release_panel_lock;
+	get_task_comm(task_com, get_current());
+	if(!strncmp(task_com, "kworker", 7))
+	{
+		if (atomic_read(&panel->esd_pending)) {
+			DSI_WARN("Skip the check because esd is pending\n");
+			goto release_panel_lock;
+		}
 	}
 #endif /* OPLUS_BUG_STABILITY */
 
@@ -7307,6 +7312,7 @@ int dsi_display_get_info(struct drm_connector *connector,
 
 	info->dsc_count = display->panel->dsc_count;
 	info->lm_count = display->panel->lm_count;
+	info->switch_vsync_delay = display->panel->switch_vsync_delay;
 error:
 	mutex_unlock(&display->display_lock);
 	return rc;
@@ -7553,6 +7559,13 @@ int dsi_display_get_modes(struct dsi_display *display,
 			goto error;
 		}
 
+#ifdef OPLUS_BUG_STABILITY
+		if (display_mode.vsync_source < 0 || display_mode.vsync_source > 15) {
+			DSI_ERR("[%s] vsync source invalid, use default source %d\n",
+				display->name, display->te_source);
+			display_mode.vsync_source = display->te_source;
+		}
+#endif
 		/*
 		 * Update the host_config.dst_format for compressed RGB101010
 		 * pixel format.
@@ -7567,13 +7580,6 @@ int dsi_display_get_modes(struct dsi_display *display,
 				display->panel->host_config.dst_format);
 		}
 
-#ifdef OPLUS_BUG_STABILITY
-		if (display_mode.vsync_source < 0 || display_mode.vsync_source > 15) {
-			DSI_ERR("[%s] vsync source invalid, use default source %d\n",
-				display->name, display->te_source);
-			display_mode.vsync_source = display->te_source;
-		}
-#endif
 		is_cmd_mode = (display_mode.panel_mode == DSI_OP_CMD_MODE);
 
 		/* Setup widebus support */
@@ -8748,7 +8754,8 @@ static int dsi_display_set_roi(struct dsi_display *display,
 
 int dsi_display_pre_kickoff(struct drm_connector *connector,
 		struct dsi_display *display,
-		struct msm_display_kickoff_params *params)
+		struct msm_display_kickoff_params *params,
+		bool force_update_dsi_clocks)
 {
 	int rc = 0, ret = 0;
 	int i;
@@ -8758,7 +8765,7 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		_dsi_display_setup_misr(display);
 
 	/* dynamic DSI clock setting */
-	if (atomic_read(&display->clkrate_change_pending)) {
+	if (atomic_read(&display->clkrate_change_pending) && force_update_dsi_clocks) {
 		mutex_lock(&display->display_lock);
 		/*
 		 * acquire panel_lock to make sure no commands are in progress
@@ -8784,6 +8791,7 @@ int dsi_display_pre_kickoff(struct drm_connector *connector,
 		 * Don't check the return value so as not to impact DRM commit
 		 * when error occurs.
 		 */
+		SDE_EVT32(SDE_EVTLOG_FUNC_CASE1);
 		(void)dsi_display_force_update_dsi_clk(display);
 wait_failure:
 		/* release panel_lock */

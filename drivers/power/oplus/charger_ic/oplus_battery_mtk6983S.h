@@ -24,7 +24,7 @@
 #include "../oplus_chg_core.h"
 #include "../op_wlchg_v2/hal/oplus_chg_ic.h"
 #if __and(IS_MODULE(CONFIG_OPLUS_CHG), IS_MODULE(CONFIG_OPLUS_CHG_V2))
-#include "oplus_chg_symbol.h"
+#include "../oplus_chg_symbol.h"
 #endif
 
 #define CHARGING_INTERVAL 10
@@ -221,7 +221,6 @@ struct charger_custom_data {
 	int min_charger_voltage_1;
 	int min_charger_voltage_2;
 	int max_dmivr_charger_current;
-
 };
 
 struct charger_data {
@@ -246,6 +245,12 @@ enum chg_data_idx_enum {
 };
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
+enum chg_type_curve_enum {
+	CHARGER_NORMAL_CHG_CURVE,
+	CHARGER_FASTCHG_SVOOC_CURVE,
+	CHARGER_FASTCHG_VOOC_AND_QCPD_CURVE,
+};
+
 struct oplus_custom_gpio_pinctrl {
 	int vchg_trig_gpio;
 	int ccdetect_gpio;
@@ -260,6 +265,25 @@ struct oplus_custom_gpio_pinctrl {
 	struct pinctrl		*usbtemp_r_gpio_pinctrl;
 	struct pinctrl_state	*usbtemp_r_gpio_default;
 };
+
+struct temp_param {
+	__s32 bts_temp;
+	__s32 temperature_r;
+};
+
+struct ntc_temp{
+	int i_tap_over_critical_low;
+	int i_rap_pull_up_r;
+	int i_rap_pull_up_voltage;
+	int i_tap_min;
+	int i_tap_max;
+	unsigned int i_25c_volt;
+	int volt_offset;
+	unsigned int ui_dwvolt;
+	struct temp_param *pst_temp_table;
+	int i_table_size;
+};
+
 #endif
 
 struct mtk_charger {
@@ -412,7 +436,18 @@ struct mtk_charger {
 	struct iio_channel      *charger_id_chan;
 	struct iio_channel      *usb_temp_v_l_chan;
 	struct iio_channel      *usb_temp_v_r_chan;
+	struct iio_channel      *usbcon_temp_chan;
+	struct iio_channel      *batcon_temp_chan;
+	struct iio_channel      *sub_batcon_temp_chan;
+	struct iio_channel      *subboard_temp_chan;
 
+	struct ntc_temp * batt_ntc_param;
+	struct ntc_temp * sub_batt_ntc_param;
+	struct ntc_temp * usb_ntc_param;
+#ifdef CONFIG_THERMAL
+	struct thermal_zone_device *cp_temp_tzd;
+	struct thermal_zone_device *sub_batt_temp_tzd;
+#endif
 	int ccdetect_gpio;
 	int ccdetect_irq;
 	struct pinctrl_state *ccdetect_active;
@@ -444,12 +479,14 @@ struct mtk_charger {
 	int chargeric_temp_volt;
 	int chargeric_temp;
 	bool support_ntc_01c_precision;
+	bool ntc_temp_volt_1840mv;
 
 	struct tcpc_device *tcpc;
 	struct adapter_power_cap srccap;
 
 	bool chrdet_state;
 	bool wd0_detect;
+	bool wait_hard_reset_complete;
 	struct delayed_work status_keep_clean_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
@@ -516,4 +553,11 @@ extern bool is_meta_mode(void);
 int oplus_get_fast_chg_type(void);
 extern int oplus_chg_set_dischg_enable(bool en);
 #endif
+
+/* extern for 6375 charge track */
+extern void oplus_mt6375_record_qc_type(void (*type)(void));
+extern void oplus_mt6375_wired_charging_break(int (*vbus_status)(int vbus_on));
+
+/* add for 6983 break_track fail */
+extern bool mt6375_int_chrdet_attach(void);
 #endif /* __MTK_CHARGER_H */

@@ -2740,14 +2740,26 @@ enum Tfa98xx_Error tfaGetFwApiVersion(struct tfa_device *tfa, unsigned char *pFi
 		return Tfa98xx_Error_Bad_Parameter;
 	if (!tfa->is_probus_device)
 	{
-		err = mem_read(tfa, FW_VAR_API_VERSION, 1, (int *)pFirmwareVersion);
+		int buffer = 0;
+		err = mem_read(tfa, FW_VAR_API_VERSION, 1, (int *)(&buffer));
 		if (err) {
 			pr_debug("%s Error: Unable to get API Version from DSP \n", __FUNCTION__);
 			return err;
 		}
+
+		pFirmwareVersion[0] = (buffer >> 16) & 0xff;
+		pFirmwareVersion[1] = (buffer >> 8) & 0xff;
+		if ((pFirmwareVersion[0] != 2) && (pFirmwareVersion[1] >= 33)) {
+			pFirmwareVersion[2] = (buffer >> 3) & 0x1F;
+			pFirmwareVersion[3] = (buffer) & 0x07;
+		} else {
+			pFirmwareVersion[2] = (buffer >> 6) & 0x03;
+			pFirmwareVersion[3] = (buffer) & 0x3f;
+		}
 	}
 	else
 	{
+		unsigned char buffer[4 * 3] = { 0 };
 		cmd_len = 0x03;
 
 		/* GetAPI: Command is 0x00 0x80 0xFE */
@@ -2763,10 +2775,32 @@ enum Tfa98xx_Error tfaGetFwApiVersion(struct tfa_device *tfa, unsigned char *pFi
 		if (err == 0)
 		{
 			res_len = 3;
-			err = tfa98xx_read_dsp(tfa, res_len, (unsigned char *)pFirmwareVersion);
+			err = tfa98xx_read_dsp(tfa, res_len, (unsigned char *)buffer);
+		}
 
+		/* Split 3rd byte into two seperate ITF version fields (3rd field and 4th field) */
+		pFirmwareVersion[0] = (buffer[0]);
+		pFirmwareVersion[1] = (buffer[1]);
+		if ((pFirmwareVersion[0] != 2) && (pFirmwareVersion[1] >= 33)) {
+			pFirmwareVersion[3] = (buffer[2]) & 0x07;
+			pFirmwareVersion[2] = (buffer[2] >> 3) & 0x1F;
+		} else {
+			pFirmwareVersion[3] = (buffer[2]) & 0x3f;
+			pFirmwareVersion[2] = (buffer[2] >> 6) & 0x03;
 		}
 	}
+
+	if (1 == tfa->cnt->ndev) {
+		/* Mono configuration */
+		/* Workaround for FW 8.9.0 (FW API x.31.y.z) & above.
+		   Firmware cannot return the 4th field (mono/stereo) of ITF version correctly, as it requires
+		   certain set of messages to be sent before it can detect itself as a mono/stereo configuration.
+		   Hence, HostSDK need to handle this at system level */
+		if ((pFirmwareVersion[0] != 2) && (pFirmwareVersion[1] >= 31)) {
+			pFirmwareVersion[3] = 1;
+		}
+	}
+
 	return err;
 
 }
@@ -3567,6 +3601,42 @@ tfa98xx_write_data_v6(struct tfa_device *tfa,
 	return error;
 }
 
+enum Tfa98xx_Error tfa98xxSetFresFrequency(struct tfa_device *tfa, uint16_t freq)
+{
+	uint16_t mtp_freq;
+	/* Verify the frequnecy range set bu user! */
+	if (freq < 300 || freq > 1322) {
+		pr_debug("\n Error: Resonance frequence should have [300Hz ; 1322Hz] range! \n");
+		return Tfa98xx_Error_Ok;
+	}
+	mtp_freq = (freq - 300) / 2;
+	pr_err("\n %s:tfa mtp_freq to be written:%d! \n",__func__, mtp_freq);
+	return tfa98xx_set_mtp_v6(tfa,mtp_freq<<7,0xFF80); /* val mask */
+}
+
+/*
+ * retrieve Fres from SB4.0 algorithm
+ *
+ *  assume that the device has been calibrated
+ */
+enum Tfa98xx_Error tfa_dsp_get_resonance_frequency(struct tfa_device *tfa, uint16_t *fres)
+{
+	enum Tfa98xx_Error error = Tfa98xx_Error_Ok;
+	unsigned char bytes[3 * 2] = { 0 };
+#ifdef OPLUS_ARCH_EXTENDS
+	int data[2] = {0, 0};
+#else
+	int data[2];
+#endif
+	error = tfa_dsp_cmd_id_write_read_v6(tfa, MODULE_SPEAKERBOOST, SB_PARAM_GET_FRES, 6, bytes);
+	if (error == Tfa98xx_Error_Ok) {
+		tfa98xx_convert_bytes2data_v6(6, bytes, data);
+	}
+	*fres = (data[0]) / TFA2_FW_FRES_SCALE;
+	tfa->fres[0] = *fres;
+	return error;
+}
+
 /*
  * fill the calibration value as milli ohms in the struct
  *
@@ -4138,6 +4208,10 @@ int tfa_dev_mtp_get(struct tfa_device *tfa, enum tfa_mtp item)
 				pr_debug("Error: Current device has no secondary Re25 channel \n");
 			}
 			break;
+		case TFA_MTP_F0:
+			value = tfa_get_bf_v6(tfa, TFA9873_BF_CUSTINFO);//all max 2 devices have same CUSTINFO
+			break;
+
 		case TFA_MTP_LOCK:
 			break;
 	}
@@ -4185,6 +4259,8 @@ enum tfa_error tfa_dev_mtp_set(struct tfa_device *tfa, enum tfa_mtp item, int va
 				pr_debug("Error: Current device has no secondary Re25 channel \n");
 				err = tfa_error_bad_param;
 			}
+			break;
+		case TFA_MTP_F0:
 			break;
 		case TFA_MTP_LOCK:
 			break;

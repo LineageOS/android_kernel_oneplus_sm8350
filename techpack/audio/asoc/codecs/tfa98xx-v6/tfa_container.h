@@ -347,4 +347,9 @@ int tfa_cnt_get_patch_version(struct tfa_device *tfa);
 
 int tfa_tib_dsp_msgmulti(struct tfa_device *tfa, int length, const char *buffer);
 
+int tfaContGetFresCalProfile(struct tfa_device *tfa);
+
+enum Tfa98xx_Error tfa_dsp_get_resonance_frequency(struct tfa_device *tfa, uint16_t *fres);
+
+enum Tfa98xx_Error tfa98xxSetFresFrequency(struct tfa_device *tfa, uint16_t freq);
 #endif /* TFACONTAINER_H_ */

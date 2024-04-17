@@ -676,6 +676,10 @@ inline void ufsf_suspend(struct ufsf_feature *ufsf)
 	if (ufshpb_get_state(ufsf) == HPB_PRESENT)
 		ufshpb_suspend(ufsf);
 #endif
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_PRESENT)
+		ufshid_suspend(ufsf);
+#endif
 }
 
 inline void ufsf_resume(struct ufsf_feature *ufsf)
@@ -692,6 +696,10 @@ inline void ufsf_resume(struct ufsf_feature *ufsf)
 #if defined(CONFIG_UFSTW)
 	if (ufstw_get_state(ufsf) == TW_RESET)
 		ufstw_reset(ufsf, true);
+#endif
+#if defined(CONFIG_UFSHID)
+	if (ufshid_get_state(ufsf) == HID_SUSPEND)
+		ufshid_resume(ufsf);
 #endif
 }
 

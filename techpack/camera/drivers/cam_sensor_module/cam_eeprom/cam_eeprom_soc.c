@@ -425,8 +425,5 @@ int cam_eeprom_parse_dt(struct cam_eeprom_ctrl_t *e_ctrl)
             e_ctrl->io_master_info_ois.cci_client->cci_device = e_ctrl->cci_num_ois;
 	}
 #endif
-
-	rc = cam_sensor_util_regulator_powerup(soc_info);
-
 	return rc;
 }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (C) 2018-2020 Oplus. All rights reserved.
- * OPLUS Coding Static Checking Skip
  */
 #include <linux/uaccess.h>
 #include <linux/module.h>
@@ -31,8 +30,6 @@
 #define RF_INFO                    (0x3)
 #define MODEM_TYPE                (0x4)
 #define OPLUS_BOOTMODE            (0x5)
-#define SECURE_TYPE                (0x6)
-#define SECURE_STAGE            (0x7)
 #define OCP_NUMBER                (0x8)
 #define SERIAL_NUMBER            (0x9)
 #define ENG_VERSION                (0xA)
@@ -403,77 +400,6 @@ static void dump_confidential_status(struct seq_file *s)
     return;
 }
 
-static void dump_secure_type(struct seq_file *s)
-{
-#define OEM_SEC_BOOT_REG 0x780350
-
-    void __iomem *oem_config_base = NULL;
-    uint32_t secure_oem_config = 0;
-
-    oem_config_base = ioremap(OEM_SEC_BOOT_REG, 4);
-    if (oem_config_base) {
-        secure_oem_config = __raw_readl(oem_config_base);
-        iounmap(oem_config_base);
-    }
-
-    seq_printf(s, "%d", secure_oem_config);    
-}
-
-static void dump_secure_stage(struct seq_file *s)
-{
-#define OEM_SEC_ENABLE_ANTIROLLBACK_REG 0x78019c
-
-    void __iomem *oem_config_base = NULL;
-    uint32_t secure_oem_config = 0;
-
-    oem_config_base = ioremap(OEM_SEC_ENABLE_ANTIROLLBACK_REG, 4);
-    if (oem_config_base) {
-        secure_oem_config = __raw_readl(oem_config_base);
-        iounmap(oem_config_base);
-    }
-
-    seq_printf(s, "%d", secure_oem_config);
-}
-
-//#ifdef OPLUS_FEATURE_NFC_FELICA
-static void update_felica_cfg(struct proc_dir_entry *parent) {
-
-    static const char* simfree_cfg_src[3] = {
-        "/odm/etc/felica_cfg/simfree/common.cfg",
-        "/odm/etc/felica_cfg/simfree/mfm.cfg",
-        "/odm/etc/felica_cfg/simfree/mfs.cfg",
-    };
-
-    static const char* ymobile_cfg_file[3] = {
-        "/odm/etc/felica_cfg/ymobile/common.cfg",
-        "/odm/etc/felica_cfg/ymobile/mfm.cfg",
-        "/odm/etc/felica_cfg/ymobile/mfs.cfg",
-    };
-
-    char * substr = strstr(saved_command_line, "japan.operator=");
-    pr_err("update_japan_softlink\n");
-    if(!substr)
-        return;
-
-    substr += strlen("japan.operator=");
-
-    if (substr[0] == '0') {
-        proc_symlink("felicaCommon", parent, simfree_cfg_src[0]);
-        proc_symlink("felicaMfm", parent, simfree_cfg_src[1]);
-        proc_symlink("felicaMfs", parent, simfree_cfg_src[2]);
-    }
-    else if (substr[0] == '1') {
-        proc_symlink("felicaCommon", parent, ymobile_cfg_file[0]);
-        proc_symlink("felicaMfm", parent, ymobile_cfg_file[1]);
-        proc_symlink("felicaMfs", parent, ymobile_cfg_file[2]);
-    }
-    else
-    {
-       pr_err("no felica cfg\n");
-    }
-}
-//#endif /*OPLUS_FEATURE_NFC_FELICA*/
-
 static void update_manifest(struct proc_dir_entry *parent)
 {
     static const char* manifest_src[2] = {
@@ -553,12 +479,6 @@ static int project_read_func(struct seq_file *s, void *v)
     case MODEM_TYPE:
     case RF_INFO:
         seq_printf(s, "%d", get_Modem_Version());
-        break;
-    case SECURE_TYPE:
-        dump_secure_type(s);
-        break;
-    case SECURE_STAGE:
-        dump_secure_stage(s);
         break;
     case OCP_NUMBER:
         dump_ocp_info(s);
@@ -644,14 +564,6 @@ static int __init oplus_project_init(void)
     if (!p_entry)
         goto error_init;
 
-    p_entry = proc_create_data("secureType", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(SECURE_TYPE));
-    if (!p_entry)
-        goto error_init;
-
-    p_entry = proc_create_data("secureStage", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(SECURE_STAGE));
-    if (!p_entry)
-        goto error_init;
-
     p_entry = proc_create_data("ocp", S_IRUGO, oplus_info, &project_info_fops, UINT2Ptr(OCP_NUMBER));
     if (!p_entry)
         goto error_init;
@@ -683,7 +595,6 @@ static int __init oplus_project_init(void)
     /*update single or double cards*/
     update_manifest(oplus_info);
     update_telephony_manifest(oplus_info);
-    update_felica_cfg(oplus_info);
 
     return 0;
 

@@ -68,6 +68,9 @@ int dsi_panel_tx_cmd_hbm_pre_check(struct dsi_panel *panel, enum dsi_cmd_set_typ
 	if (!strcmp(panel->oplus_priv.vendor_name, "AMB655X") ||
 		!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") ||
 		!strcmp(panel->oplus_priv.vendor_name, "AMS662ZS01") ||
+		!strcmp(panel->oplus_priv.vendor_name, "NT37705") ||
+		!strcmp(panel->oplus_priv.vendor_name, "ILI7838A") ||
+		!strcmp(panel->oplus_priv.vendor_name, "A0004") ||
 		!strcmp(panel->name, "21031 samsung AMS643YE05 dsc cmd mode panel")) {
 		switch(type) {
 		case DSI_CMD_AOD_HBM_ON_PVT:
@@ -113,6 +116,9 @@ void dsi_panel_tx_cmd_hbm_post_check(struct dsi_panel *panel, enum dsi_cmd_set_t
 	if (!strcmp(panel->oplus_priv.vendor_name, "AMB655X") ||
 		!strcmp(panel->oplus_priv.vendor_name, "AMB670YF01") ||
 		!strcmp(panel->oplus_priv.vendor_name, "AMS662ZS01") ||
+		!strcmp(panel->oplus_priv.vendor_name, "NT37705") ||
+		!strcmp(panel->oplus_priv.vendor_name, "ILI7838A") ||
+		!strcmp(panel->oplus_priv.vendor_name, "A0004") ||
 		!strcmp(panel->name, "21031 samsung AMS643YE05 dsc cmd mode panel")) {
 		switch(type) {
 		case DSI_CMD_AOD_HBM_ON_PVT:
@@ -217,7 +223,7 @@ static struct oplus_brightness_alpha brightness_seed_alpha_lut_dc[] = {
 	{260, 0x00},
 };
 
-/*Jiasong.ZhongPSW.MM.Display.LCD.Stable,2020-09-17 add for DC backlight */
+/* add for DC backlight */
 int dsi_panel_parse_oplus_dc_config(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -513,6 +519,9 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 	int rc = 0;
 	int fingerprint_mode;
 	static int oplus_old_refresh_rate = 0;
+	unsigned int refresh_rate = 0;
+	unsigned int us_per_frame = 0;
+	unsigned int delay_us = 0;
 
 	if (!c_conn) {
 		SDE_ERROR("Invalid params sde_connector null\n");
@@ -538,7 +547,12 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 			!c_conn->encoder->crtc->state) {
 		return 0;
 	}
-
+	/* When AMS662ZS01, keep delay_us=0 */
+	if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+		refresh_rate = dsi_display->panel->cur_mode->timing.refresh_rate;
+		us_per_frame = 1000000/refresh_rate;
+		delay_us = (us_per_frame >> 1) + 500;
+	}
 	if (sde_crtc_get_fingerprint_mode(c_conn->encoder->crtc->state) && !dsi_display->panel->is_hbm_enabled &&
 			dsi_display->panel->cur_mode->timing.refresh_rate != oplus_old_refresh_rate) {
 		SDE_ATRACE_BEGIN("delay_hbm_on_one_frame");
@@ -618,8 +632,12 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 
 			if (OPLUS_DISPLAY_AOD_SCENE != get_oplus_display_scene() &&
 					dsi_display->panel->bl_config.bl_level) {
-				if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") && strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01")
-					&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+				if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004")) {
 					if (dsi_display->config.panel_mode != DSI_OP_VIDEO_MODE) {
 						if (!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
 							current_vblank = drm_crtc_vblank_count(crtc) + 2;
@@ -670,9 +688,17 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 						SDE_ATRACE_BEGIN("DSI_CMD_HBM_ON");
 						rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_ON);
 						SDE_ATRACE_END("DSI_CMD_HBM_ON");
-				} else if (!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+				} else if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) ||
+						(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705"))) {
 					fingerprint_wait_vsync(c_conn->encoder, dsi_display->panel);
+					usleep_range(delay_us, delay_us + 100);
 					rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_ON);
+				} else if (((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A")) ||
+							 (!strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004"))) &&
+					 (OPLUS_DISPLAY_AOD_HBM_SCENE != get_oplus_display_scene())) {
+						fingerprint_wait_vsync(c_conn->encoder, dsi_display->panel);
+						usleep_range(delay_us, delay_us + 100);
+						rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_ON);
 				} else {
 					rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_ON);
 				}
@@ -680,8 +706,12 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 					vblank = panel->cur_mode->priv_info->fod_on_vblank;
 					target_vblank = drm_crtc_vblank_count(crtc) + vblank;
 
-				if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") && strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01")
-					&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+				if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A") &&
+					strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004")) {
 					if (vblank) {
 						if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "S6E3HC3")) ||
 							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01"))) {
@@ -704,13 +734,19 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01")) ||
 					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS643YE01")) ||
 					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X")) ||
-					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01"))) {
+					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) ||
+					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705")) ||
+					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A")) ||
+					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004"))) {
 					if (OPLUS_DISPLAY_AOD_SCENE == get_oplus_display_scene()) {
 						if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01") && (panel->panel_id2 >= 5)) ||
 							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "S6E3HC3") && (panel->panel_id2 >= 5))) {
 							rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_ON_PVT);
-						} else if (!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") ||
-								!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+						} else if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X")) ||
+							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) ||
+							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705")) ||
+							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A")) ||
+							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004"))) {
 							rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_AOD_HBM_ON);
 						} else if (!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS643YE01")) {
 							rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_ON);
@@ -747,6 +783,9 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 
 			if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") && strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01")
 				&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")
+				&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705")
+				&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A")
+				&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004")
 				&& strcmp(dsi_display->panel->name, "boe nt37701 dsc cmd mode panel")) {
 				if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "S6E3HC3")) ||
 					(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01"))) {
@@ -821,7 +860,13 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 						}
 					}
 					else {
-						rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_NOLP);
+						if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705")) ||
+							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A"))||
+							(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004"))) {
+							rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_HBM_OFF);
+						} else {
+							rc = dsi_panel_tx_cmd_set(dsi_display->panel, DSI_CMD_SET_NOLP);
+						}
 					}
 					oplus_panel_update_backlight_unlock(dsi_display->panel);
 					set_oplus_display_scene(OPLUS_DISPLAY_NORMAL_SCENE);
@@ -896,8 +941,12 @@ int sde_connector_update_hbm(struct drm_connector *connector)
 					     DSI_CORE_CLK, DSI_CLK_OFF);
 			mutex_unlock(&dsi_display->panel->panel_lock);
 
-			if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") && strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01")
-				&& strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01")) {
+			if (strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB655X") &&
+				strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01") &&
+				strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMS662ZS01") &&
+				strcmp(dsi_display->panel->oplus_priv.vendor_name, "NT37705") &&
+				strcmp(dsi_display->panel->oplus_priv.vendor_name, "ILI7838A") &&
+				strcmp(dsi_display->panel->oplus_priv.vendor_name, "A0004")) {
 				if (vblank) {
 					if ((!strcmp(dsi_display->panel->oplus_priv.vendor_name, "S6E3HC3")) ||
 						(!strcmp(dsi_display->panel->oplus_priv.vendor_name, "AMB670YF01"))) {

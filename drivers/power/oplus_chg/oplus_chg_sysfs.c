@@ -444,6 +444,8 @@ static struct device_attribute oplus_chg_mod_attrs[] = {
 	OPLUS_CHG_MOD_EXTERN_ATTR(voltage_now_cell),
 	OPLUS_CHG_MOD_EXTERN_ATTR(path_current),
 	OPLUS_CHG_MOD_EXTERN_ATTR(ftm_test),
+	OPLUS_CHG_MOD_EXTERN_ATTR(mutual_cmd),
+	OPLUS_CHG_MOD_EXTERN_ATTR(aging_ffc_data),
 };
 
 static struct attribute *

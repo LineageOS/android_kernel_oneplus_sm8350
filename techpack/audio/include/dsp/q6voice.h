@@ -462,7 +462,7 @@ struct vss_icommon_cmd_set_param {
 	uint8_t param_data[0];
 } __packed;
 
-#ifdef OPLUS_FEATURE_AUDIODETECT
+#if defined OPLUS_FEATURE_AUDIODETECT || defined CONFIG_OPLUS_FEATURE_MM_FEEDBACK
 struct vss_icommon_cmd_get_param {
 	/* APR Header */
 	struct apr_hdr apr_hdr;
@@ -2184,11 +2184,11 @@ int voice_set_topology_specific_info(struct voice_data *v,
 int voc_set_sound_focus(struct sound_focus_param sound_focus_param);
 int voc_get_sound_focus(struct sound_focus_param *soundFocusData);
 int voc_get_source_tracking(struct source_tracking_param *sourceTrackingData);
+int voc_get_fnn_source_tracking(struct fluence_nn_source_tracking_param *FnnSourceTrackingData);
 #ifdef OPLUS_FEATURE_AUDIODETECT
 int voice_set_cvp_auddet_param(u8 bEnable);
 int voice_get_cvp_param(void);
 #endif /* OPLUS_FEATURE_AUDIODETECT */
-int voc_get_fnn_source_tracking(struct fluence_nn_source_tracking_param *FnnSourceTrackingData);
 int voc_set_afe_sidetone(uint32_t session_id, bool sidetone_enable);
 bool voc_get_afe_sidetone(void);
 #endif
