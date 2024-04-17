@@ -627,6 +627,24 @@
 	};
 };
 
+//#ifdef OPLUS_FEATURE_CHG_BASIC
+&pm8350_tz {
+	qcom,need_check_ref_byp;
+};
+
+&pm8350b_tz {
+	qcom,need_check_ref_byp;
+};
+
+&pm8350c_tz {
+	qcom,need_check_ref_byp;
+};
+
+&pmr735a_tz {
+	qcom,need_check_ref_byp;
+};
+//#endif
+
 &thermal_zones {
 	pa-therm5-usr {
 		polling-delay-passive = <0>;
@@ -860,6 +878,8 @@
 	qcom,pps_strategy1_low_power2 = <3000>;//3A
 	qcom,pps_strategy1_low_power1 = <4000>;//4A
 	qcom,pps_strategy1_low_power0 = <4000>;//4A
+
+	oplus,aging_ffc_version = <1>;
 
 	///qcom,offset_temp = <30>;
 	//for control:
@@ -1178,6 +1198,26 @@
                          0x0c 0x70      /* override_x1 */
                          0x17 0x74>;    /* override x2 */
 };
+
+&soc {
+	oplus,track-charge {
+		compatible = "oplus,track-charge";
+		track,fast_chg_break_t_thd = <1000>;
+		track,general_chg_break_t_thd = <200>;
+		track,voocphy_type = <1>;
+		track,wls_max_power = <0>;
+		track,wired_max_power = <65000>;
+		track,wls_bpp_chg_scheme = <0>;
+		track,wls_epp_chg_scheme = <0>;
+		track,wls_fast_chg_scheme = <0>;
+		track,wired_fast_chg_scheme = <1>;
+	};
+
+	oplus_battery_log: oplus,battery_log {
+		compatible = "oplus,battery_log";
+		oplus,battery_log_support;
+	};
+};
 //#endif /*OPLUS_FEATURE_CHG_BASIC*/
 
 //#lahaina-qupv3.dtsi
@@ -1442,12 +1482,12 @@
 };
 /* #endif OPLUS_EDIT  */
 
-&dai_mi2s2_rx {
-	qcom,msm-mi2s-lines = <2>;
-};
-
 &dai_mi2s2_tx {
 	qcom,msm-mi2s-lines = <1>;
+};
+
+&dai_mi2s2_rx {
+	qcom,msm-mi2s-lines = <2>;
 };
 
 /*Add for audio smartPA*/
@@ -2078,6 +2118,7 @@
 
 		/* SW Support Feature Control */
 		black_gesture_support;
+		sportify_aod_gesture_support;
 		//fw_edge_limit_support;
 		pressure_report_support;
 		charger_pump_support;
@@ -2095,6 +2136,7 @@
 		kernel_grip_support;
 		//grip_no_driver_support;
 		health_monitor_support;
+		exception_upload_support;
 		black_gesture_indep_support;
 		//algorithm_support;
 
@@ -2362,6 +2404,17 @@
 };
 //#endif /* OPLUS_FEATURE_CHG_BASIC */
 
+&ibat_lvl0 {
+	temperature = <7500>;
+	hysteresis = <200>;
+	type = "passive";
+};
+&ibat_lvl1 {
+	temperature = <10000>;
+	hysteresis = <200>;
+	type = "passive";
+};
+
 //#ifdef OPLUS_FEATURE_THERMAL
 &thermal_zones {
 	cpu-gold-0-0-step {
@@ -2371,7 +2424,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg00_config: cg00-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2393,7 +2446,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg01_config: cg01-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2415,7 +2468,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg10_config: cg10-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2437,7 +2490,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg11_config: cg11-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2459,7 +2512,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg20_config: cg20-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2481,7 +2534,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg21_config: cg21-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2503,7 +2556,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg30_config: cg30-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};
@@ -2525,7 +2578,7 @@
 		thermal-governor = "step_wise";
 		trips {
 			cg31_config: cg31-config {
-				temperature = <85000>;
+				temperature = <80000>;
 				hysteresis = <3000>;
 				type = "passive";
 			};

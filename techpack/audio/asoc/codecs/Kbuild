@@ -280,6 +280,9 @@ endif
 ifdef CONFIG_SND_SOC_SIA81XX
 	obj-y	+= sia81xx/
 endif
+ifdef CONFIG_SND_SOC_AW882XX
+        obj-y	+= aw882xx/
+endif
 #endif
 	obj-y	+= rouleur/
 endif

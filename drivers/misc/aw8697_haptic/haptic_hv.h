@@ -21,6 +21,10 @@
 #define AW_REG_CHIPIDL				(0x58) /* AW8692X */
 #define AW8695_CHIPID				(0x95)
 #define AW8697_CHIPID				(0x97)
+#define AW86905_CHIPID				(0x05)
+#define AW86907_CHIPID				(0x04)
+#define AW86915_CHIPID				(0x07)
+#define AW86917_CHIPID				(0x06)
 #define AW86925_CHIPID				(0x9250)
 #define AW86926_CHIPID				(0x9260)
 #define AW86927_CHIPID				(0x9270)
@@ -52,6 +56,10 @@
 #define AW_PM_QOS_VALUE_VB			(400)
 #define AW_VBAT_REFER				(4200)
 #define AW_VBAT_MIN				(3000)
+#define AW_VBAT_MAX				(4500)
+#define AW_DRV_WIDTH_MIN			(0)
+#define AW_DRV_WIDTH_MAX			(255)
+#define AW_DRV2_LVL_MAX				(0x7F)
 #define AW_RAM_WORK_DELAY_INTERVAL		(8000)
 #define AW_OSC_TRIM_PARAM			(50)
 #define AW_OSC_CALI_ACCURACY			(24)
@@ -92,6 +100,12 @@
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 4, 1)
 #define TIMED_OUTPUT
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+#define KERNEL_VERSION_510
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#define KERNEL_VERSION_6P1
+#endif
 
 #ifdef TIMED_OUTPUT
 #include <../../../drivers/staging/android/timed_output.h>
@@ -131,6 +145,31 @@ enum {
 #define RICHTAP_MMAP_BUF_SIZE		(1000)
 #define RICHTAP_MMAP_PAGE_ORDER		(2)
 #define RICHTAP_MMAP_BUF_SUM		(16)
+
+#define DEVICE_ID_0815			815
+#define DEVICE_ID_0832			832
+#define DEVICE_ID_0833			833
+#define DEVICE_ID_81538			81538
+
+#define DEVICE_ID_0815_F0_1630		1630
+#define DEVICE_ID_0815_F0_1670		1670
+#define DEVICE_ID_0815_F0_1710		1710
+#define DEVICE_ID_0815_F0_1750		1750
+#define DEVICE_ID_0815_F0_1780		1780
+
+#define OPLUS_162HZ_F0			1630
+#define OPLUS_166HZ_F0			1670
+#define OPLUS_170HZ_F0			1710
+#define OPLUS_174HZ_F0			1750
+#define OPLUS_178HZ_F0			1780
+
+#define SG_INPUT_DOWN_HIGH		302
+#define SG_INPUT_UP_HIGH		303
+#define SG_INPUT_DOWN_LOW		304
+#define SG_INPUT_UP_LOW			305
+#define INPUT_HIGH			112
+#define INPUT_MEDI			111
+#define INPUT_LOW			110
 
 #pragma pack(4)
 struct mmap_buf_format {
@@ -188,13 +227,21 @@ struct mmap_buf_format {
 #define RINGTONES_END_INDEX			(40)
 #define RINGTONES_SIMPLE_INDEX			(48)
 #define RINGTONES_PURE_INDEX			(49)
-#define NEW_RING_START				(118)
-#define NEW_RING_END				(160)
+
 #define OS12_NEW_RING_START			(70)
 #define OS12_NEW_RING_END			(89)
+#define OPLUS_NEW_RING_1_START			(94)
+#define OPLUS_NEW_RING_1_END			(99)
+#define NEW_RING_START				(118)
+#define NEW_RING_END				(160)
 #define OPLUS_RING_START			(161)
 #define OPLUS_RING_END				(170)
-
+#define OPLUS_NEW_RING_2_START			(201)
+#define OPLUS_NEW_RING_2_END			(280)
+#define OPLUS_NEW_RING_3_START			(292)
+#define OPLUS_NEW_RING_3_END			(293)
+#define OS14_NEW_RING_START			(371)
+#define OS14_NEW_RING_END			(410)
 
 #define AW_WAVEFORM_INDEX_CS_PRESS		(16)
 #define AW_WAVEFORM_INDEX_TRANSIENT		(8)
@@ -493,6 +540,10 @@ enum aw_haptic_motor_old_test_mode {
 #define AW8692X_SET_FIFO_AE_ADDR_L(base_addr)	(((base_addr) >> 1) & 0x00ff)
 #define AW8692X_SET_FIFO_AF_ADDR_H(base_addr)	((((base_addr) - (base_addr >> 2)) >> 8) & 0x0F)
 #define AW8692X_SET_FIFO_AF_ADDR_L(base_addr)	(((base_addr) - ((base_addr) >> 2)) & 0x00ff)
+
+#define AW_DRV_WIDTH_FARMULA(f0_pre, brk_gain, track_margain) (240000 / \
+			     (f0_pre) - 8 - (brk_gain) - (track_margain))
+
 /*********************************************************
  *
  * Log Format
@@ -702,6 +753,7 @@ struct aw_haptic_dts_info {
 	uint8_t f0_cali_percent;
 	uint8_t max_bst_vol;
 	uint32_t f0_pre;
+	uint32_t cont_lra_vrms;
 
 	/* AW869X */
 	uint8_t tset;
@@ -824,6 +876,7 @@ struct aw_haptic {
 	struct mutex rtp_lock;
 	struct hrtimer timer;
 	struct work_struct rtp_work;
+	struct work_struct rtp_key_work;
 	struct work_struct rtp_single_cycle_work;
 	struct work_struct rtp_regroup_work;
 	struct delayed_work ram_work;
@@ -851,6 +904,7 @@ struct aw_haptic {
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct work_struct  motor_old_test_work;
 	unsigned int motor_old_test_mode;
+	bool livetap_support;
 #endif
 
 };
@@ -950,7 +1004,6 @@ struct aw_que_seq {
 extern struct aw_haptic_func aw869x_func_list;
 extern struct aw_haptic_func aw8692x_func_list;
 extern struct pm_qos_request aw_pm_qos_req_vb;
-
 
 extern int i2c_r_bytes(struct aw_haptic *, uint8_t, uint8_t *, uint32_t);
 extern int i2c_w_bytes(struct aw_haptic *, uint8_t, uint8_t *, uint32_t);

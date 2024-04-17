@@ -290,10 +290,7 @@ static void dspp_rc(struct sde_hw_dspp *c)
 		}
 
 		ret = reg_dmav1_init_dspp_op_v4(SDE_DSPP_RC, c->idx);
-		if (!ret)
-			c->ops.setup_rc_data =
-					sde_hw_rc_setup_data_dma;
-		else
+
 			c->ops.setup_rc_data =
 					sde_hw_rc_setup_data_ahb;
 

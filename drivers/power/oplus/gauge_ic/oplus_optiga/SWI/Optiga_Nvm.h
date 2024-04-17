@@ -22,6 +22,7 @@ BOOL Nvm_LockNVM( uint8_t ub_PageNumber );
 BOOL Nvm_ReadLockNVM( uint8_t * ubp_PageNumber );
 
 void Nvm_SwitchUID( uint32_t id );
+uint16_t nvm_read_page(uint8_t page, uint8_t page_count, uint8_t *data);
 
 
 
@@ -48,7 +49,7 @@ typedef enum {
 
 #define NVM_MAX_BYTE_SIZE (64u) /*!< Total number of User NVM bytes (8 pages with 8 bytes each) */
 #define NVM_PAGE_SIZE (8u)      /*!< Each page size in bytes */
-
+#define NVM_PAGE_BARCODE_ADDR 0x0 /* read barcode addr */
 
 uint16_t Nvm_ReadODC(uint8_t *ubODC, uint8_t *ubPUBKEY, NVM_OPS ReadMode);
 

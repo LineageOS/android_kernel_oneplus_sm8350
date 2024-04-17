@@ -35,6 +35,13 @@
 #include <linux/reboot.h>
 #include <linux/alarmtimer.h>
 #include <mtk_musb.h>
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_TCPC_CLASS
+#include <linux/regmap.h>
+#include <linux/of_platform.h>
+#include <linux/mfd/mt6397/core.h>/* PMIC MFD core header */
+#endif
+#endif
 
 #include <mt-plat/mtk_boot.h>
 #include <tcpm.h>
@@ -50,6 +57,16 @@
 #include <linux/iio/consumer.h>
 #ifndef CONFIG_TCPC_CLASS
 #include "../../../misc/mediatek/extcon/extcon-mtk-usb.h"
+#endif
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_TCPC_CLASS
+#define MT6357_VS1_ANA_CON2 0x1736
+#define PMIC_RG_VS1_MODESET_MASK 0x1
+#define PMIC_RG_VS1_MODESET_SHIFT 8
+#define FORCE_PWM 1
+#define AUTO_MODE 0
+#endif
 #endif
 
 extern void mt_usb_connect_v1(void);
@@ -1900,7 +1917,13 @@ static int psy_charger_set_property(struct power_supply *psy,
 static void mtk_charger_external_power_changed(struct power_supply *psy)
 {
 	struct mtk_charger *info;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	union power_supply_propval prop = { 0 };
+	union power_supply_propval prop2 = { 0 };
+	union power_supply_propval type_prop = { 0 };
+#else
 	union power_supply_propval prop, prop2, type_prop;
+#endif
 	struct power_supply *chg_psy = NULL;
 	int ret;
 
@@ -2007,6 +2030,10 @@ static int notify_adapter_event(struct notifier_block *notifier,
 		/* type C is ready */
 		_wake_up_charger(pinfo);
 		break;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	default:
+		break;
+#endif
 	}
 	return NOTIFY_DONE;
 }
@@ -4457,6 +4484,9 @@ static enum power_supply_property battery_properties[] = {
 #endif /*CONFIG_OPLUS_SHORT_USERSPACE*/
 #endif
 	POWER_SUPPLY_PROP_CAPACITY_LEVEL,
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	POWER_SUPPLY_PROP_TIME_TO_FULL_NOW,
+#endif
 };
 
 
@@ -4837,6 +4867,130 @@ struct oplus_chg_operations  oplus_chg_default_ops = {
 	.set_typec_cc_open = oplus_set_typec_cc_open,
 };
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_TCPC_CLASS
+struct mt6397_chip *pmic_chip;
+
+void pmic_set_register_value(struct regmap *map,
+	unsigned int addr,
+	unsigned int mask,
+	unsigned int shift,
+	unsigned int val)
+{
+	regmap_update_bits(map,
+		addr,
+		mask << shift,
+		val << shift);
+}
+
+static ssize_t gsm_pmic_pwm_node_write(struct file *file, const char __user *buf, size_t count, loff_t *pos)
+{
+	char upmu_vs1_mode[4];
+	ssize_t ret = 1;
+
+	if (NULL == buf) {
+		chg_err("gsm_pmic_pwm_node_write parameter error.\n");
+		return -EFAULT;
+	}
+
+	if (copy_from_user(&upmu_vs1_mode, buf, count)) {
+		chg_err("gsm_pmic_pwm_node_write copy_from_user error.\n");
+		return -EFAULT;
+	}
+
+	if (strncmp(upmu_vs1_mode, "1", 1) == 0) {
+		pmic_set_register_value(pmic_chip->regmap,
+			MT6357_VS1_ANA_CON2,
+			PMIC_RG_VS1_MODESET_MASK,
+			PMIC_RG_VS1_MODESET_SHIFT,
+			FORCE_PWM);
+	} else if (strncmp(upmu_vs1_mode, "0", 1) == 0) {
+		pmic_set_register_value(pmic_chip->regmap,
+			MT6357_VS1_ANA_CON2,
+			PMIC_RG_VS1_MODESET_MASK,
+			PMIC_RG_VS1_MODESET_SHIFT,
+			AUTO_MODE);
+	} else
+		chg_err("gsm_pmic_pwm_node_write parameter error.\n");
+
+	return ret;
+}
+
+static ssize_t gsm_pmic_pwm_node_read(struct file *file, char __user *buf, size_t count, loff_t *pos)
+{
+	return count;
+}
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
+static const struct file_operations gsm_pmic_pwm_ctrl =
+{
+	.write = gsm_pmic_pwm_node_write,
+	.read = gsm_pmic_pwm_node_read,
+};
+#else
+static const struct proc_ops gsm_pmic_pwm_ctrl =
+{
+	.proc_write = gsm_pmic_pwm_node_write,
+	.proc_read = gsm_pmic_pwm_node_read,
+	.proc_lseek = seq_lseek,
+};
+#endif
+
+static void init_proc_upmu_vs1_config(void)
+{
+	if (!proc_create("gsm_pmic_pwm", S_IWUSR | S_IWGRP | S_IWOTH,
+		NULL, &gsm_pmic_pwm_ctrl)) {
+		chg_err("proc_create gsm_pmic_pwm fail!\n");
+	}
+}
+
+static int oplus_pmic_chip_init()
+{
+	static struct mtk_charger *pinfo;
+	int ret = 0;
+	struct device_node *pmic_node;
+	struct platform_device *pmic_pdev;
+	struct power_supply *psy;
+
+	if (pinfo == NULL) {
+		psy = power_supply_get_by_name("mtk-master-charger");
+		if (psy == NULL) {
+			chr_err("[%s]psy is not rdy\n", __func__);
+			return -1;
+		}
+
+		pinfo = (struct mtk_charger *)power_supply_get_drvdata(psy);
+		if (pinfo == NULL) {
+			chr_err("[%s]mtk_gauge is not rdy\n", __func__);
+			return -1;
+		}
+	}
+
+	pmic_node = of_parse_phandle(pinfo->pdev->dev.of_node, "pmic", 0);
+	if (!pmic_node) {
+		chr_err("get pmic_node fail\n");
+		return -1;
+	}
+
+	pmic_pdev = of_find_device_by_node(pmic_node);
+	if (!pmic_pdev) {
+		chr_err("get pmic_pdev fail\n");
+		return -1;
+	}
+
+	pmic_chip = dev_get_drvdata(&(pmic_pdev->dev));
+	if (!pmic_chip) {
+		chr_err("get chip fail\n");
+		return -1;
+	}
+
+	init_proc_upmu_vs1_config();
+
+	return ret;
+}
+#endif
+#endif
+
 static int oplus_charger_probe(struct platform_device *pdev)
 {
 	struct mtk_charger *info = NULL;
@@ -5044,6 +5198,12 @@ static int oplus_charger_probe(struct platform_device *pdev)
 		ret = device_create_file(&oplus_chip->batt_psy->dev, &dev_attr_StopCharging_Test);/* stop charging */
 		ret = device_create_file(&oplus_chip->batt_psy->dev, &dev_attr_StartCharging_Test);
 	}
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#ifndef CONFIG_TCPC_CLASS
+	oplus_pmic_chip_init();
+#endif
+#endif
 
 	return 0;
 }

@@ -20,9 +20,11 @@
 #include <linux/delay.h>
 #include <linux/regmap.h>
 #include <linux/list.h>
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 #include <soc/oplus/system/boot_mode.h>
 #include <soc/oplus/device_info.h>
 #include <soc/oplus/system/oplus_project.h>
+#endif
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
 #include <oplus_chg_vooc.h>
@@ -257,27 +259,116 @@ __maybe_unused static int oplus_vooc_get_gpio_ap_data(struct oplus_chg_ic_dev *v
 	return val;
 }
 
+int oplus_vooc_read_voocphy_bcc_max_curr(struct oplus_chg_ic_dev *vooc_ic)
+{
+	int bcc_data;
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL");
+		return -EINVAL;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_GET_BCC_MAX_CURR,
+			       &bcc_data);
+	if (rc < 0)
+		return rc;
+
+	return bcc_data;
+}
+
+int oplus_vooc_read_voocphy_bcc_min_curr(struct oplus_chg_ic_dev *vooc_ic)
+{
+	int bcc_data;
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL");
+		return -EINVAL;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_GET_BCC_MIN_CURR,
+			       &bcc_data);
+	if (rc < 0)
+		return rc;
+
+	return bcc_data;
+}
+
+int oplus_vooc_read_voocphy_bcc_exit_curr(struct oplus_chg_ic_dev *vooc_ic)
+{
+	int bcc_data;
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL");
+		return -EINVAL;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_GET_BCC_EXIT_CURR,
+			       &bcc_data);
+	if (rc < 0)
+		return rc;
+
+	return bcc_data;
+}
+
+int oplus_vooc_read_voocphy_bcc_fastchg_ing(struct oplus_chg_ic_dev *vooc_ic)
+{
+	int bcc_data;
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL");
+		return -EINVAL;
+	}
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_GET_FASTCHG_ING,
+			       &bcc_data);
+	if (rc < 0)
+		return rc;
+
+	return bcc_data;
+}
+
+int oplus_vooc_read_voocphy_bcc_temp_range(struct oplus_chg_ic_dev *vooc_ic)
+{
+	int bcc_data;
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL");
+		return -EINVAL;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_GET_BCC_TEMP_RANGE,
+			       &bcc_data);
+	if (rc < 0)
+		return rc;
+
+	return bcc_data;
+}
+
 int oplus_vooc_read_ap_data(struct oplus_chg_ic_dev *vooc_ic)
 {
-	bool bit;
+	int data;
 	int rc;
 
 	if (vooc_ic == NULL) {
 		chg_err("vooc_ic is NULL\n");
-		return 0;
+		return -ENODEV;
 	}
 
-	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_READ_DATA_BIT, &bit);
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_READ_DATA, &data);
 	if (rc < 0) {
 		chg_err("get data bit error, rc=%d\n", rc);
-		return 0;
+		return rc;
 	}
 
-	return (int)bit;
+	return data;
 }
 
 void oplus_vooc_reply_data(struct oplus_chg_ic_dev *vooc_ic, int ret_info,
-			   int device_type, int data_width)
+			   int device_type, int data_width, int curr_ma)
 {
 	int data;
 	int rc;
@@ -290,13 +381,13 @@ void oplus_vooc_reply_data(struct oplus_chg_ic_dev *vooc_ic, int ret_info,
 	data = (ret_info << 1) | (device_type & BIT(0));
 
 	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_REPLY_DATA, data,
-			       data_width);
+			       data_width, curr_ma);
 	if (rc < 0)
 		chg_err("reply data error, rc=%d\n", rc);
 }
 
 void oplus_vooc_reply_data_no_type(struct oplus_chg_ic_dev *vooc_ic,
-				   int ret_info, int data_width)
+				   int ret_info, int data_width, int curr_ma)
 {
 	int rc;
 
@@ -306,7 +397,7 @@ void oplus_vooc_reply_data_no_type(struct oplus_chg_ic_dev *vooc_ic,
 	}
 
 	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_REPLY_DATA, ret_info,
-			       data_width);
+			       data_width, curr_ma);
 	if (rc < 0)
 		chg_err("reply data error, rc=%d\n", rc);
 }
@@ -491,3 +582,85 @@ int oplus_hal_vooc_init(struct oplus_chg_ic_dev *vooc_ic)
 
 	return 0;
 }
+
+int set_chg_auto_mode(struct oplus_chg_ic_dev *vooc_ic, bool enable)
+{
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic,
+			       OPLUS_IC_FUNC_VOOCPHY_SET_CHG_AUTO_MODE,
+			       enable);
+	if (rc == -ENOTSUPP)
+		return 0;
+	else if (rc < 0)
+		chg_info("failed to %s chg auto mode, rc=%d\n",
+			 enable ? "enable" : "disable", rc);
+
+	return rc;
+}
+
+int oplus_vooc_get_curve_curr(struct oplus_chg_ic_dev *vooc_ic, int *curr)
+{
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_GET_CURVE_CURR, curr);
+
+	return rc;
+}
+
+int oplus_vooc_get_real_curve_curr(struct oplus_chg_ic_dev *vooc_ic, int *curr)
+{
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOC_GET_REAL_CURVE_CURR, curr);
+
+	return rc;
+}
+
+int oplus_vooc_set_ap_fastchg_allow(struct oplus_chg_ic_dev *vooc_ic, int allow, bool dummy)
+{
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_SET_AP_FASTCHG_ALLOW, allow, dummy);
+	if (rc < 0) {
+		chg_err("not support voocphy_set_ap_fastchg_allow, rc=%d\n", rc);
+		return rc;
+	}
+
+	return 0;
+}
+
+int oplus_vooc_get_retry_flag(struct oplus_chg_ic_dev *vooc_ic, bool *retry_flag)
+{
+	int rc;
+
+	if (vooc_ic == NULL) {
+		chg_err("vooc_ic is NULL\n");
+		return -ENODEV;
+	}
+
+	rc = oplus_chg_ic_func(vooc_ic, OPLUS_IC_FUNC_VOOCPHY_GET_RETRY_FLAG, retry_flag);
+
+	return rc;
+}
+

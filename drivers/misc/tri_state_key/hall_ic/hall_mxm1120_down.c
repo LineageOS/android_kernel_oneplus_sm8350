@@ -196,6 +196,9 @@ static int m1120_i2c_write_block(struct m1120_data_t *m1120_data, u8 addr, u8 *d
 		case M1120_REG_OPF:
 			m1120_data->reg.map.opf = data[0];
 			break;
+
+		default:
+			break;
 		}
 	}
 
@@ -368,6 +371,9 @@ static int m1120_set_operation_mode(struct m1120_data_t *p_data, int mode)
 		opf |= M1120_VAL_OPF_HSSON_ON;
 		err = m1120_i2c_write_block(p_data, M1120_REG_OPF, &opf, 1);
 		TRI_KEY_LOG("operation mode was OPERATION_MODE_FUSEROMACCESS_M");
+		break;
+
+	default:
 		break;
 	}
 	TRI_KEY_LOG("opf = ox%x\n", opf);

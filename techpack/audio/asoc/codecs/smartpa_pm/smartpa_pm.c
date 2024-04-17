@@ -44,8 +44,8 @@ static int smartpa_pm_result_get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
 {
 	int ret = 0;
-	int len = 4 + sizeof(struct param_hdr_v3);//status + param_hdr_v3;
-	int count = len + 2*sizeof(int); //L&R(2*4)
+	int len = 4 + sizeof(struct param_hdr_v3);/*status + param_hdr_v3*/
+	int count = len + 4*sizeof(int); /*four speakers*/
 	uint8_t * buffer = kzalloc(count, GFP_KERNEL);
 
 	if (!buffer) {
@@ -57,10 +57,14 @@ static int smartpa_pm_result_get(struct snd_kcontrol *kcontrol,
 	if (ret == 0) {
 		ucontrol->value.integer.value[0] = *(unsigned int *) (buffer + len);
 		ucontrol->value.integer.value[1] = *(unsigned int *)(buffer + len + sizeof(int));
+		ucontrol->value.integer.value[2] = *(unsigned int *) (buffer + len + 2*sizeof(int));
+		ucontrol->value.integer.value[3] = *(unsigned int *)(buffer + len + 3*sizeof(int));
 		#ifdef TEST_DEBUG_LOG
-		pr_info("%s(), get 10000*lspk=(%d), 10000*rspk=(%d)", __func__,
+		pr_info("%s(), get 10000*lspk=(%d), 10000*rspk=(%d), 10000*tspk=(%d), 10000*fspk=(%d)", __func__,
 				(unsigned int)(*(float *)(buffer+len)*10000),
-				(unsigned int)(*(float *)(buffer+len+sizeof(int))*10000));
+				(unsigned int)(*(float *)(buffer+len+sizeof(int))*10000),
+				(unsigned int)(*(float *)(buffer+len+2*sizeof(int))*10000),
+				(unsigned int)(*(float *)(buffer+len+3*sizeof(int))*10000));
 		#endif
 	} else {
     	pr_info("%s(), apr get failed, ret = %d", __func__, ret);
@@ -74,7 +78,7 @@ static int smartpa_pm_result_ctl(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_info *uinfo)
 {
 	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
-	uinfo->count = 2;
+	uinfo->count = 4;
 	uinfo->value.integer.min = 0;
 	uinfo->value.integer.max = 0x7fffffff; /* 32 bit value,  */
 

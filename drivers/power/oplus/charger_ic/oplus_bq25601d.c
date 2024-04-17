@@ -1537,6 +1537,8 @@ int bq25601d_hardware_init(void)
 	return true;
 }
 
+
+#if !defined(CONFIG_OPLUS_CHARGER_MTK6873)
 #ifdef CONFIG_OPLUS_RTC_DET_SUPPORT
 static int rtc_reset_check(void)
 {
@@ -1582,7 +1584,6 @@ close_time:
 	return 0;
 }
 #endif /* CONFIG_OPLUS_RTC_DET_SUPPORT */
-#if !defined(CONFIG_OPLUS_CHARGER_MTK6873)
 #if !defined(CONFIG_OPLUS_CHARGER_MTK6781)
 extern bool oplus_chg_get_shortc_hw_gpio_status(void);
 #endif
