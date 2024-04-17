@@ -754,13 +754,6 @@ static void dwc3_core_exit(struct dwc3 *dwc)
 {
 	dwc3_event_buffers_cleanup(dwc);
 
-	usb_phy_set_suspend(dwc->usb2_phy1, 1);
-	usb_phy_set_suspend(dwc->usb2_phy, 1);
-	usb_phy_set_suspend(dwc->usb3_phy1, 1);
-	usb_phy_set_suspend(dwc->usb3_phy, 1);
-	phy_power_off(dwc->usb2_generic_phy);
-	phy_power_off(dwc->usb3_generic_phy);
-
 	usb_phy_shutdown(dwc->usb2_phy1);
 	usb_phy_shutdown(dwc->usb2_phy);
 	usb_phy_shutdown(dwc->usb3_phy1);
@@ -768,6 +761,12 @@ static void dwc3_core_exit(struct dwc3 *dwc)
 	phy_exit(dwc->usb2_generic_phy);
 	phy_exit(dwc->usb3_generic_phy);
 
+	usb_phy_set_suspend(dwc->usb2_phy1, 1);
+	usb_phy_set_suspend(dwc->usb2_phy, 1);
+	usb_phy_set_suspend(dwc->usb3_phy1, 1);
+	usb_phy_set_suspend(dwc->usb3_phy, 1);
+	phy_power_off(dwc->usb2_generic_phy);
+	phy_power_off(dwc->usb3_generic_phy);
 	clk_bulk_disable_unprepare(dwc->num_clks, dwc->clks);
 	reset_control_assert(dwc->reset);
 }
@@ -1761,9 +1760,13 @@ static int dwc3_probe(struct platform_device *pdev)
 			goto err3;
 		}
 	}
-
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	dwc->dwc_ipc_log_ctxt = ipc_log_context_create(NUM_LOG_PAGES * 4,
+					dev_name(dwc->dev), 0);
+#else
 	dwc->dwc_ipc_log_ctxt = ipc_log_context_create(NUM_LOG_PAGES,
 					dev_name(dwc->dev), 0);
+#endif
 	if (!dwc->dwc_ipc_log_ctxt)
 		dev_err(dwc->dev, "Error getting ipc_log_ctxt\n");
 

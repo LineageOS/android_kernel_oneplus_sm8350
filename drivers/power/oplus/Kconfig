@@ -53,9 +53,7 @@ depends on I2C
 	help
 	  Enables support for the oplus charging v1 framework
 
-if OPLUS_CHG
 source "drivers/power/oplus/v1/Kconfig"
-endif
 
 menuconfig OPLUS_CHG_V2
 	tristate "OPLUS charging V2 system"
@@ -69,4 +67,12 @@ if OPLUS_CHG_V2
 source "drivers/power/oplus/v2/Kconfig"
 endif
 
+config OPLUS_CHARGER_WIRELESS_RA9530
+	bool "OPLUS charger wireless pen 9530 ic"
+	help
+	  Say Y to include support
+
 endif #OPLUS_CHARGER
+
+source "drivers/power/oplus/test-kit/Kconfig"
+source "drivers/power/oplus/config/Kconfig"

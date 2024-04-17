@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-only
-/* Copyright (c) 2019-2020, The Linux Foundation. All rights reserved. */
+/* Copyright (c) 2019-2021, The Linux Foundation. All rights reserved. */
 
 #define pr_fmt(fmt) "PM8008: %s: " fmt, __func__
 
@@ -81,10 +81,11 @@
 
 #define LDO_PD_CTL_REG(base)		(base + 0xA0)
 #define STRONG_PD_EN_BIT		BIT(7)
-#define CLK_LEICA2_LFRC_AON_TRIM	0x51F2
-#define REVID_TP_REV		0x1F1
 
 #define PM8008_MAX_LDO			7
+
+#define CLK_LEICA2_LFRC_AON_TRIM		0x51F2
+#define REVID_TP_REV		0x1F1
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 enum pmic_subtype {

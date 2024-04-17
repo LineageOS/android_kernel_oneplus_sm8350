@@ -36,18 +36,57 @@
 #include <sound/soc.h>
 #include <linux/mman.h>
 #include <linux/proc_fs.h>
-#ifdef OPLUS_FEATURE_CHG_BASIC
-#include <soc/oplus/system/oplus_project.h>
-#include <soc/oplus/system/boot_mode.h>
-#endif
 
 #include "haptic_hv.h"
 #include "haptic_hv_reg.h"
+#include "haptic_hv_rtp_key_data.h"
 
-#define HAPTIC_HV_DRIVER_VERSION	"v0.0.0.9"
-static uint8_t AW86927_HAPTIC_HIGH_LEVEL_REG_VAL = 0x5E;//max boost 9.408V
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+#include "haptic_feedback.h"
+#endif
 
+#define HAPTIC_HV_DRIVER_VERSION	"v0.0.0.13"
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+/* add for DX-2 bringup */
+#define FW_ACTION_HOTPLUG 1
+#endif
+static uint8_t AW86927_HAPTIC_HIGH_LEVEL_REG_VAL = 0x5E; /* max boost 9.408V */
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+#define CPU_LATENCY_QOC_VALUE (0)
+static struct pm_qos_request pm_qos_req;
+#else
 struct pm_qos_request aw_pm_qos_req_vb;
+#endif
+
+static void aw_pm_qos_enable(struct aw_haptic *aw_haptic, bool enabled)
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+	if (enabled)
+		cpu_latency_qos_add_request(&pm_qos_req, CPU_LATENCY_QOC_VALUE);
+	else
+		cpu_latency_qos_remove_request(&pm_qos_req);
+#else
+	mutex_lock(&aw_haptic->qos_lock);
+	if (enabled) {
+		if (!pm_qos_request_active(&aw_pm_qos_req_vb))
+			pm_qos_add_request(&aw_pm_qos_req_vb,
+					PM_QOS_CPU_DMA_LATENCY,
+					AW_PM_QOS_VALUE_VB);
+		else
+			pm_qos_update_request(&aw_pm_qos_req_vb,
+					AW_PM_QOS_VALUE_VB);
+
+	} else {
+		pm_qos_remove_request(&aw_pm_qos_req_vb);
+		/* pm_qos_update_request(&aw_pm_qos_req_vb, PM_QOS_DEFAULT_VALUE); */
+	}
+	mutex_unlock(&aw_haptic->qos_lock);
+#endif
+}
+
+#define DEFAULT_MAX_GAIN 0x80
+
 struct aw_haptic_container *aw_rtp;
 struct aw_haptic *g_aw_haptic;
 static int rtp_osc_cali(struct aw_haptic *);
@@ -56,6 +95,26 @@ int aw_container_size = AW_CONTAINER_DEFAULT_SIZE;
 
 static int rtp_regroup_work(struct aw_haptic *aw_haptic);
 
+static struct aw_vmax_map vmax_map[] = {
+	{800,  0x28, 0x40},//6.0V
+	{900,  0x28, 0x49},
+	{1000, 0x28, 0x51},
+	{1100, 0x28, 0x5A},
+	{1200, 0x28, 0x62},
+	{1300, 0x28, 0x6B},
+	{1400, 0x28, 0x73},
+	{1500, 0x28, 0x7C},
+	{1600, 0x2A, 0x80},//6.142
+	{1700, 0x31, 0x80},//6.568
+	{1800, 0x38, 0x80},//6.994
+	{1900, 0x3F, 0x80},//7.42
+	{2000, 0x46, 0x80},//7.846
+	{2100, 0x4C, 0x80},//8.272
+	{2200, 0x51, 0x80},//8.556
+	{2300, 0x58, 0x80},//8.982
+	{2400, 0x5E, 0x80},//9.408
+};
+
 static char aw_ram_name[5][30] = {
 	{"aw8697_haptic_170.bin"},
 	{"aw8697_haptic_170.bin"},
@@ -63,6 +122,15 @@ static char aw_ram_name[5][30] = {
 	{"aw8697_haptic_170.bin"},
 	{"aw8697_haptic_170.bin"},
 };
+
+static char aw_ram_name_170_soft[5][30] ={
+	{"aw8697_haptic_170_soft.bin"},
+	{"aw8697_haptic_170_soft.bin"},
+	{"aw8697_haptic_170_soft.bin"},
+	{"aw8697_haptic_170_soft.bin"},
+	{"aw8697_haptic_170_soft.bin"},
+};
+
 
 static char aw_ram_name_150[5][30] = {
 	{"aw8697_haptic_150.bin"},
@@ -456,125 +524,125 @@ static char aw_rtp_name_150Hz[][AW_RTP_NAME_MAX] = {
 #endif /* OPLUS_FEATURE_CHG_BASIC */
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
-static char aw_rtp_name_165Hz[][AW_RTP_NAME_MAX] = {
+static char aw_rtp_name_162Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_rtp.bin"},
 	{"aw8697_Hearty_channel_RTP_1.bin"},
-	{"aw8697_Instant_channel_RTP_2_165Hz.bin"},
+	{"aw8697_Instant_channel_RTP_2_162Hz.bin"},
 	{"aw8697_Music_channel_RTP_3.bin"},
 	{"aw8697_Percussion_channel_RTP_4.bin"},
 	{"aw8697_Ripple_channel_RTP_5.bin"},
 	{"aw8697_Bright_channel_RTP_6.bin"},
 	{"aw8697_Fun_channel_RTP_7.bin"},
 	{"aw8697_Glittering_channel_RTP_8.bin"},
-	{"aw8697_Granules_channel_RTP_9_165Hz.bin"},
+	{"aw8697_Granules_channel_RTP_9_162Hz.bin"},
 	{"aw8697_Harp_channel_RTP_10.bin"},
 	{"aw8697_Impression_channel_RTP_11.bin"},
-	{"aw8697_Ingenious_channel_RTP_12_165Hz.bin"},
-	{"aw8697_Joy_channel_RTP_13_165Hz.bin"},
+	{"aw8697_Ingenious_channel_RTP_12_162Hz.bin"},
+	{"aw8697_Joy_channel_RTP_13_162Hz.bin"},
 	{"aw8697_Overtone_channel_RTP_14.bin"},
-	{"aw8697_Receive_channel_RTP_15_165Hz.bin"},
-	{"aw8697_Splash_channel_RTP_16_165Hz.bin"},
-
-	{"aw8697_About_School_RTP_17_165Hz.bin"},
+	{"aw8697_Receive_channel_RTP_15_162Hz.bin"},
+	{"aw8697_Splash_channel_RTP_16_162Hz.bin"},
+	{"aw8697_About_School_RTP_17_162Hz.bin"},
 	{"aw8697_Bliss_RTP_18.bin"},
-	{"aw8697_Childhood_RTP_19_165Hz.bin"},
-	{"aw8697_Commuting_RTP_20_165Hz.bin"},
+	{"aw8697_Childhood_RTP_19_162Hz.bin"},
+	{"aw8697_Commuting_RTP_20_162Hz.bin"},
 	{"aw8697_Dream_RTP_21.bin"},
-	{"aw8697_Firefly_RTP_22_165Hz.bin"},
+	{"aw8697_Firefly_RTP_22_162Hz.bin"},
 	{"aw8697_Gathering_RTP_23.bin"},
-	{"aw8697_Gaze_RTP_24_165Hz.bin"},
-	{"aw8697_Lakeside_RTP_25_165Hz.bin"},
+	{"aw8697_Gaze_RTP_24_162Hz.bin"},
+	{"aw8697_Lakeside_RTP_25_162Hz.bin"},
 	{"aw8697_Lifestyle_RTP_26.bin"},
-	{"aw8697_Memories_RTP_27_165Hz.bin"},
-	{"aw8697_Messy_RTP_28_165Hz.bin"},
-	{"aw8697_Night_RTP_29_165Hz.bin"},
-	{"aw8697_Passionate_Dance_RTP_30_165Hz.bin"},
-	{"aw8697_Playground_RTP_31_165Hz.bin"},
-	{"aw8697_Relax_RTP_32_165Hz.bin"},
+	{"aw8697_Memories_RTP_27_162Hz.bin"},
+	{"aw8697_Messy_RTP_28_162Hz.bin"},
+	{"aw8697_Night_RTP_29_162Hz.bin"},
+	{"aw8697_Passionate_Dance_RTP_30_162Hz.bin"},
+	{"aw8697_Playground_RTP_31_162Hz.bin"},
+	{"aw8697_Relax_RTP_32_162Hz.bin"},
 	{"aw8697_Reminiscence_RTP_33.bin"},
-	{"aw8697_Silence_From_Afar_RTP_34_165Hz.bin"},
-	{"aw8697_Silence_RTP_35_165Hz.bin"},
-	{"aw8697_Stars_RTP_36_165Hz.bin"},
-	{"aw8697_Summer_RTP_37_165Hz.bin"},
-	{"aw8697_Toys_RTP_38_165Hz.bin"},
+	{"aw8697_Silence_From_Afar_RTP_34_162Hz.bin"},
+	{"aw8697_Silence_RTP_35_162Hz.bin"},
+	{"aw8697_Stars_RTP_36_162Hz.bin"},
+	{"aw8697_Summer_RTP_37_162Hz.bin"},
+	{"aw8697_Toys_RTP_38_162Hz.bin"},
 	{"aw8697_Travel_RTP_39.bin"},
 	{"aw8697_Vision_RTP_40.bin"},
 
-	{"aw8697_waltz_channel_RTP_41_165Hz.bin"},
-	{"aw8697_cut_channel_RTP_42_165Hz.bin"},
-	{"aw8697_clock_channel_RTP_43_165Hz.bin"},
-	{"aw8697_long_sound_channel_RTP_44_165Hz.bin"},
-	{"aw8697_short_channel_RTP_45_165Hz.bin"},
-	{"aw8697_two_error_remaind_RTP_46_165Hz.bin"},
+	{"aw8697_waltz_channel_RTP_41_162Hz.bin"},
+	{"aw8697_cut_channel_RTP_42_162Hz.bin"},
+	{"aw8697_clock_channel_RTP_43_162Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_44_162Hz.bin"},
+	{"aw8697_short_channel_RTP_45_162Hz.bin"},
+	{"aw8697_two_error_remaind_RTP_46_162Hz.bin"},
 
-	{"aw8697_kill_program_RTP_47_165Hz.bin"},
+	{"aw8697_kill_program_RTP_47_162Hz.bin"},
 	{"aw8697_Simple_channel_RTP_48.bin"},
-	{"aw8697_Pure_RTP_49_165Hz.bin"},
+	{"aw8697_Pure_RTP_49_162Hz.bin"},
 	{"aw8697_reserved_sound_channel_RTP_50.bin"},
 
 	{"aw8697_high_temp_high_humidity_channel_RTP_51.bin"},
-
 	{"aw8697_old_steady_test_RTP_52.bin"},
 	{"aw8697_listen_pop_53.bin"},
-	{"aw8697_desk_7_RTP_54_165Hz.bin"},
-	{"aw8697_nfc_10_RTP_55_165Hz.bin"},
-	{"aw8697_vibrator_remain_12_RTP_56_165Hz.bin"},
+	{"aw8697_desk_7_RTP_54_162Hz.bin"},
+	{"aw8697_nfc_10_RTP_55_162Hz.bin"},
+	{"aw8697_vibrator_remain_12_RTP_56.bin"},
 	{"aw8697_notice_13_RTP_57.bin"},
 	{"aw8697_third_ring_14_RTP_58.bin"},
 	{"aw8697_reserved_59.bin"},
 
-	{"aw8697_honor_fisrt_kill_RTP_60_165Hz.bin"},
-	{"aw8697_honor_two_kill_RTP_61_165Hz.bin"},
-	{"aw8697_honor_three_kill_RTP_62_165Hz.bin"},
-	{"aw8697_honor_four_kill_RTP_63_165Hz.bin"},
-	{"aw8697_honor_five_kill_RTP_64_165Hz.bin"},
-	{"aw8697_honor_three_continu_kill_RTP_65_165Hz.bin"},
-	{"aw8697_honor_four_continu_kill_RTP_66_165Hz.bin"},
-	{"aw8697_honor_unstoppable_RTP_67_165Hz.bin"},
-	{"aw8697_honor_thousands_kill_RTP_68_165Hz.bin"},
-	{"aw8697_honor_lengendary_RTP_69_165Hz.bin"},
-	{"aw8697_Airy_morning_RTP_70_165Hz.bin"},
-	{"aw8697_Temple_morning_RTP_71_165Hz.bin"},
-	{"aw8697_Water_cicidas_72_RTP_165Hz.bin"},
-	{"aw8697_Electro_club_RTP_73_165Hz.bin"},
-	{"aw8697_Vacation_RTP_74_165Hz.bin"},
-	{"aw8697_Jazz_funk_RTP_75_165Hz.bin"},
-	{"aw8697_House_club_RTP_76_165Hz.bin"},
-	{"aw8697_temple_tone_RTP_77_165Hz.bin"},
-	{"aw8697_Jazz_dreamy_RTP_78_165Hz.bin"},
-	{"aw8697_Jazz_modern_RTP_79_165Hz.bin"},
-	{"aw8697_Tone_round_RTP_80_165Hz.bin"},
-	{"aw8697_Digi_rise_RTP_81_165Hz.bin"},
-	{"aw8697_Wood_phone_RTP_82_165Hz.bin"},
-	{"aw8697_Hey_RTP_83_165Hz.bin"},
-	{"aw8697_Zanza_RTP_84_165Hz.bin"},
-	{"aw8697_Info_RTP_85_165Hz.bin"},
-	{"aw8697_Tip_top_RTP_86_165Hz.bin"},
-	{"aw8697_Opop_short_RTP_87_165Hz.bin"},
-	{"aw8697_bowl_bells_RTP_88_165Hz.bin"},
-	{"aw8697_jumpy_RTP_89_165Hz.bin"},
+	{"aw8697_honor_fisrt_kill_RTP_60_162Hz.bin"},
+	{"aw8697_honor_two_kill_RTP_61_162Hz.bin"},
+	{"aw8697_honor_three_kill_RTP_62_162Hz.bin"},
+	{"aw8697_honor_four_kill_RTP_63_162Hz.bin"},
+	{"aw8697_honor_five_kill_RTP_64_162Hz.bin"},
+	{"aw8697_honor_three_continu_kill_RTP_65_162Hz.bin"},
+	{"aw8697_honor_four_continu_kill_RTP_66_162Hz.bin"},
+	{"aw8697_honor_unstoppable_RTP_67_162Hz.bin"},
+	{"aw8697_honor_thousands_kill_RTP_68_162Hz.bin"},
+	{"aw8697_honor_lengendary_RTP_69_162Hz.bin"},
+
+	{"aw8697_Freshmorning_RTP_70_162Hz.bin"},
+	{"aw8697_Peaceful_RTP_71_162Hz.bin"},
+	{"aw8697_Cicada_RTP_72_162Hz.bin"},
+	{"aw8697_Electronica_RTP_73_162Hz.bin"},
+	{"aw8697_Holiday_RTP_74_162Hz.bin"},
+	{"aw8697_Funk_RTP_75_162Hz.bin"},
+	{"aw8697_House_RTP_76_162Hz.bin"},
+	{"aw8697_Temple_RTP_77_162Hz.bin"},
+	{"aw8697_Dreamyjazz_RTP_78_162Hz.bin"},
+	{"aw8697_Modern_RTP_79_162Hz.bin"},
+
+	{"aw8697_Round_RTP_80_162Hz.bin"},
+	{"aw8697_Rising_RTP_81_162Hz.bin"},
+	{"aw8697_Wood_RTP_82_162Hz.bin"},
+	{"aw8697_Heys_RTP_83_162Hz.bin"},
+	{"aw8697_Mbira_RTP_84_162Hz.bin"},
+	{"aw8697_News_RTP_85_162Hz.bin"},
+	{"aw8697_Peak_RTP_86_162Hz.bin"},
+	{"aw8697_Crisp_RTP_87_162Hz.bin"},
+	{"aw8697_Singingbowls_RTP_88_162Hz.bin"},
+	{"aw8697_Bounce_RTP_89_162Hz.bin"},
 
 	{"aw8697_reserved_90.bin"},
 	{"aw8697_reserved_91.bin"},
 	{"aw8697_reserved_92.bin"},
 	{"aw8697_reserved_93.bin"},
-	{"aw8697_reserved_94.bin"},
-	{"aw8697_reserved_95.bin"},
-	{"aw8697_reserved_96.bin"},
-	{"aw8697_reserved_97.bin"},
-	{"aw8697_reserved_98.bin"},
-	{"aw8697_reserved_99.bin"},
+	{"aw8697_ALCloudscape_94_162HZ.bin"},
+	{"aw8697_ALGoodenergy_95_162HZ.bin"},
+	{"aw8697_NTblink_96_162HZ.bin"},
+	{"aw8697_NTwhoop_97_162HZ.bin"},
+	{"aw8697_Newfeeling_98_162HZ.bin"},
+	{"aw8697_nature_99_162HZ.bin"},
 
-	{"aw8697_soldier_first_kill_RTP_100_165Hz.bin"},
-	{"aw8697_soldier_second_kill_RTP_101_165Hz.bin"},
-	{"aw8697_soldier_third_kill_RTP_102_165Hz.bin"},
-	{"aw8697_soldier_fourth_kill_RTP_103_165Hz.bin"},
-	{"aw8697_soldier_fifth_kill_RTP_104_165Hz.bin"},
-	{"aw8697_stepable_regulate_RTP_105.bin"},
-	{"aw8697_voice_level_bar_edge_RTP_106.bin"},
-	{"aw8697_strength_level_bar_edge_RTP_107.bin"},
-	{"aw8697_charging_simulation_RTP_108.bin"},
-	{"aw8697_fingerprint_success_RTP_109.bin"},
+	{"aw8697_soldier_first_kill_RTP_100.bin"},
+	{"aw8697_soldier_second_kill_RTP_101.bin"},
+	{"aw8697_soldier_third_kill_RTP_102.bin"},
+	{"aw8697_soldier_fourth_kill_RTP_103.bin"},
+	{"aw8697_soldier_fifth_kill_RTP_104.bin"},
+	{"aw8697_stepable_regulate_RTP_105_162Hz.bin"},
+	{"aw8697_voice_level_bar_edge_RTP_106_162Hz.bin"},
+	{"aw8697_strength_level_bar_edge_RTP_107_162Hz.bin"},
+	{"aw8697_charging_simulation_RTP_108_162Hz.bin"},
+	{"aw8697_fingerprint_success_RTP_109_162Hz.bin"},
 
 	{"aw8697_fingerprint_effect1_RTP_110.bin"},
 	{"aw8697_fingerprint_effect2_RTP_111.bin"},
@@ -584,47 +652,44 @@ static char aw_rtp_name_165Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_fingerprint_effect6_RTP_115.bin"},
 	{"aw8697_fingerprint_effect7_RTP_116.bin"},
 	{"aw8697_fingerprint_effect8_RTP_117.bin"},
-	{"aw8697_breath_simulation_RTP_118.bin"},
-	{"aw8697_reserved_119.bin"},
+	{"aw8697_breath_simulation_RTP_118_162Hz.bin"},
+	{"aw8697_Telcel_Torreblanca_RTP_119_162Hz.bin"},
 
 	{"aw8697_Miss_RTP_120.bin"},
-	{"aw8697_Scenic_RTP_121_165Hz.bin"},
-	{"aw8697_voice_assistant_RTP_122.bin"},
-/* used for 7 */
-	{"aw8697_Appear_channel_RTP_123_165Hz.bin"},
-	{"aw8697_Miss_RTP_124_165Hz.bin"},
-	{"aw8697_Music_channel_RTP_125_165Hz.bin"},
-	{"aw8697_Percussion_channel_RTP_126_165Hz.bin"},
-	{"aw8697_Ripple_channel_RTP_127_165Hz.bin"},
-	{"aw8697_Bright_channel_RTP_128_165Hz.bin"},
-	{"aw8697_Fun_channel_RTP_129_165Hz.bin"},
-	{"aw8697_Glittering_channel_RTP_130_165Hz.bin"},
-	{"aw8697_Harp_channel_RTP_131_165Hz.bin"},
-	{"aw8697_Overtone_channel_RTP_132_165Hz.bin"},
-	{"aw8697_Simple_channel_RTP_133_165Hz.bin"},
+	{"aw8697_Scenic_RTP_121_162Hz.bin"},
+	{"aw8697_voice_assistant_RTP_122_162Hz.bin"},
+	{"aw8697_Appear_channel_RTP_123_162Hz.bin"},
+	{"aw8697_Miss_RTP_124_162Hz.bin"},
+	{"aw8697_Music_channel_RTP_125_162Hz.bin"},
+	{"aw8697_Percussion_channel_RTP_126_162Hz.bin"},
+	{"aw8697_Ripple_channel_RTP_127_162Hz.bin"},
+	{"aw8697_Bright_channel_RTP_128_162Hz.bin"},
+	{"aw8697_Fun_channel_RTP_129_162Hz.bin"},
+	{"aw8697_Glittering_channel_RTP_130_162Hz.bin"},
+	{"aw8697_Harp_channel_RTP_131_162Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_132_162Hz.bin"},
+	{"aw8697_Simple_channel_RTP_133_162Hz.bin"},
+	{"aw8697_Seine_past_RTP_134_162Hz.bin"},
+	{"aw8697_Classical_ring_RTP_135_162Hz.bin"},
+	{"aw8697_Long_for_RTP_136_162Hz.bin"},
+	{"aw8697_Romantic_RTP_137_162Hz.bin"},
+	{"aw8697_Bliss_RTP_138_162Hz.bin"},
+	{"aw8697_Dream_RTP_139_162Hz.bin"},
+	{"aw8697_Relax_RTP_140_162Hz.bin"},
+	{"aw8697_Joy_channel_RTP_141_162Hz.bin"},
+	{"aw8697_weather_wind_RTP_142.bin"},
+	{"aw8697_weather_cloudy_RTP_143.bin"},
+	{"aw8697_weather_thunderstorm_RTP_144.bin"},
+	{"aw8697_weather_default_RTP_145.bin"},
+	{"aw8697_weather_sunny_RTP_146.bin"},
+	{"aw8697_weather_smog_RTP_147.bin"},
+	{"aw8697_weather_snow_RTP_148.bin"},
+	{"aw8697_weather_rain_RTP_149.bin"},
 
-	{"aw8697_Seine_past_RTP_134_165Hz.bin"},
-	{"aw8697_Classical_ring_RTP_135_165Hz.bin"},
-	{"aw8697_Long_for_RTP_136_165Hz.bin"},
-	{"aw8697_Romantic_RTP_137_165Hz.bin"},
-	{"aw8697_Bliss_RTP_138_165Hz.bin"},
-	{"aw8697_Dream_RTP_139_165Hz.bin"},
-	{"aw8697_Relax_RTP_140_165Hz.bin"},
-	{"aw8697_Joy_channel_RTP_141_165Hz.bin"},
-	{"aw8697_weather_wind_RTP_142_165Hz.bin"},
-	{"aw8697_weather_cloudy_RTP_143_165Hz.bin"},
-	{"aw8697_weather_thunderstorm_RTP_144_165Hz.bin"},
-	{"aw8697_weather_default_RTP_145_165Hz.bin"},
-	{"aw8697_weather_sunny_RTP_146_165Hz.bin"},
-	{"aw8697_weather_smog_RTP_147_165Hz.bin"},
-	{"aw8697_weather_snow_RTP_148_165Hz.bin"},
-	{"aw8697_weather_rain_RTP_149_165Hz.bin"},
-
-/* used for 7 end*/
-	{"aw8697_rtp_lighthouse.bin"},
-	{"aw8697_rtp_silk.bin"},
-	{"aw8697_reserved_152.bin"},
-	{"aw8697_reserved_153.bin"},
+	{"aw8697_Master_Notification_RTP_150_162Hz.bin"},
+	{"aw8697_Master_Artist_Ringtong_RTP_151_162Hz.bin"},
+	{"aw8697_Master_Text_RTP_152_162Hz.bin"},
+	{"aw8697_Master_Artist_Alarm_RTP_153_162Hz.bin"},
 	{"aw8697_reserved_154.bin"},
 	{"aw8697_reserved_155.bin"},
 	{"aw8697_reserved_156.bin"},
@@ -633,18 +698,1552 @@ static char aw_rtp_name_165Hz[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_159.bin"},
 	{"aw8697_reserved_160.bin"},
 
-    /*  Added oplus ringtone start */
-	{"aw8697_oplus_its_oplus_RTP_161_165Hz.bin"},
-	{"aw8697_oplus_tune_RTP_162_165Hz.bin"},
-	{"aw8697_oplus_jingle_RTP_163_165Hz.bin"},
+	{"aw8697_oplus_its_oplus_RTP_161_162Hz.bin"},
+	{"aw8697_oplus_tune_RTP_162_162Hz.bin"},
+	{"aw8697_oplus_jingle_RTP_163_162Hz.bin"},
 	{"aw8697_reserved_164.bin"},
 	{"aw8697_reserved_165.bin"},
 	{"aw8697_reserved_166.bin"},
 	{"aw8697_reserved_167.bin"},
 	{"aw8697_reserved_168.bin"},
 	{"aw8697_reserved_169.bin"},
-	{"aw8697_oplus_gt_RTP_170_165Hz.bin"},
-    /*  Added oplus ringtone end */
+	{"aw8697_oplus_gt_RTP_170_162Hz.bin"},
+
+	{"aw8697_Threefingers_Long_RTP_171.bin"},
+	{"aw8697_Threefingers_Up_RTP_172.bin"},
+	{"aw8697_Threefingers_Screenshot_RTP_173.bin"},
+	{"aw8697_Unfold_RTP_174.bin"},
+	{"aw8697_Close_RTP_175.bin"},
+	{"aw8697_HalfLap_RTP_176.bin"},
+	{"aw8697_Twofingers_Down_RTP_177.bin"},
+	{"aw8697_Twofingers_Long_RTP_178.bin"},
+	{"aw8697_Compatible_1_RTP_179.bin"},
+	{"aw8697_Compatible_2_RTP_180.bin"},
+	{"aw8697_Styleswitch_RTP_181.bin"},
+	{"aw8697_Waterripple_RTP_182.bin"},
+	{"aw8697_Suspendbutton_Bottomout_RTP_183.bin"},
+	{"aw8697_Suspendbutton_Menu_RTP_184.bin"},
+	{"aw8697_Complete_RTP_185.bin"},
+	{"aw8697_Bulb_RTP_186.bin"},
+	{"aw8697_Elasticity_RTP_187.bin"},
+	{"aw8697_reserved_188.bin"},
+	{"aw8697_reserved_189.bin"},
+	{"aw8697_reserved_190.bin"},
+	{"aw8697_reserved_191.bin"},
+	{"aw8697_reserved_192.bin"},
+	{"aw8697_reserved_193.bin"},
+	{"aw8697_reserved_194.bin"},
+	{"aw8697_reserved_195.bin"},
+	{"aw8697_reserved_196.bin"},
+	{"aw8697_reserved_197.bin"},
+	{"alarm_Pacman_RTP_198.bin"},
+	{"notif_Pacman_RTP_199.bin"},
+	{"ringtone_Pacman_RTP_200.bin"},
+	{"ringtone_Alacrity_RTP_201_162Hz.bin"},
+	{"ring_Amenity_RTP_202_162Hz.bin"},
+	{"ringtone_Blues_RTP_203_162Hz.bin"},
+	{"ring_Bounce_RTP_204_162Hz.bin"},
+	{"ring_Calm_RTP_205_162Hz.bin"},
+	{"ringtone_Cloud_RTP_206_162Hz.bin"},
+	{"ringtone_Cyclotron_RTP_207_162Hz.bin"},
+	{"ringtone_Distinct_RTP_208_162Hz.bin"},
+	{"ringtone_Dynamic_RTP_209_162Hz.bin"},
+	{"ringtone_Echo_RTP_210_162Hz.bin"},
+	{"ringtone_Expect_RTP_211_162Hz.bin"},
+	{"ringtone_Fanatical_RTP_212_162Hz.bin"},
+	{"ringtone_Funky_RTP_213_162Hz.bin"},
+	{"ringtone_Guitar_RTP_214_162Hz.bin"},
+	{"ringtone_Harping_RTP_215_162Hz.bin"},
+	{"ringtone_Highlight_RTP_216_162Hz.bin"},
+	{"ringtone_Idyl_RTP_217_162Hz.bin"},
+	{"ringtone_Innocence_RTP_218_162Hz.bin"},
+	{"ringtone_Journey_RTP_219_162Hz.bin"},
+	{"ringtone_Joyous_RTP_220_162Hz.bin"},
+	{"ring_Lazy_RTP_221_162Hz.bin"},
+	{"ringtone_Marimba_RTP_222_162Hz.bin"},
+	{"ring_Mystical_RTP_223_162Hz.bin"},
+	{"ringtone_Old_telephone_RTP_224_162Hz.bin"},
+	{"ringtone_Oneplus_tune_RTP_225_162Hz.bin"},
+	{"ringtone_Rhythm_RTP_226_162Hz.bin"},
+	{"ringtone_Optimistic_RTP_227_162Hz.bin"},
+	{"ringtone_Piano_RTP_228_162Hz.bin"},
+	{"ring_Whirl_RTP_229_162Hz.bin"},
+	{"VZW_Alrwave_RTP_230.bin"},
+	{"t-jingle_RTP_231.bin"},
+	{"ringtone_Eager_232_162Hz.bin"},
+	{"ringtone_Ebullition_233_162Hz.bin"},
+	{"ringtone_Friendship_234_162Hz.bin"},
+	{"ringtone_Jazz_life_RTP_235_162Hz.bin"},
+	{"ringtone_Sun_glittering_RTP_236_162Hz.bin"},
+	{"notif_Allay_RTP_237_162Hz.bin"},
+	{"notif_Allusion_RTP_238_162Hz.bin"},
+	{"notif_Amiable_RTP_239_162Hz.bin"},
+	{"notif_Blare_RTP_240_162Hz.bin"},
+	{"notif_Blissful_RTP_241_162Hz.bin"},
+	{"notif_Brisk_RTP_242_162Hz.bin"},
+	{"notif_Bubble_RTP_243_162Hz.bin"},
+	{"notif_Cheerful_RTP_244_162Hz.bin"},
+	{"notif_Clear_RTP_245_162Hz.bin"},
+	{"notif_Comely_RTP_246_162Hz.bin"},
+	{"notif_Cozy_RTP_247_162Hz.bin"},
+	{"notif_Ding_RTP_248_162Hz.bin"},
+	{"notif_Effervesce_RTP_249_162Hz.bin"},
+	{"notif_Elegant_RTP_250_162Hz.bin"},
+	{"notif_Free_RTP_251_162Hz.bin"},
+	{"notif_Hallucination_RTP_252_162Hz.bin"},
+	{"notif_Inbound_RTP_253_162Hz.bin"},
+	{"notif_Light_RTP_254_162Hz.bin"},
+	{"notif_Meet_RTP_255_162Hz.bin"},
+	{"notif_Naivety_RTP_256_162Hz.bin"},
+	{"notif_Quickly_RTP_257_162Hz.bin"},
+	{"notif_Rhythm_RTP_258_162Hz.bin"},
+	{"notif_Surprise_RTP_259_162Hz.bin"},
+	{"notif_Twinkle_RTP_260_162Hz.bin"},
+	{"Version_Alert_RTP_261_162Hz.bin"},
+	{"alarm_Alarm_clock_RTP_262_162Hz.bin"},
+	{"alarm_Beep_RTP_263_162Hz.bin"},
+	{"alarm_Breeze_RTP_264_162Hz.bin"},
+	{"alarm_Dawn_RTP_265_162Hz.bin"},
+	{"alarm_Dream_RTP_266_162Hz.bin"},
+	{"alarm_Fluttering_RTP_267_162Hz.bin"},
+	{"alarm_Flyer_RTP_268_162Hz.bin"},
+	{"alarm_Interesting_RTP_269_162Hz.bin"},
+	{"alarm_Leisurely_RTP_270_162Hz.bin"},
+	{"alarm_Memory_RTP_271_162Hz.bin"},
+	{"alarm_Relieved_RTP_272_162Hz.bin"},
+	{"alarm_Ripple_RTP_273_162Hz.bin"},
+	{"alarm_Slowly_RTP_274_162Hz.bin"},
+	{"alarm_spring_RTP_275_162Hz.bin"},
+	{"alarm_Stars_RTP_276_162Hz.bin"},
+	{"alarm_Surging_RTP_277_162Hz.bin"},
+	{"alarm_tactfully_RTP_278_162Hz.bin"},
+	{"alarm_The_wind_RTP_279_162Hz.bin"},
+	{"alarm_Walking_in_the_rain_RTP_280_162Hz.bin"},
+	{"BoHaoPanAnJian_281.bin"},
+	{"BoHaoPanAnNiu_282.bin"},
+	{"BoHaoPanKuaiJie_283.bin"},
+	{"DianHuaGuaDuan_284.bin"},
+	{"DianJinMoShiQieHuan_285.bin"},
+	{"HuaDongTiaoZhenDong_286.bin"},
+	{"LeiShen_287.bin"},
+	{"XuanZhongYouXi_288.bin"},
+	{"YeJianMoShiDaZi_289.bin"},
+	{"YouXiSheZhiKuang_290.bin"},
+	{"ZhuanYeMoShi_291.bin"},
+	{"Climber_RTP_292_162Hz.bin"},
+	{"Chase_RTP_293_162Hz.bin"},
+	{"shuntai24k_rtp_294.bin"},
+	{"wentai24k_rtp_295.bin"},
+	{"20ms_RTP_296.bin"},
+	{"40ms_RTP_297.bin"},
+	{"60ms_RTP_298.bin"},
+	{"80ms_RTP_299.bin"},
+	{"100ms_RTP_300.bin"},
+	{"120ms_RTP_301.bin"},
+	{"140ms_RTP_302.bin"},
+	{"160ms_RTP_303.bin"},
+	{"180ms_RTP_304.bin"},
+	{"200ms_RTP_305.bin"},
+	{"220ms_RTP_306.bin"},
+	{"240ms_RTP_307.bin"},
+	{"260ms_RTP_308.bin"},
+	{"280ms_RTP_309.bin"},
+	{"300ms_RTP_310.bin"},
+	{"320ms_RTP_311.bin"},
+	{"340ms_RTP_312.bin"},
+	{"360ms_RTP_313.bin"},
+	{"380ms_RTP_314.bin"},
+	{"400ms_RTP_315.bin"},
+	{"420ms_RTP_316.bin"},
+	{"440ms_RTP_317.bin"},
+	{"460ms_RTP_318.bin"},
+	{"480ms_RTP_319.bin"},
+	{"500ms_RTP_320.bin"},
+	{"AT500ms_RTP_321.bin"},
+
+	{"aw8697_reserved_322.bin"},
+	{"aw8697_reserved_323.bin"},
+	{"aw8697_reserved_324.bin"},
+	{"aw8697_reserved_325.bin"},
+	{"aw8697_reserved_326.bin"},
+	{"aw8697_reserved_327.bin"},
+	{"aw8697_reserved_328.bin"},
+	{"aw8697_reserved_329.bin"},
+	{"aw8697_reserved_330.bin"},
+	{"aw8697_reserved_331.bin"},
+	{"aw8697_reserved_332.bin"},
+	{"aw8697_reserved_333.bin"},
+	{"aw8697_reserved_334.bin"},
+	{"aw8697_reserved_335.bin"},
+	{"aw8697_reserved_336.bin"},
+	{"aw8697_reserved_337.bin"},
+	{"aw8697_reserved_338.bin"},
+	{"aw8697_reserved_339.bin"},
+	{"aw8697_reserved_340.bin"},
+	{"aw8697_reserved_341.bin"},
+	{"aw8697_reserved_342.bin"},
+	{"aw8697_reserved_343.bin"},
+	{"aw8697_reserved_344.bin"},
+	{"aw8697_reserved_345.bin"},
+	{"aw8697_reserved_346.bin"},
+	{"aw8697_reserved_347.bin"},
+	{"aw8697_reserved_348.bin"},
+	{"aw8697_reserved_349.bin"},
+	{"aw8697_reserved_350.bin"},
+	{"aw8697_reserved_351.bin"},
+	{"aw8697_reserved_352.bin"},
+	{"aw8697_reserved_353.bin"},
+	{"aw8697_reserved_354.bin"},
+	{"aw8697_reserved_355.bin"},
+	{"aw8697_reserved_356.bin"},
+	{"aw8697_reserved_357.bin"},
+	{"aw8697_reserved_358.bin"},
+	{"aw8697_reserved_359.bin"},
+	{"aw8697_reserved_360.bin"},
+	{"aw8697_reserved_361.bin"},
+	{"aw8697_reserved_362.bin"},
+	{"aw8697_reserved_363.bin"},
+	{"aw8697_reserved_364.bin"},
+	{"aw8697_reserved_365.bin"},
+	{"aw8697_reserved_366.bin"},
+	{"aw8697_reserved_367.bin"},
+	{"aw8697_reserved_368.bin"},
+	{"aw8697_reserved_369.bin"},
+	{"aw8697_reserved_370.bin"},
+
+	/* Add for OS14 Start */
+	{"aw8697_Nightsky_RTP_371_162Hz.bin"},
+	{"aw8697_TheStars_RTP_372_162Hz.bin"},
+	{"aw8697_TheSunrise_RTP_373_162Hz.bin"},
+	{"aw8697_TheSunset_RTP_374_162Hz.bin"},
+	{"aw8697_Meditate_RTP_375_162Hz.bin"},
+	{"aw8697_Distant_RTP_376_162Hz.bin"},
+	{"aw8697_Pond_RTP_377_162Hz.bin"},
+	{"aw8697_Moonlotus_RTP_378_162Hz.bin"},
+	{"aw8697_Ripplingwater_RTP_379_162Hz.bin"},
+	{"aw8697_Shimmer_RTP_380_162Hz.bin"},
+	{"aw8697_Batheearth_RTP_381_162Hz.bin"},
+	{"aw8697_Junglemorning_RTP_382_162Hz.bin"},
+	{"aw8697_Silver_RTP_383_162Hz.bin"},
+	{"aw8697_Elegantquiet_RTP_384_162Hz.bin"},
+	{"aw8697_Summerbeach_RTP_385_162Hz.bin"},
+	{"aw8697_Summernight_RTP_386_162Hz.bin"},
+	{"aw8697_Icesnow_RTP_387_162Hz.bin"},
+	{"aw8697_Wintersnow_RTP_388_162Hz.bin"},
+	{"aw8697_Rainforest_RTP_389_162Hz.bin"},
+	{"aw8697_Raineverything_RTP_390_162Hz.bin"},
+	{"aw8697_Staracross_RTP_391_162Hz.bin"},
+	{"aw8697_Fullmoon_RTP_392_162Hz.bin"},
+	{"aw8697_Clouds_RTP_393_162Hz.bin"},
+	{"aw8697_Wonderland_RTP_394_162Hz.bin"},
+	{"aw8697_Still_RTP_395_162Hz.bin"},
+	{"aw8697_Haunting_RTP_396_162Hz.bin"},
+	{"aw8697_Dragonfly_RTP_397_162Hz.bin"},
+	{"aw8697_Dropwater_RTP_398_162Hz.bin"},
+	{"aw8697_Fluctuation_RTP_399_162Hz.bin"},
+	{"aw8697_Blow_RTP_400_162Hz.bin"},
+	{"aw8697_Leaveslight_RTP_401_162Hz.bin"},
+	{"aw8697_Warmsun_RTP_402_162Hz.bin"},
+	{"aw8697_Snowflake_RTP_403_162Hz.bin"},
+	{"aw8697_Crystalclear_RTP_404_162Hz.bin"},
+	{"aw8697_Insects_RTP_405_162Hz.bin"},
+	{"aw8697_Dew_RTP_406_162Hz.bin"},
+	{"aw8697_Shine_RTP_407_162Hz.bin"},
+	{"aw8697_Frost_RTP_408_162Hz.bin"},
+	{"aw8697_Rainsplash_RTP_409_162Hz.bin"},
+	{"aw8697_Raindrop_RTP_410_162Hz.bin"},
+	/* Add for OS14 End */
+};
+
+static char aw_rtp_name_166Hz[][AW_RTP_NAME_MAX] = {
+	{"aw8697_rtp.bin"},
+	{"aw8697_Hearty_channel_RTP_1.bin"},
+	{"aw8697_Instant_channel_RTP_2_166Hz.bin"},
+	{"aw8697_Music_channel_RTP_3.bin"},
+	{"aw8697_Percussion_channel_RTP_4.bin"},
+	{"aw8697_Ripple_channel_RTP_5.bin"},
+	{"aw8697_Bright_channel_RTP_6.bin"},
+	{"aw8697_Fun_channel_RTP_7.bin"},
+	{"aw8697_Glittering_channel_RTP_8.bin"},
+	{"aw8697_Granules_channel_RTP_9_166Hz.bin"},
+	{"aw8697_Harp_channel_RTP_10.bin"},
+	{"aw8697_Impression_channel_RTP_11.bin"},
+	{"aw8697_Ingenious_channel_RTP_12_166Hz.bin"},
+	{"aw8697_Joy_channel_RTP_13_166Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_14.bin"},
+	{"aw8697_Receive_channel_RTP_15_166Hz.bin"},
+	{"aw8697_Splash_channel_RTP_16_166Hz.bin"},
+	{"aw8697_About_School_RTP_17_166Hz.bin"},
+	{"aw8697_Bliss_RTP_18.bin"},
+	{"aw8697_Childhood_RTP_19_166Hz.bin"},
+	{"aw8697_Commuting_RTP_20_166Hz.bin"},
+	{"aw8697_Dream_RTP_21.bin"},
+	{"aw8697_Firefly_RTP_22_166Hz.bin"},
+	{"aw8697_Gathering_RTP_23.bin"},
+	{"aw8697_Gaze_RTP_24_166Hz.bin"},
+	{"aw8697_Lakeside_RTP_25_166Hz.bin"},
+	{"aw8697_Lifestyle_RTP_26.bin"},
+	{"aw8697_Memories_RTP_27_166Hz.bin"},
+	{"aw8697_Messy_RTP_28_166Hz.bin"},
+	{"aw8697_Night_RTP_29_166Hz.bin"},
+	{"aw8697_Passionate_Dance_RTP_30_166Hz.bin"},
+	{"aw8697_Playground_RTP_31_166Hz.bin"},
+	{"aw8697_Relax_RTP_32_166Hz.bin"},
+	{"aw8697_Reminiscence_RTP_33.bin"},
+	{"aw8697_Silence_From_Afar_RTP_34_166Hz.bin"},
+	{"aw8697_Silence_RTP_35_166Hz.bin"},
+	{"aw8697_Stars_RTP_36_166Hz.bin"},
+	{"aw8697_Summer_RTP_37_166Hz.bin"},
+	{"aw8697_Toys_RTP_38_166Hz.bin"},
+	{"aw8697_Travel_RTP_39.bin"},
+	{"aw8697_Vision_RTP_40.bin"},
+
+	{"aw8697_waltz_channel_RTP_41_166Hz.bin"},
+	{"aw8697_cut_channel_RTP_42_166Hz.bin"},
+	{"aw8697_clock_channel_RTP_43_166Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_44_166Hz.bin"},
+	{"aw8697_short_channel_RTP_45_166Hz.bin"},
+	{"aw8697_two_error_remaind_RTP_46_166Hz.bin"},
+
+	{"aw8697_kill_program_RTP_47_166Hz.bin"},
+	{"aw8697_Simple_channel_RTP_48.bin"},
+	{"aw8697_Pure_RTP_49_166Hz.bin"},
+	{"aw8697_reserved_sound_channel_RTP_50.bin"},
+
+	{"aw8697_high_temp_high_humidity_channel_RTP_51.bin"},
+	{"aw8697_old_steady_test_RTP_52.bin"},
+	{"aw8697_listen_pop_53.bin"},
+	{"aw8697_desk_7_RTP_54_166Hz.bin"},
+	{"aw8697_nfc_10_RTP_55_166Hz.bin"},
+	{"aw8697_vibrator_remain_12_RTP_56.bin"},
+	{"aw8697_notice_13_RTP_57.bin"},
+	{"aw8697_third_ring_14_RTP_58.bin"},
+	{"aw8697_reserved_59.bin"},
+
+	{"aw8697_honor_fisrt_kill_RTP_60_166Hz.bin"},
+	{"aw8697_honor_two_kill_RTP_61_166Hz.bin"},
+	{"aw8697_honor_three_kill_RTP_62_166Hz.bin"},
+	{"aw8697_honor_four_kill_RTP_63_166Hz.bin"},
+	{"aw8697_honor_five_kill_RTP_64_166Hz.bin"},
+	{"aw8697_honor_three_continu_kill_RTP_65_166Hz.bin"},
+	{"aw8697_honor_four_continu_kill_RTP_66_166Hz.bin"},
+	{"aw8697_honor_unstoppable_RTP_67_166Hz.bin"},
+	{"aw8697_honor_thousands_kill_RTP_68_166Hz.bin"},
+	{"aw8697_honor_lengendary_RTP_69_166Hz.bin"},
+
+	{"aw8697_Freshmorning_RTP_70_166Hz.bin"},
+	{"aw8697_Peaceful_RTP_71_166Hz.bin"},
+	{"aw8697_Cicada_RTP_72_166Hz.bin"},
+	{"aw8697_Electronica_RTP_73_166Hz.bin"},
+	{"aw8697_Holiday_RTP_74_166Hz.bin"},
+	{"aw8697_Funk_RTP_75_166Hz.bin"},
+	{"aw8697_House_RTP_76_166Hz.bin"},
+	{"aw8697_Temple_RTP_77_166Hz.bin"},
+	{"aw8697_Dreamyjazz_RTP_78_166Hz.bin"},
+	{"aw8697_Modern_RTP_79_166Hz.bin"},
+
+	{"aw8697_Round_RTP_80_166Hz.bin"},
+	{"aw8697_Rising_RTP_81_166Hz.bin"},
+	{"aw8697_Wood_RTP_82_166Hz.bin"},
+	{"aw8697_Heys_RTP_83_166Hz.bin"},
+	{"aw8697_Mbira_RTP_84_166Hz.bin"},
+	{"aw8697_News_RTP_85_166Hz.bin"},
+	{"aw8697_Peak_RTP_86_166Hz.bin"},
+	{"aw8697_Crisp_RTP_87_166Hz.bin"},
+	{"aw8697_Singingbowls_RTP_88_166Hz.bin"},
+	{"aw8697_Bounce_RTP_89_166Hz.bin"},
+
+	{"aw8697_reserved_90.bin"},
+	{"aw8697_reserved_91.bin"},
+	{"aw8697_reserved_92.bin"},
+	{"aw8697_reserved_93.bin"},
+	{"aw8697_ALCloudscape_94_166HZ.bin"},
+	{"aw8697_ALGoodenergy_95_166HZ.bin"},
+	{"aw8697_NTblink_96_166HZ.bin"},
+	{"aw8697_NTwhoop_97_166HZ.bin"},
+	{"aw8697_Newfeeling_98_166HZ.bin"},
+	{"aw8697_nature_99_166HZ.bin"},
+
+	{"aw8697_soldier_first_kill_RTP_100.bin"},
+	{"aw8697_soldier_second_kill_RTP_101.bin"},
+	{"aw8697_soldier_third_kill_RTP_102.bin"},
+	{"aw8697_soldier_fourth_kill_RTP_103.bin"},
+	{"aw8697_soldier_fifth_kill_RTP_104.bin"},
+	{"aw8697_stepable_regulate_RTP_105_166Hz.bin"},
+	{"aw8697_voice_level_bar_edge_RTP_106_166Hz.bin"},
+	{"aw8697_strength_level_bar_edge_RTP_107_166Hz.bin"},
+	{"aw8697_charging_simulation_RTP_108_166Hz.bin"},
+	{"aw8697_fingerprint_success_RTP_109_166Hz.bin"},
+
+	{"aw8697_fingerprint_effect1_RTP_110.bin"},
+	{"aw8697_fingerprint_effect2_RTP_111.bin"},
+	{"aw8697_fingerprint_effect3_RTP_112.bin"},
+	{"aw8697_fingerprint_effect4_RTP_113.bin"},
+	{"aw8697_fingerprint_effect5_RTP_114.bin"},
+	{"aw8697_fingerprint_effect6_RTP_115.bin"},
+	{"aw8697_fingerprint_effect7_RTP_116.bin"},
+	{"aw8697_fingerprint_effect8_RTP_117.bin"},
+	{"aw8697_breath_simulation_RTP_118_166Hz.bin"},
+	{"aw8697_Telcel_Torreblanca_RTP_119_166Hz.bin"},
+
+	{"aw8697_Miss_RTP_120.bin"},
+	{"aw8697_Scenic_RTP_121_166Hz.bin"},
+	{"aw8697_voice_assistant_RTP_122_166Hz.bin"},
+	{"aw8697_Appear_channel_RTP_123_166Hz.bin"},
+	{"aw8697_Miss_RTP_124_166Hz.bin"},
+	{"aw8697_Music_channel_RTP_125_166Hz.bin"},
+	{"aw8697_Percussion_channel_RTP_126_166Hz.bin"},
+	{"aw8697_Ripple_channel_RTP_127_166Hz.bin"},
+	{"aw8697_Bright_channel_RTP_128_166Hz.bin"},
+	{"aw8697_Fun_channel_RTP_129_166Hz.bin"},
+	{"aw8697_Glittering_channel_RTP_130_166Hz.bin"},
+	{"aw8697_Harp_channel_RTP_131_166Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_132_166Hz.bin"},
+	{"aw8697_Simple_channel_RTP_133_166Hz.bin"},
+	{"aw8697_Seine_past_RTP_134_166Hz.bin"},
+	{"aw8697_Classical_ring_RTP_135_166Hz.bin"},
+	{"aw8697_Long_for_RTP_136_166Hz.bin"},
+	{"aw8697_Romantic_RTP_137_166Hz.bin"},
+	{"aw8697_Bliss_RTP_138_166Hz.bin"},
+	{"aw8697_Dream_RTP_139_166Hz.bin"},
+	{"aw8697_Relax_RTP_140_166Hz.bin"},
+	{"aw8697_Joy_channel_RTP_141_166Hz.bin"},
+	{"aw8697_weather_wind_RTP_142.bin"},
+	{"aw8697_weather_cloudy_RTP_143.bin"},
+	{"aw8697_weather_thunderstorm_RTP_144.bin"},
+	{"aw8697_weather_default_RTP_145.bin"},
+	{"aw8697_weather_sunny_RTP_146.bin"},
+	{"aw8697_weather_smog_RTP_147.bin"},
+	{"aw8697_weather_snow_RTP_148.bin"},
+	{"aw8697_weather_rain_RTP_149.bin"},
+
+	{"aw8697_Master_Notification_RTP_150_166Hz.bin"},
+	{"aw8697_Master_Artist_Ringtong_RTP_151_166Hz.bin"},
+	{"aw8697_Master_Text_RTP_152_166Hz.bin"},
+	{"aw8697_Master_Artist_Alarm_RTP_153_166Hz.bin"},
+	{"aw8697_reserved_154.bin"},
+	{"aw8697_reserved_155.bin"},
+	{"aw8697_reserved_156.bin"},
+	{"aw8697_reserved_157.bin"},
+	{"aw8697_reserved_158.bin"},
+	{"aw8697_reserved_159.bin"},
+	{"aw8697_reserved_160.bin"},
+
+	{"aw8697_oplus_its_oplus_RTP_161_166Hz.bin"},
+	{"aw8697_oplus_tune_RTP_162_166Hz.bin"},
+	{"aw8697_oplus_jingle_RTP_163_166Hz.bin"},
+	{"aw8697_reserved_164.bin"},
+	{"aw8697_reserved_165.bin"},
+	{"aw8697_reserved_166.bin"},
+	{"aw8697_reserved_167.bin"},
+	{"aw8697_reserved_168.bin"},
+	{"aw8697_reserved_169.bin"},
+	{"aw8697_oplus_gt_RTP_170_166Hz.bin"},
+
+	{"aw8697_Threefingers_Long_RTP_171.bin"},
+	{"aw8697_Threefingers_Up_RTP_172.bin"},
+	{"aw8697_Threefingers_Screenshot_RTP_173.bin"},
+	{"aw8697_Unfold_RTP_174.bin"},
+	{"aw8697_Close_RTP_175.bin"},
+	{"aw8697_HalfLap_RTP_176.bin"},
+	{"aw8697_Twofingers_Down_RTP_177.bin"},
+	{"aw8697_Twofingers_Long_RTP_178.bin"},
+	{"aw8697_Compatible_1_RTP_179.bin"},
+	{"aw8697_Compatible_2_RTP_180.bin"},
+	{"aw8697_Styleswitch_RTP_181.bin"},
+	{"aw8697_Waterripple_RTP_182.bin"},
+	{"aw8697_Suspendbutton_Bottomout_RTP_183.bin"},
+	{"aw8697_Suspendbutton_Menu_RTP_184.bin"},
+	{"aw8697_Complete_RTP_185.bin"},
+	{"aw8697_Bulb_RTP_186.bin"},
+	{"aw8697_Elasticity_RTP_187.bin"},
+	{"aw8697_reserved_188.bin"},
+	{"aw8697_reserved_189.bin"},
+	{"aw8697_reserved_190.bin"},
+	{"aw8697_reserved_191.bin"},
+	{"aw8697_reserved_192.bin"},
+	{"aw8697_reserved_193.bin"},
+	{"aw8697_reserved_194.bin"},
+	{"aw8697_reserved_195.bin"},
+	{"aw8697_reserved_196.bin"},
+	{"aw8697_reserved_197.bin"},
+	{"alarm_Pacman_RTP_198.bin"},
+	{"notif_Pacman_RTP_199.bin"},
+	{"ringtone_Pacman_RTP_200.bin"},
+	{"ringtone_Alacrity_RTP_201_166Hz.bin"},
+	{"ring_Amenity_RTP_202_166Hz.bin"},
+	{"ringtone_Blues_RTP_203_166Hz.bin"},
+	{"ring_Bounce_RTP_204_166Hz.bin"},
+	{"ring_Calm_RTP_205_166Hz.bin"},
+	{"ringtone_Cloud_RTP_206_166Hz.bin"},
+	{"ringtone_Cyclotron_RTP_207_166Hz.bin"},
+	{"ringtone_Distinct_RTP_208_166Hz.bin"},
+	{"ringtone_Dynamic_RTP_209_166Hz.bin"},
+	{"ringtone_Echo_RTP_210_166Hz.bin"},
+	{"ringtone_Expect_RTP_211_166Hz.bin"},
+	{"ringtone_Fanatical_RTP_212_166Hz.bin"},
+	{"ringtone_Funky_RTP_213_166Hz.bin"},
+	{"ringtone_Guitar_RTP_214_166Hz.bin"},
+	{"ringtone_Harping_RTP_215_166Hz.bin"},
+	{"ringtone_Highlight_RTP_216_166Hz.bin"},
+	{"ringtone_Idyl_RTP_217_166Hz.bin"},
+	{"ringtone_Innocence_RTP_218_166Hz.bin"},
+	{"ringtone_Journey_RTP_219_166Hz.bin"},
+	{"ringtone_Joyous_RTP_220_166Hz.bin"},
+	{"ring_Lazy_RTP_221_166Hz.bin"},
+	{"ringtone_Marimba_RTP_222_166Hz.bin"},
+	{"ring_Mystical_RTP_223_166Hz.bin"},
+	{"ringtone_Old_telephone_RTP_224_166Hz.bin"},
+	{"ringtone_Oneplus_tune_RTP_225_166Hz.bin"},
+	{"ringtone_Rhythm_RTP_226_166Hz.bin"},
+	{"ringtone_Optimistic_RTP_227_166Hz.bin"},
+	{"ringtone_Piano_RTP_228_166Hz.bin"},
+	{"ring_Whirl_RTP_229_166Hz.bin"},
+	{"VZW_Alrwave_RTP_230.bin"},
+	{"t-jingle_RTP_231.bin"},
+	{"ringtone_Eager_232_166Hz.bin"},
+	{"ringtone_Ebullition_233_166Hz.bin"},
+	{"ringtone_Friendship_234_166Hz.bin"},
+	{"ringtone_Jazz_life_RTP_235_166Hz.bin"},
+	{"ringtone_Sun_glittering_RTP_236_166Hz.bin"},
+	{"notif_Allay_RTP_237_166Hz.bin"},
+	{"notif_Allusion_RTP_238_166Hz.bin"},
+	{"notif_Amiable_RTP_239_166Hz.bin"},
+	{"notif_Blare_RTP_240_166Hz.bin"},
+	{"notif_Blissful_RTP_241_166Hz.bin"},
+	{"notif_Brisk_RTP_242_166Hz.bin"},
+	{"notif_Bubble_RTP_243_166Hz.bin"},
+	{"notif_Cheerful_RTP_244_166Hz.bin"},
+	{"notif_Clear_RTP_245_166Hz.bin"},
+	{"notif_Comely_RTP_246_166Hz.bin"},
+	{"notif_Cozy_RTP_247_166Hz.bin"},
+	{"notif_Ding_RTP_248_166Hz.bin"},
+	{"notif_Effervesce_RTP_249_166Hz.bin"},
+	{"notif_Elegant_RTP_250_166Hz.bin"},
+	{"notif_Free_RTP_251_166Hz.bin"},
+	{"notif_Hallucination_RTP_252_166Hz.bin"},
+	{"notif_Inbound_RTP_253_166Hz.bin"},
+	{"notif_Light_RTP_254_166Hz.bin"},
+	{"notif_Meet_RTP_255_166Hz.bin"},
+	{"notif_Naivety_RTP_256_166Hz.bin"},
+	{"notif_Quickly_RTP_257_166Hz.bin"},
+	{"notif_Rhythm_RTP_258_166Hz.bin"},
+	{"notif_Surprise_RTP_259_166Hz.bin"},
+	{"notif_Twinkle_RTP_260_166Hz.bin"},
+	{"Version_Alert_RTP_261.bin"},
+	{"alarm_Alarm_clock_RTP_262_166Hz.bin"},
+	{"alarm_Beep_RTP_263_166Hz.bin"},
+	{"alarm_Breeze_RTP_264_166Hz.bin"},
+	{"alarm_Dawn_RTP_265_166Hz.bin"},
+	{"alarm_Dream_RTP_266_166Hz.bin"},
+	{"alarm_Fluttering_RTP_267_166Hz.bin"},
+	{"alarm_Flyer_RTP_268_166Hz.bin"},
+	{"alarm_Interesting_RTP_269_166Hz.bin"},
+	{"alarm_Leisurely_RTP_270_166Hz.bin"},
+	{"alarm_Memory_RTP_271_166Hz.bin"},
+	{"alarm_Relieved_RTP_272_166Hz.bin"},
+	{"alarm_Ripple_RTP_273_166Hz.bin"},
+	{"alarm_Slowly_RTP_274_166Hz.bin"},
+	{"alarm_spring_RTP_275_166Hz.bin"},
+	{"alarm_Stars_RTP_276_166Hz.bin"},
+	{"alarm_Surging_RTP_277_166Hz.bin"},
+	{"alarm_tactfully_RTP_278_166Hz.bin"},
+	{"alarm_The_wind_RTP_279_166Hz.bin"},
+	{"alarm_Walking_in_the_rain_RTP_280_166Hz.bin"},
+	{"BoHaoPanAnJian_281.bin"},
+	{"BoHaoPanAnNiu_282.bin"},
+	{"BoHaoPanKuaiJie_283.bin"},
+	{"DianHuaGuaDuan_284.bin"},
+	{"DianJinMoShiQieHuan_285.bin"},
+	{"HuaDongTiaoZhenDong_286.bin"},
+	{"LeiShen_287.bin"},
+	{"XuanZhongYouXi_288.bin"},
+	{"YeJianMoShiDaZi_289.bin"},
+	{"YouXiSheZhiKuang_290.bin"},
+	{"ZhuanYeMoShi_291.bin"},
+	{"Climber_RTP_292_166Hz.bin"},
+	{"Chase_RTP_293_166Hz.bin"},
+	{"shuntai24k_rtp_294.bin"},
+	{"wentai24k_rtp_295.bin"},
+	{"20ms_RTP_296.bin"},
+	{"40ms_RTP_297.bin"},
+	{"60ms_RTP_298.bin"},
+	{"80ms_RTP_299.bin"},
+	{"100ms_RTP_300.bin"},
+	{"120ms_RTP_301.bin"},
+	{"140ms_RTP_302.bin"},
+	{"160ms_RTP_303.bin"},
+	{"180ms_RTP_304.bin"},
+	{"200ms_RTP_305.bin"},
+	{"220ms_RTP_306.bin"},
+	{"240ms_RTP_307.bin"},
+	{"260ms_RTP_308.bin"},
+	{"280ms_RTP_309.bin"},
+	{"300ms_RTP_310.bin"},
+	{"320ms_RTP_311.bin"},
+	{"340ms_RTP_312.bin"},
+	{"360ms_RTP_313.bin"},
+	{"380ms_RTP_314.bin"},
+	{"400ms_RTP_315.bin"},
+	{"420ms_RTP_316.bin"},
+	{"440ms_RTP_317.bin"},
+	{"460ms_RTP_318.bin"},
+	{"480ms_RTP_319.bin"},
+	{"500ms_RTP_320.bin"},
+	{"AT500ms_RTP_321.bin"},
+
+	{"aw8697_reserved_322.bin"},
+	{"aw8697_reserved_323.bin"},
+	{"aw8697_reserved_324.bin"},
+	{"aw8697_reserved_325.bin"},
+	{"aw8697_reserved_326.bin"},
+	{"aw8697_reserved_327.bin"},
+	{"aw8697_reserved_328.bin"},
+	{"aw8697_reserved_329.bin"},
+	{"aw8697_reserved_330.bin"},
+	{"aw8697_reserved_331.bin"},
+	{"aw8697_reserved_332.bin"},
+	{"aw8697_reserved_333.bin"},
+	{"aw8697_reserved_334.bin"},
+	{"aw8697_reserved_335.bin"},
+	{"aw8697_reserved_336.bin"},
+	{"aw8697_reserved_337.bin"},
+	{"aw8697_reserved_338.bin"},
+	{"aw8697_reserved_339.bin"},
+	{"aw8697_reserved_340.bin"},
+	{"aw8697_reserved_341.bin"},
+	{"aw8697_reserved_342.bin"},
+	{"aw8697_reserved_343.bin"},
+	{"aw8697_reserved_344.bin"},
+	{"aw8697_reserved_345.bin"},
+	{"aw8697_reserved_346.bin"},
+	{"aw8697_reserved_347.bin"},
+	{"aw8697_reserved_348.bin"},
+	{"aw8697_reserved_349.bin"},
+	{"aw8697_reserved_350.bin"},
+	{"aw8697_reserved_351.bin"},
+	{"aw8697_reserved_352.bin"},
+	{"aw8697_reserved_353.bin"},
+	{"aw8697_reserved_354.bin"},
+	{"aw8697_reserved_355.bin"},
+	{"aw8697_reserved_356.bin"},
+	{"aw8697_reserved_357.bin"},
+	{"aw8697_reserved_358.bin"},
+	{"aw8697_reserved_359.bin"},
+	{"aw8697_reserved_360.bin"},
+	{"aw8697_reserved_361.bin"},
+	{"aw8697_reserved_362.bin"},
+	{"aw8697_reserved_363.bin"},
+	{"aw8697_reserved_364.bin"},
+	{"aw8697_reserved_365.bin"},
+	{"aw8697_reserved_366.bin"},
+	{"aw8697_reserved_367.bin"},
+	{"aw8697_reserved_368.bin"},
+	{"aw8697_reserved_369.bin"},
+	{"aw8697_reserved_370.bin"},
+
+	/* Add for OS14 Start */
+	{"aw8697_Nightsky_RTP_371_166Hz.bin"},
+	{"aw8697_TheStars_RTP_372_166Hz.bin"},
+	{"aw8697_TheSunrise_RTP_373_166Hz.bin"},
+	{"aw8697_TheSunset_RTP_374_166Hz.bin"},
+	{"aw8697_Meditate_RTP_375_166Hz.bin"},
+	{"aw8697_Distant_RTP_376_166Hz.bin"},
+	{"aw8697_Pond_RTP_377_166Hz.bin"},
+	{"aw8697_Moonlotus_RTP_378_166Hz.bin"},
+	{"aw8697_Ripplingwater_RTP_379_166Hz.bin"},
+	{"aw8697_Shimmer_RTP_380_166Hz.bin"},
+	{"aw8697_Batheearth_RTP_381_166Hz.bin"},
+	{"aw8697_Junglemorning_RTP_382_166Hz.bin"},
+	{"aw8697_Silver_RTP_383_166Hz.bin"},
+	{"aw8697_Elegantquiet_RTP_384_166Hz.bin"},
+	{"aw8697_Summerbeach_RTP_385_166Hz.bin"},
+	{"aw8697_Summernight_RTP_386_166Hz.bin"},
+	{"aw8697_Icesnow_RTP_387_166Hz.bin"},
+	{"aw8697_Wintersnow_RTP_388_166Hz.bin"},
+	{"aw8697_Rainforest_RTP_389_166Hz.bin"},
+	{"aw8697_Raineverything_RTP_390_166Hz.bin"},
+	{"aw8697_Staracross_RTP_391_166Hz.bin"},
+	{"aw8697_Fullmoon_RTP_392_166Hz.bin"},
+	{"aw8697_Clouds_RTP_393_166Hz.bin"},
+	{"aw8697_Wonderland_RTP_394_166Hz.bin"},
+	{"aw8697_Still_RTP_395_166Hz.bin"},
+	{"aw8697_Haunting_RTP_396_166Hz.bin"},
+	{"aw8697_Dragonfly_RTP_397_166Hz.bin"},
+	{"aw8697_Dropwater_RTP_398_166Hz.bin"},
+	{"aw8697_Fluctuation_RTP_399_166Hz.bin"},
+	{"aw8697_Blow_RTP_400_166Hz.bin"},
+	{"aw8697_Leaveslight_RTP_401_166Hz.bin"},
+	{"aw8697_Warmsun_RTP_402_166Hz.bin"},
+	{"aw8697_Snowflake_RTP_403_166Hz.bin"},
+	{"aw8697_Crystalclear_RTP_404_166Hz.bin"},
+	{"aw8697_Insects_RTP_405_166Hz.bin"},
+	{"aw8697_Dew_RTP_406_166Hz.bin"},
+	{"aw8697_Shine_RTP_407_166Hz.bin"},
+	{"aw8697_Frost_RTP_408_166Hz.bin"},
+	{"aw8697_Rainsplash_RTP_409_166Hz.bin"},
+	{"aw8697_Raindrop_RTP_410_166Hz.bin"},
+	/* Add for OS14 End */
+};
+
+static char aw_rtp_name_174Hz[][AW_RTP_NAME_MAX] = {
+	{"aw8697_rtp.bin"},
+	{"aw8697_Hearty_channel_RTP_1.bin"},
+	{"aw8697_Instant_channel_RTP_2_174Hz.bin"},
+	{"aw8697_Music_channel_RTP_3.bin"},
+	{"aw8697_Percussion_channel_RTP_4.bin"},
+	{"aw8697_Ripple_channel_RTP_5.bin"},
+	{"aw8697_Bright_channel_RTP_6.bin"},
+	{"aw8697_Fun_channel_RTP_7.bin"},
+	{"aw8697_Glittering_channel_RTP_8.bin"},
+	{"aw8697_Granules_channel_RTP_9_174Hz.bin"},
+	{"aw8697_Harp_channel_RTP_10.bin"},
+	{"aw8697_Impression_channel_RTP_11.bin"},
+	{"aw8697_Ingenious_channel_RTP_12_174Hz.bin"},
+	{"aw8697_Joy_channel_RTP_13_174Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_14.bin"},
+	{"aw8697_Receive_channel_RTP_15_174Hz.bin"},
+	{"aw8697_Splash_channel_RTP_16_174Hz.bin"},
+	{"aw8697_About_School_RTP_17_174Hz.bin"},
+	{"aw8697_Bliss_RTP_18.bin"},
+	{"aw8697_Childhood_RTP_19_174Hz.bin"},
+	{"aw8697_Commuting_RTP_20_174Hz.bin"},
+	{"aw8697_Dream_RTP_21.bin"},
+	{"aw8697_Firefly_RTP_22_174Hz.bin"},
+	{"aw8697_Gathering_RTP_23.bin"},
+	{"aw8697_Gaze_RTP_24_174Hz.bin"},
+	{"aw8697_Lakeside_RTP_25_174Hz.bin"},
+	{"aw8697_Lifestyle_RTP_26.bin"},
+	{"aw8697_Memories_RTP_27_174Hz.bin"},
+	{"aw8697_Messy_RTP_28_174Hz.bin"},
+	{"aw8697_Night_RTP_29_174Hz.bin"},
+	{"aw8697_Passionate_Dance_RTP_30_174Hz.bin"},
+	{"aw8697_Playground_RTP_31_174Hz.bin"},
+	{"aw8697_Relax_RTP_32_174Hz.bin"},
+	{"aw8697_Reminiscence_RTP_33.bin"},
+	{"aw8697_Silence_From_Afar_RTP_34_174Hz.bin"},
+	{"aw8697_Silence_RTP_35_174Hz.bin"},
+	{"aw8697_Stars_RTP_36_174Hz.bin"},
+	{"aw8697_Summer_RTP_37_174Hz.bin"},
+	{"aw8697_Toys_RTP_38_174Hz.bin"},
+	{"aw8697_Travel_RTP_39.bin"},
+	{"aw8697_Vision_RTP_40.bin"},
+
+	{"aw8697_waltz_channel_RTP_41_174Hz.bin"},
+	{"aw8697_cut_channel_RTP_42_174Hz.bin"},
+	{"aw8697_clock_channel_RTP_43_174Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_44_174Hz.bin"},
+	{"aw8697_short_channel_RTP_45_174Hz.bin"},
+	{"aw8697_two_error_remaind_RTP_46_174Hz.bin"},
+	{"aw8697_kill_program_RTP_47_174Hz.bin"},
+	{"aw8697_Simple_channel_RTP_48.bin"},
+	{"aw8697_Pure_RTP_49_174Hz.bin"},
+	{"aw8697_reserved_sound_channel_RTP_50.bin"},
+
+	{"aw8697_high_temp_high_humidity_channel_RTP_51.bin"},
+	{"aw8697_old_steady_test_RTP_52.bin"},
+	{"aw8697_listen_pop_53.bin"},
+	{"aw8697_desk_7_RTP_54_174Hz.bin"},
+	{"aw8697_nfc_10_RTP_55_174Hz.bin"},
+	{"aw8697_vibrator_remain_12_RTP_56.bin"},
+	{"aw8697_notice_13_RTP_57.bin"},
+	{"aw8697_third_ring_14_RTP_58.bin"},
+	{"aw8697_reserved_59.bin"},
+
+	{"aw8697_honor_fisrt_kill_RTP_60_174Hz.bin"},
+	{"aw8697_honor_two_kill_RTP_61_174Hz.bin"},
+	{"aw8697_honor_three_kill_RTP_62_174Hz.bin"},
+	{"aw8697_honor_four_kill_RTP_63_174Hz.bin"},
+	{"aw8697_honor_five_kill_RTP_64_174Hz.bin"},
+	{"aw8697_honor_three_continu_kill_RTP_65_174Hz.bin"},
+	{"aw8697_honor_four_continu_kill_RTP_66_174Hz.bin"},
+	{"aw8697_honor_unstoppable_RTP_67_174Hz.bin"},
+	{"aw8697_honor_thousands_kill_RTP_68_174Hz.bin"},
+	{"aw8697_honor_lengendary_RTP_69_174Hz.bin"},
+
+	{"aw8697_Freshmorning_RTP_70_174Hz.bin"},
+	{"aw8697_Peaceful_RTP_71_174Hz.bin"},
+	{"aw8697_Cicada_RTP_72_174Hz.bin"},
+	{"aw8697_Electronica_RTP_73_174Hz.bin"},
+	{"aw8697_Holiday_RTP_74_174Hz.bin"},
+	{"aw8697_Funk_RTP_75_174Hz.bin"},
+	{"aw8697_House_RTP_76_174Hz.bin"},
+	{"aw8697_Temple_RTP_77_174Hz.bin"},
+	{"aw8697_Dreamyjazz_RTP_78_174Hz.bin"},
+	{"aw8697_Modern_RTP_79_174Hz.bin"},
+	{"aw8697_Round_RTP_80_174Hz.bin"},
+	{"aw8697_Rising_RTP_81_174Hz.bin"},
+	{"aw8697_Wood_RTP_82_174Hz.bin"},
+	{"aw8697_Heys_RTP_83_174Hz.bin"},
+	{"aw8697_Mbira_RTP_84_174Hz.bin"},
+	{"aw8697_News_RTP_85_174Hz.bin"},
+	{"aw8697_Peak_RTP_86_174Hz.bin"},
+	{"aw8697_Crisp_RTP_87_174Hz.bin"},
+	{"aw8697_Singingbowls_RTP_88_174Hz.bin"},
+	{"aw8697_Bounce_RTP_89_174Hz.bin"},
+
+	{"aw8697_reserved_90.bin"},
+	{"aw8697_reserved_91.bin"},
+	{"aw8697_reserved_92.bin"},
+	{"aw8697_reserved_93.bin"},
+	{"aw8697_ALCloudscape_94_174HZ.bin"},
+	{"aw8697_ALGoodenergy_95_174HZ.bin"},
+	{"aw8697_NTblink_96_174HZ.bin"},
+	{"aw8697_NTwhoop_97_174HZ.bin"},
+	{"aw8697_Newfeeling_98_174HZ.bin"},
+	{"aw8697_nature_99_174HZ.bin"},
+
+	{"aw8697_soldier_first_kill_RTP_100.bin"},
+	{"aw8697_soldier_second_kill_RTP_101.bin"},
+	{"aw8697_soldier_third_kill_RTP_102.bin"},
+	{"aw8697_soldier_fourth_kill_RTP_103.bin"},
+	{"aw8697_soldier_fifth_kill_RTP_104.bin"},
+	{"aw8697_stepable_regulate_RTP_105_174Hz.bin"},
+	{"aw8697_voice_level_bar_edge_RTP_106_174Hz.bin"},
+	{"aw8697_strength_level_bar_edge_RTP_107_174Hz.bin"},
+	{"aw8697_charging_simulation_RTP_108_174Hz.bin"},
+	{"aw8697_fingerprint_success_RTP_109_174Hz.bin"},
+
+	{"aw8697_fingerprint_effect1_RTP_110.bin"},
+	{"aw8697_fingerprint_effect2_RTP_111.bin"},
+	{"aw8697_fingerprint_effect3_RTP_112.bin"},
+	{"aw8697_fingerprint_effect4_RTP_113.bin"},
+	{"aw8697_fingerprint_effect5_RTP_114.bin"},
+	{"aw8697_fingerprint_effect6_RTP_115.bin"},
+	{"aw8697_fingerprint_effect7_RTP_116.bin"},
+	{"aw8697_fingerprint_effect8_RTP_117.bin"},
+	{"aw8697_breath_simulation_RTP_118_174Hz.bin"},
+	{"aw8697_Telcel_Torreblanca_RTP_119_174Hz.bin"},
+
+	{"aw8697_Miss_RTP_120.bin"},
+	{"aw8697_Scenic_RTP_121_174Hz.bin"},
+	{"aw8697_voice_assistant_RTP_122_174Hz.bin"},
+	{"aw8697_Appear_channel_RTP_123_174Hz.bin"},
+	{"aw8697_Miss_RTP_124_174Hz.bin"},
+	{"aw8697_Music_channel_RTP_125_174Hz.bin"},
+	{"aw8697_Percussion_channel_RTP_126_174Hz.bin"},
+	{"aw8697_Ripple_channel_RTP_127_174Hz.bin"},
+	{"aw8697_Bright_channel_RTP_128_174Hz.bin"},
+	{"aw8697_Fun_channel_RTP_129_174Hz.bin"},
+	{"aw8697_Glittering_channel_RTP_130_174Hz.bin"},
+	{"aw8697_Harp_channel_RTP_131_174Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_132_174Hz.bin"},
+	{"aw8697_Simple_channel_RTP_133_174Hz.bin"},
+	{"aw8697_Seine_past_RTP_134_174Hz.bin"},
+	{"aw8697_Classical_ring_RTP_135_174Hz.bin"},
+	{"aw8697_Long_for_RTP_136_174Hz.bin"},
+	{"aw8697_Romantic_RTP_137_174Hz.bin"},
+	{"aw8697_Bliss_RTP_138_174Hz.bin"},
+	{"aw8697_Dream_RTP_139_174Hz.bin"},
+	{"aw8697_Relax_RTP_140_174Hz.bin"},
+	{"aw8697_Joy_channel_RTP_141_174Hz.bin"},
+	{"aw8697_weather_wind_RTP_142.bin"},
+	{"aw8697_weather_cloudy_RTP_143.bin"},
+	{"aw8697_weather_thunderstorm_RTP_144.bin"},
+	{"aw8697_weather_default_RTP_145.bin"},
+	{"aw8697_weather_sunny_RTP_146.bin"},
+	{"aw8697_weather_smog_RTP_147.bin"},
+	{"aw8697_weather_snow_RTP_148.bin"},
+	{"aw8697_weather_rain_RTP_149.bin"},
+
+	{"aw8697_Master_Notification_RTP_150_174Hz.bin"},
+	{"aw8697_Master_Artist_Ringtong_RTP_151_174Hz.bin"},
+	{"aw8697_Master_Text_RTP_152_174Hz.bin"},
+	{"aw8697_Master_Artist_Alarm_RTP_153_174Hz.bin"},
+	{"aw8697_reserved_154.bin"},
+	{"aw8697_reserved_155.bin"},
+	{"aw8697_reserved_156.bin"},
+	{"aw8697_reserved_157.bin"},
+	{"aw8697_reserved_158.bin"},
+	{"aw8697_reserved_159.bin"},
+	{"aw8697_reserved_160.bin"},
+
+	{"aw8697_oplus_its_oplus_RTP_161_174Hz.bin"},
+	{"aw8697_oplus_tune_RTP_162_174Hz.bin"},
+	{"aw8697_oplus_jingle_RTP_163_174Hz.bin"},
+	{"aw8697_reserved_164.bin"},
+	{"aw8697_reserved_165.bin"},
+	{"aw8697_reserved_166.bin"},
+	{"aw8697_reserved_167.bin"},
+	{"aw8697_reserved_168.bin"},
+	{"aw8697_reserved_169.bin"},
+	{"aw8697_oplus_gt_RTP_170_174Hz.bin"},
+
+	{"aw8697_Threefingers_Long_RTP_171.bin"},
+	{"aw8697_Threefingers_Up_RTP_172.bin"},
+	{"aw8697_Threefingers_Screenshot_RTP_173.bin"},
+	{"aw8697_Unfold_RTP_174.bin"},
+	{"aw8697_Close_RTP_175.bin"},
+	{"aw8697_HalfLap_RTP_176.bin"},
+	{"aw8697_Twofingers_Down_RTP_177.bin"},
+	{"aw8697_Twofingers_Long_RTP_178.bin"},
+	{"aw8697_Compatible_1_RTP_179.bin"},
+	{"aw8697_Compatible_2_RTP_180.bin"},
+	{"aw8697_Styleswitch_RTP_181.bin"},
+	{"aw8697_Waterripple_RTP_182.bin"},
+	{"aw8697_Suspendbutton_Bottomout_RTP_183.bin"},
+	{"aw8697_Suspendbutton_Menu_RTP_184.bin"},
+	{"aw8697_Complete_RTP_185.bin"},
+	{"aw8697_Bulb_RTP_186.bin"},
+	{"aw8697_Elasticity_RTP_187.bin"},
+	{"aw8697_reserved_188.bin"},
+	{"aw8697_reserved_189.bin"},
+	{"aw8697_reserved_190.bin"},
+	{"aw8697_reserved_191.bin"},
+	{"aw8697_reserved_192.bin"},
+	{"aw8697_reserved_193.bin"},
+	{"aw8697_reserved_194.bin"},
+	{"aw8697_reserved_195.bin"},
+	{"aw8697_reserved_196.bin"},
+	{"aw8697_reserved_197.bin"},
+	{"alarm_Pacman_RTP_198.bin"},
+	{"notif_Pacman_RTP_199.bin"},
+	{"ringtone_Pacman_RTP_200.bin"},
+	{"ringtone_Alacrity_RTP_201_174Hz.bin"},
+	{"ring_Amenity_RTP_202_174Hz.bin"},
+	{"ringtone_Blues_RTP_203_174Hz.bin"},
+	{"ring_Bounce_RTP_204_174Hz.bin"},
+	{"ring_Calm_RTP_205_174Hz.bin"},
+	{"ringtone_Cloud_RTP_206_174Hz.bin"},
+	{"ringtone_Cyclotron_RTP_207_174Hz.bin"},
+	{"ringtone_Distinct_RTP_208_174Hz.bin"},
+	{"ringtone_Dynamic_RTP_209_174Hz.bin"},
+	{"ringtone_Echo_RTP_210_174Hz.bin"},
+	{"ringtone_Expect_RTP_211_174Hz.bin"},
+	{"ringtone_Fanatical_RTP_212_174Hz.bin"},
+	{"ringtone_Funky_RTP_213_174Hz.bin"},
+	{"ringtone_Guitar_RTP_214_174Hz.bin"},
+	{"ringtone_Harping_RTP_215_174Hz.bin"},
+	{"ringtone_Highlight_RTP_216_174Hz.bin"},
+	{"ringtone_Idyl_RTP_217_174Hz.bin"},
+	{"ringtone_Innocence_RTP_218_174Hz.bin"},
+	{"ringtone_Journey_RTP_219_174Hz.bin"},
+	{"ringtone_Joyous_RTP_220_174Hz.bin"},
+	{"ring_Lazy_RTP_221_174Hz.bin"},
+	{"ringtone_Marimba_RTP_222_174Hz.bin"},
+	{"ring_Mystical_RTP_223_174Hz.bin"},
+	{"ringtone_Old_telephone_RTP_224_174Hz.bin"},
+	{"ringtone_Oneplus_tune_RTP_225_174Hz.bin"},
+	{"ringtone_Rhythm_RTP_226_174Hz.bin"},
+	{"ringtone_Optimistic_RTP_227_174Hz.bin"},
+	{"ringtone_Piano_RTP_228_174Hz.bin"},
+	{"ring_Whirl_RTP_229_174Hz.bin"},
+	{"VZW_Alrwave_RTP_230.bin"},
+	{"t-jingle_RTP_231.bin"},
+	{"ringtone_Eager_232_174Hz.bin"},
+	{"ringtone_Ebullition_233_174Hz.bin"},
+	{"ringtone_Friendship_234_174Hz.bin"},
+	{"ringtone_Jazz_life_RTP_235_174Hz.bin"},
+	{"ringtone_Sun_glittering_RTP_236_174Hz.bin"},
+	{"notif_Allay_RTP_237_174Hz.bin"},
+	{"notif_Allusion_RTP_238_174Hz.bin"},
+	{"notif_Amiable_RTP_239_174Hz.bin"},
+	{"notif_Blare_RTP_240_174Hz.bin"},
+	{"notif_Blissful_RTP_241_174Hz.bin"},
+	{"notif_Brisk_RTP_242_174Hz.bin"},
+	{"notif_Bubble_RTP_243_174Hz.bin"},
+	{"notif_Cheerful_RTP_244_174Hz.bin"},
+	{"notif_Clear_RTP_245_174Hz.bin"},
+	{"notif_Comely_RTP_246_174Hz.bin"},
+	{"notif_Cozy_RTP_247_174Hz.bin"},
+	{"notif_Ding_RTP_248_174Hz.bin"},
+	{"notif_Effervesce_RTP_249_174Hz.bin"},
+	{"notif_Elegant_RTP_250_174Hz.bin"},
+	{"notif_Free_RTP_251_174Hz.bin"},
+	{"notif_Hallucination_RTP_252_174Hz.bin"},
+	{"notif_Inbound_RTP_253_174Hz.bin"},
+	{"notif_Light_RTP_254_174Hz.bin"},
+	{"notif_Meet_RTP_255_174Hz.bin"},
+	{"notif_Naivety_RTP_256_174Hz.bin"},
+	{"notif_Quickly_RTP_257_174Hz.bin"},
+	{"notif_Rhythm_RTP_258_174Hz.bin"},
+	{"notif_Surprise_RTP_259_174Hz.bin"},
+	{"notif_Twinkle_RTP_260_174Hz.bin"},
+	{"Version_Alert_RTP_261.bin"},
+	{"alarm_Alarm_clock_RTP_262_174Hz.bin"},
+	{"alarm_Beep_RTP_263_174Hz.bin"},
+	{"alarm_Breeze_RTP_264_174Hz.bin"},
+	{"alarm_Dawn_RTP_265_174Hz.bin"},
+	{"alarm_Dream_RTP_266_174Hz.bin"},
+	{"alarm_Fluttering_RTP_267_174Hz.bin"},
+	{"alarm_Flyer_RTP_268_174Hz.bin"},
+	{"alarm_Interesting_RTP_269_174Hz.bin"},
+	{"alarm_Leisurely_RTP_270_174Hz.bin"},
+	{"alarm_Memory_RTP_271_174Hz.bin"},
+	{"alarm_Relieved_RTP_272_174Hz.bin"},
+	{"alarm_Ripple_RTP_273_174Hz.bin"},
+	{"alarm_Slowly_RTP_274_174Hz.bin"},
+	{"alarm_spring_RTP_275_174Hz.bin"},
+	{"alarm_Stars_RTP_276_174Hz.bin"},
+	{"alarm_Surging_RTP_277_174Hz.bin"},
+	{"alarm_tactfully_RTP_278_174Hz.bin"},
+	{"alarm_The_wind_RTP_279_174Hz.bin"},
+	{"alarm_Walking_in_the_rain_RTP_280_174Hz.bin"},
+	{"BoHaoPanAnJian_281.bin"},
+	{"BoHaoPanAnNiu_282.bin"},
+	{"BoHaoPanKuaiJie_283.bin"},
+	{"DianHuaGuaDuan_284.bin"},
+	{"DianJinMoShiQieHuan_285.bin"},
+	{"HuaDongTiaoZhenDong_286.bin"},
+	{"LeiShen_287.bin"},
+	{"XuanZhongYouXi_288.bin"},
+	{"YeJianMoShiDaZi_289.bin"},
+	{"YouXiSheZhiKuang_290.bin"},
+	{"ZhuanYeMoShi_291.bin"},
+	{"Climber_RTP_292_174Hz.bin"},
+	{"Chase_RTP_293_174Hz.bin"},
+	{"shuntai24k_rtp_294.bin"},
+	{"wentai24k_rtp_295.bin"},
+	{"20ms_RTP_296.bin"},
+	{"40ms_RTP_297.bin"},
+	{"60ms_RTP_298.bin"},
+	{"80ms_RTP_299.bin"},
+	{"100ms_RTP_300.bin"},
+	{"120ms_RTP_301.bin"},
+	{"140ms_RTP_302.bin"},
+	{"160ms_RTP_303.bin"},
+	{"180ms_RTP_304.bin"},
+	{"200ms_RTP_305.bin"},
+	{"220ms_RTP_306.bin"},
+	{"240ms_RTP_307.bin"},
+	{"260ms_RTP_308.bin"},
+	{"280ms_RTP_309.bin"},
+	{"300ms_RTP_310.bin"},
+	{"320ms_RTP_311.bin"},
+	{"340ms_RTP_312.bin"},
+	{"360ms_RTP_313.bin"},
+	{"380ms_RTP_314.bin"},
+	{"400ms_RTP_315.bin"},
+	{"420ms_RTP_316.bin"},
+	{"440ms_RTP_317.bin"},
+	{"460ms_RTP_318.bin"},
+	{"480ms_RTP_319.bin"},
+	{"500ms_RTP_320.bin"},
+	{"AT500ms_RTP_321.bin"},
+
+	{"aw8697_reserved_322.bin"},
+	{"aw8697_reserved_323.bin"},
+	{"aw8697_reserved_324.bin"},
+	{"aw8697_reserved_325.bin"},
+	{"aw8697_reserved_326.bin"},
+	{"aw8697_reserved_327.bin"},
+	{"aw8697_reserved_328.bin"},
+	{"aw8697_reserved_329.bin"},
+	{"aw8697_reserved_330.bin"},
+	{"aw8697_reserved_331.bin"},
+	{"aw8697_reserved_332.bin"},
+	{"aw8697_reserved_333.bin"},
+	{"aw8697_reserved_334.bin"},
+	{"aw8697_reserved_335.bin"},
+	{"aw8697_reserved_336.bin"},
+	{"aw8697_reserved_337.bin"},
+	{"aw8697_reserved_338.bin"},
+	{"aw8697_reserved_339.bin"},
+	{"aw8697_reserved_340.bin"},
+	{"aw8697_reserved_341.bin"},
+	{"aw8697_reserved_342.bin"},
+	{"aw8697_reserved_343.bin"},
+	{"aw8697_reserved_344.bin"},
+	{"aw8697_reserved_345.bin"},
+	{"aw8697_reserved_346.bin"},
+	{"aw8697_reserved_347.bin"},
+	{"aw8697_reserved_348.bin"},
+	{"aw8697_reserved_349.bin"},
+	{"aw8697_reserved_350.bin"},
+	{"aw8697_reserved_351.bin"},
+	{"aw8697_reserved_352.bin"},
+	{"aw8697_reserved_353.bin"},
+	{"aw8697_reserved_354.bin"},
+	{"aw8697_reserved_355.bin"},
+	{"aw8697_reserved_356.bin"},
+	{"aw8697_reserved_357.bin"},
+	{"aw8697_reserved_358.bin"},
+	{"aw8697_reserved_359.bin"},
+	{"aw8697_reserved_360.bin"},
+	{"aw8697_reserved_361.bin"},
+	{"aw8697_reserved_362.bin"},
+	{"aw8697_reserved_363.bin"},
+	{"aw8697_reserved_364.bin"},
+	{"aw8697_reserved_365.bin"},
+	{"aw8697_reserved_366.bin"},
+	{"aw8697_reserved_367.bin"},
+	{"aw8697_reserved_368.bin"},
+	{"aw8697_reserved_369.bin"},
+	{"aw8697_reserved_370.bin"},
+
+	/* Add for OS14 Start */
+	{"aw8697_Nightsky_RTP_371_174Hz.bin"},
+	{"aw8697_TheStars_RTP_372_174Hz.bin"},
+	{"aw8697_TheSunrise_RTP_373_174Hz.bin"},
+	{"aw8697_TheSunset_RTP_374_174Hz.bin"},
+	{"aw8697_Meditate_RTP_375_174Hz.bin"},
+	{"aw8697_Distant_RTP_376_174Hz.bin"},
+	{"aw8697_Pond_RTP_377_174Hz.bin"},
+	{"aw8697_Moonlotus_RTP_378_174Hz.bin"},
+	{"aw8697_Ripplingwater_RTP_379_174Hz.bin"},
+	{"aw8697_Shimmer_RTP_380_174Hz.bin"},
+	{"aw8697_Batheearth_RTP_381_174Hz.bin"},
+	{"aw8697_Junglemorning_RTP_382_174Hz.bin"},
+	{"aw8697_Silver_RTP_383_174Hz.bin"},
+	{"aw8697_Elegantquiet_RTP_384_174Hz.bin"},
+	{"aw8697_Summerbeach_RTP_385_174Hz.bin"},
+	{"aw8697_Summernight_RTP_386_174Hz.bin"},
+	{"aw8697_Icesnow_RTP_387_174Hz.bin"},
+	{"aw8697_Wintersnow_RTP_388_174Hz.bin"},
+	{"aw8697_Rainforest_RTP_389_174Hz.bin"},
+	{"aw8697_Raineverything_RTP_390_174Hz.bin"},
+	{"aw8697_Staracross_RTP_391_174Hz.bin"},
+	{"aw8697_Fullmoon_RTP_392_174Hz.bin"},
+	{"aw8697_Clouds_RTP_393_174Hz.bin"},
+	{"aw8697_Wonderland_RTP_394_174Hz.bin"},
+	{"aw8697_Still_RTP_395_174Hz.bin"},
+	{"aw8697_Haunting_RTP_396_174Hz.bin"},
+	{"aw8697_Dragonfly_RTP_397_174Hz.bin"},
+	{"aw8697_Dropwater_RTP_398_174Hz.bin"},
+	{"aw8697_Fluctuation_RTP_399_174Hz.bin"},
+	{"aw8697_Blow_RTP_400_174Hz.bin"},
+	{"aw8697_Leaveslight_RTP_401_174Hz.bin"},
+	{"aw8697_Warmsun_RTP_402_174Hz.bin"},
+	{"aw8697_Snowflake_RTP_403_174Hz.bin"},
+	{"aw8697_Crystalclear_RTP_404_174Hz.bin"},
+	{"aw8697_Insects_RTP_405_174Hz.bin"},
+	{"aw8697_Dew_RTP_406_174Hz.bin"},
+	{"aw8697_Shine_RTP_407_174Hz.bin"},
+	{"aw8697_Frost_RTP_408_174Hz.bin"},
+	{"aw8697_Rainsplash_RTP_409_174Hz.bin"},
+	{"aw8697_Raindrop_RTP_410_174Hz.bin"},
+	/* Add for OS14 End */
+};
+
+static char aw_rtp_name_178Hz[][AW_RTP_NAME_MAX] = {
+	{"aw8697_rtp.bin"},
+	{"aw8697_Hearty_channel_RTP_1.bin"},
+	{"aw8697_Instant_channel_RTP_2_178Hz.bin"},
+	{"aw8697_Music_channel_RTP_3.bin"},
+	{"aw8697_Percussion_channel_RTP_4.bin"},
+	{"aw8697_Ripple_channel_RTP_5.bin"},
+	{"aw8697_Bright_channel_RTP_6.bin"},
+	{"aw8697_Fun_channel_RTP_7.bin"},
+	{"aw8697_Glittering_channel_RTP_8.bin"},
+	{"aw8697_Granules_channel_RTP_9_178Hz.bin"},
+	{"aw8697_Harp_channel_RTP_10.bin"},
+	{"aw8697_Impression_channel_RTP_11.bin"},
+	{"aw8697_Ingenious_channel_RTP_12_178Hz.bin"},
+	{"aw8697_Joy_channel_RTP_13_178Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_14.bin"},
+	{"aw8697_Receive_channel_RTP_15_178Hz.bin"},
+	{"aw8697_Splash_channel_RTP_16_178Hz.bin"},
+	{"aw8697_About_School_RTP_17_178Hz.bin"},
+	{"aw8697_Bliss_RTP_18.bin"},
+	{"aw8697_Childhood_RTP_19_178Hz.bin"},
+	{"aw8697_Commuting_RTP_20_178Hz.bin"},
+	{"aw8697_Dream_RTP_21.bin"},
+	{"aw8697_Firefly_RTP_22_178Hz.bin"},
+	{"aw8697_Gathering_RTP_23.bin"},
+	{"aw8697_Gaze_RTP_24_178Hz.bin"},
+	{"aw8697_Lakeside_RTP_25_178Hz.bin"},
+	{"aw8697_Lifestyle_RTP_26.bin"},
+	{"aw8697_Memories_RTP_27_178Hz.bin"},
+	{"aw8697_Messy_RTP_28_178Hz.bin"},
+	{"aw8697_Night_RTP_29_178Hz.bin"},
+	{"aw8697_Passionate_Dance_RTP_30_178Hz.bin"},
+	{"aw8697_Playground_RTP_31_178Hz.bin"},
+	{"aw8697_Relax_RTP_32_178Hz.bin"},
+	{"aw8697_Reminiscence_RTP_33.bin"},
+	{"aw8697_Silence_From_Afar_RTP_34_178Hz.bin"},
+	{"aw8697_Silence_RTP_35_178Hz.bin"},
+	{"aw8697_Stars_RTP_36_178Hz.bin"},
+	{"aw8697_Summer_RTP_37_178Hz.bin"},
+	{"aw8697_Toys_RTP_38_178Hz.bin"},
+	{"aw8697_Travel_RTP_39.bin"},
+	{"aw8697_Vision_RTP_40.bin"},
+
+	{"aw8697_waltz_channel_RTP_41_178Hz.bin"},
+	{"aw8697_cut_channel_RTP_42_178Hz.bin"},
+	{"aw8697_clock_channel_RTP_43_178Hz.bin"},
+	{"aw8697_long_sound_channel_RTP_44_178Hz.bin"},
+	{"aw8697_short_channel_RTP_45_178Hz.bin"},
+	{"aw8697_two_error_remaind_RTP_46_178Hz.bin"},
+
+	{"aw8697_kill_program_RTP_47_178Hz.bin"},
+	{"aw8697_Simple_channel_RTP_48.bin"},
+	{"aw8697_Pure_RTP_49_178Hz.bin"},
+	{"aw8697_reserved_sound_channel_RTP_50.bin"},
+
+	{"aw8697_high_temp_high_humidity_channel_RTP_51.bin"},
+	{"aw8697_old_steady_test_RTP_52.bin"},
+	{"aw8697_listen_pop_53.bin"},
+	{"aw8697_desk_7_RTP_54_178Hz.bin"},
+	{"aw8697_nfc_10_RTP_55_178Hz.bin"},
+	{"aw8697_vibrator_remain_12_RTP_56.bin"},
+	{"aw8697_notice_13_RTP_57.bin"},
+	{"aw8697_third_ring_14_RTP_58.bin"},
+	{"aw8697_reserved_59.bin"},
+
+	{"aw8697_honor_fisrt_kill_RTP_60_178Hz.bin"},
+	{"aw8697_honor_two_kill_RTP_61_178Hz.bin"},
+	{"aw8697_honor_three_kill_RTP_62_178Hz.bin"},
+	{"aw8697_honor_four_kill_RTP_63_178Hz.bin"},
+	{"aw8697_honor_five_kill_RTP_64_178Hz.bin"},
+	{"aw8697_honor_three_continu_kill_RTP_65_178Hz.bin"},
+	{"aw8697_honor_four_continu_kill_RTP_66_178Hz.bin"},
+	{"aw8697_honor_unstoppable_RTP_67_178Hz.bin"},
+	{"aw8697_honor_thousands_kill_RTP_68_178Hz.bin"},
+	{"aw8697_honor_lengendary_RTP_69_178Hz.bin"},
+
+	{"aw8697_Freshmorning_RTP_70_178Hz.bin"},
+	{"aw8697_Peaceful_RTP_71_178Hz.bin"},
+	{"aw8697_Cicada_RTP_72_178Hz.bin"},
+	{"aw8697_Electronica_RTP_73_178Hz.bin"},
+	{"aw8697_Holiday_RTP_74_178Hz.bin"},
+	{"aw8697_Funk_RTP_75_178Hz.bin"},
+	{"aw8697_House_RTP_76_178Hz.bin"},
+	{"aw8697_Temple_RTP_77_178Hz.bin"},
+	{"aw8697_Dreamyjazz_RTP_78_178Hz.bin"},
+	{"aw8697_Modern_RTP_79_178Hz.bin"},
+
+	{"aw8697_Round_RTP_80_178Hz.bin"},
+	{"aw8697_Rising_RTP_81_178Hz.bin"},
+	{"aw8697_Wood_RTP_82_178Hz.bin"},
+	{"aw8697_Heys_RTP_83_178Hz.bin"},
+	{"aw8697_Mbira_RTP_84_178Hz.bin"},
+	{"aw8697_News_RTP_85_178Hz.bin"},
+	{"aw8697_Peak_RTP_86_178Hz.bin"},
+	{"aw8697_Crisp_RTP_87_178Hz.bin"},
+	{"aw8697_Singingbowls_RTP_88_178Hz.bin"},
+	{"aw8697_Bounce_RTP_89_178Hz.bin"},
+
+	{"aw8697_reserved_90.bin"},
+	{"aw8697_reserved_91.bin"},
+	{"aw8697_reserved_92.bin"},
+	{"aw8697_reserved_93.bin"},
+	{"aw8697_ALCloudscape_94_178HZ.bin"},
+	{"aw8697_ALGoodenergy_95_178HZ.bin"},
+	{"aw8697_NTblink_96_178HZ.bin"},
+	{"aw8697_NTwhoop_97_178HZ.bin"},
+	{"aw8697_Newfeeling_98_178HZ.bin"},
+	{"aw8697_nature_99_178HZ.bin"},
+
+	{"aw8697_soldier_first_kill_RTP_100.bin"},
+	{"aw8697_soldier_second_kill_RTP_101.bin"},
+	{"aw8697_soldier_third_kill_RTP_102.bin"},
+	{"aw8697_soldier_fourth_kill_RTP_103.bin"},
+	{"aw8697_soldier_fifth_kill_RTP_104_178Hz.bin"},
+	{"aw8697_stepable_regulate_RTP_105.bin"},
+	{"aw8697_voice_level_bar_edge_RTP_106_178Hz.bin"},
+	{"aw8697_strength_level_bar_edge_RTP_107_178Hz.bin"},
+	{"aw8697_charging_simulation_RTP_108_178Hz.bin"},
+	{"aw8697_fingerprint_success_RTP_109_178Hz.bin"},
+
+	{"aw8697_fingerprint_effect1_RTP_110.bin"},
+	{"aw8697_fingerprint_effect2_RTP_111.bin"},
+	{"aw8697_fingerprint_effect3_RTP_112.bin"},
+	{"aw8697_fingerprint_effect4_RTP_113.bin"},
+	{"aw8697_fingerprint_effect5_RTP_114.bin"},
+	{"aw8697_fingerprint_effect6_RTP_115.bin"},
+	{"aw8697_fingerprint_effect7_RTP_116.bin"},
+	{"aw8697_fingerprint_effect8_RTP_117.bin"},
+	{"aw8697_breath_simulation_RTP_118_178Hz.bin"},
+	{"aw8697_Telcel_Torreblanca_RTP_119_178Hz.bin"},
+
+	{"aw8697_Miss_RTP_120.bin"},
+	{"aw8697_Scenic_RTP_121_178Hz.bin"},
+	{"aw8697_voice_assistant_RTP_122_178Hz.bin"},
+	{"aw8697_Appear_channel_RTP_123_178Hz.bin"},
+	{"aw8697_Miss_RTP_124_178Hz.bin"},
+	{"aw8697_Music_channel_RTP_125_178Hz.bin"},
+	{"aw8697_Percussion_channel_RTP_126_178Hz.bin"},
+	{"aw8697_Ripple_channel_RTP_127_178Hz.bin"},
+	{"aw8697_Bright_channel_RTP_128_178Hz.bin"},
+	{"aw8697_Fun_channel_RTP_129_178Hz.bin"},
+	{"aw8697_Glittering_channel_RTP_130_178Hz.bin"},
+	{"aw8697_Harp_channel_RTP_131_178Hz.bin"},
+	{"aw8697_Overtone_channel_RTP_132_178Hz.bin"},
+	{"aw8697_Simple_channel_RTP_133_178Hz.bin"},
+	{"aw8697_Seine_past_RTP_134_178Hz.bin"},
+	{"aw8697_Classical_ring_RTP_135_178Hz.bin"},
+	{"aw8697_Long_for_RTP_136_178Hz.bin"},
+	{"aw8697_Romantic_RTP_137_178Hz.bin"},
+	{"aw8697_Bliss_RTP_138_178Hz.bin"},
+	{"aw8697_Dream_RTP_139_178Hz.bin"},
+	{"aw8697_Relax_RTP_140_178Hz.bin"},
+	{"aw8697_Joy_channel_RTP_141_178Hz.bin"},
+	{"aw8697_weather_wind_RTP_142.bin"},
+	{"aw8697_weather_cloudy_RTP_143.bin"},
+	{"aw8697_weather_thunderstorm_RTP_144.bin"},
+	{"aw8697_weather_default_RTP_145.bin"},
+	{"aw8697_weather_sunny_RTP_146.bin"},
+	{"aw8697_weather_smog_RTP_147.bin"},
+	{"aw8697_weather_snow_RTP_148.bin"},
+	{"aw8697_weather_rain_RTP_149.bin"},
+
+	{"aw8697_Master_Notification_RTP_150_178Hz.bin"},
+	{"aw8697_Master_Artist_Ringtong_RTP_151_178Hz.bin"},
+	{"aw8697_Master_Text_RTP_152_178Hz.bin"},
+	{"aw8697_Master_Artist_Alarm_RTP_153_178Hz.bin"},
+	{"aw8697_reserved_154.bin"},
+	{"aw8697_reserved_155.bin"},
+	{"aw8697_reserved_156.bin"},
+	{"aw8697_reserved_157.bin"},
+	{"aw8697_reserved_158.bin"},
+	{"aw8697_reserved_159.bin"},
+	{"aw8697_reserved_160.bin"},
+
+	{"aw8697_oplus_its_oplus_RTP_161_178Hz.bin"},
+	{"aw8697_oplus_tune_RTP_162_178Hz.bin"},
+	{"aw8697_oplus_jingle_RTP_163_178Hz.bin"},
+	{"aw8697_reserved_164.bin"},
+	{"aw8697_reserved_165.bin"},
+	{"aw8697_reserved_166.bin"},
+	{"aw8697_reserved_167.bin"},
+	{"aw8697_reserved_168.bin"},
+	{"aw8697_reserved_169.bin"},
+	{"aw8697_oplus_gt_RTP_170_178Hz.bin"},
+
+	{"aw8697_Threefingers_Long_RTP_171.bin"},
+	{"aw8697_Threefingers_Up_RTP_172.bin"},
+	{"aw8697_Threefingers_Screenshot_RTP_173.bin"},
+	{"aw8697_Unfold_RTP_174.bin"},
+	{"aw8697_Close_RTP_175.bin"},
+	{"aw8697_HalfLap_RTP_176.bin"},
+	{"aw8697_Twofingers_Down_RTP_177.bin"},
+	{"aw8697_Twofingers_Long_RTP_178.bin"},
+	{"aw8697_Compatible_1_RTP_179.bin"},
+	{"aw8697_Compatible_2_RTP_180.bin"},
+	{"aw8697_Styleswitch_RTP_181.bin"},
+	{"aw8697_Waterripple_RTP_182.bin"},
+	{"aw8697_Suspendbutton_Bottomout_RTP_183.bin"},
+	{"aw8697_Suspendbutton_Menu_RTP_184.bin"},
+	{"aw8697_Complete_RTP_185.bin"},
+	{"aw8697_Bulb_RTP_186.bin"},
+	{"aw8697_Elasticity_RTP_187.bin"},
+	{"aw8697_reserved_188.bin"},
+	{"aw8697_reserved_189.bin"},
+	{"aw8697_reserved_190.bin"},
+	{"aw8697_reserved_191.bin"},
+	{"aw8697_reserved_192.bin"},
+	{"aw8697_reserved_193.bin"},
+	{"aw8697_reserved_194.bin"},
+	{"aw8697_reserved_195.bin"},
+	{"aw8697_reserved_196.bin"},
+	{"aw8697_reserved_197.bin"},
+	{"alarm_Pacman_RTP_198.bin"},
+	{"notif_Pacman_RTP_199.bin"},
+	{"ringtone_Pacman_RTP_200.bin"},
+	{"ringtone_Alacrity_RTP_201_178Hz.bin"},
+	{"ring_Amenity_RTP_202_178Hz.bin"},
+	{"ringtone_Blues_RTP_203_178Hz.bin"},
+	{"ring_Bounce_RTP_204_178Hz.bin"},
+	{"ring_Calm_RTP_205_178Hz.bin"},
+	{"ringtone_Cloud_RTP_206_178Hz.bin"},
+	{"ringtone_Cyclotron_RTP_207_178Hz.bin"},
+	{"ringtone_Distinct_RTP_208_178Hz.bin"},
+	{"ringtone_Dynamic_RTP_209_178Hz.bin"},
+	{"ringtone_Echo_RTP_210_178Hz.bin"},
+	{"ringtone_Expect_RTP_211_178Hz.bin"},
+	{"ringtone_Fanatical_RTP_212_178Hz.bin"},
+	{"ringtone_Funky_RTP_213_178Hz.bin"},
+	{"ringtone_Guitar_RTP_214_178Hz.bin"},
+	{"ringtone_Harping_RTP_215_178Hz.bin"},
+	{"ringtone_Highlight_RTP_216_178Hz.bin"},
+	{"ringtone_Idyl_RTP_217_178Hz.bin"},
+	{"ringtone_Innocence_RTP_218_178Hz.bin"},
+	{"ringtone_Journey_RTP_219_178Hz.bin"},
+	{"ringtone_Joyous_RTP_220_178Hz.bin"},
+	{"ring_Lazy_RTP_221_178Hz.bin"},
+	{"ringtone_Marimba_RTP_222_178Hz.bin"},
+	{"ring_Mystical_RTP_223_178Hz.bin"},
+	{"ringtone_Old_telephone_RTP_224_178Hz.bin"},
+	{"ringtone_Oneplus_tune_RTP_225_178Hz.bin"},
+	{"ringtone_Rhythm_RTP_226_178Hz.bin"},
+	{"ringtone_Optimistic_RTP_227_178Hz.bin"},
+	{"ringtone_Piano_RTP_228_178Hz.bin"},
+	{"ring_Whirl_RTP_229_178Hz.bin"},
+	{"VZW_Alrwave_RTP_230.bin"},
+	{"t-jingle_RTP_231.bin"},
+	{"ringtone_Eager_232_178Hz.bin"},
+	{"ringtone_Ebullition_233_178Hz.bin"},
+	{"ringtone_Friendship_234_178Hz.bin"},
+	{"ringtone_Jazz_life_RTP_235_178Hz.bin"},
+	{"ringtone_Sun_glittering_RTP_236_178Hz.bin"},
+	{"notif_Allay_RTP_237_178Hz.bin"},
+	{"notif_Allusion_RTP_238_178Hz.bin"},
+	{"notif_Amiable_RTP_239_178Hz.bin"},
+	{"notif_Blare_RTP_240_178Hz.bin"},
+	{"notif_Blissful_RTP_241_178Hz.bin"},
+	{"notif_Brisk_RTP_242_178Hz.bin"},
+	{"notif_Bubble_RTP_243_178Hz.bin"},
+	{"notif_Cheerful_RTP_244_178Hz.bin"},
+	{"notif_Clear_RTP_245_178Hz.bin"},
+	{"notif_Comely_RTP_246_178Hz.bin"},
+	{"notif_Cozy_RTP_247_178Hz.bin"},
+	{"notif_Ding_RTP_248_178Hz.bin"},
+	{"notif_Effervesce_RTP_249_178Hz.bin"},
+	{"notif_Elegant_RTP_250_178Hz.bin"},
+	{"notif_Free_RTP_251_178Hz.bin"},
+	{"notif_Hallucination_RTP_252_178Hz.bin"},
+	{"notif_Inbound_RTP_253_178Hz.bin"},
+	{"notif_Light_RTP_254_178Hz.bin"},
+	{"notif_Meet_RTP_255_178Hz.bin"},
+	{"notif_Naivety_RTP_256_178Hz.bin"},
+	{"notif_Quickly_RTP_257_178Hz.bin"},
+	{"notif_Rhythm_RTP_258_178Hz.bin"},
+	{"notif_Surprise_RTP_259_178Hz.bin"},
+	{"notif_Twinkle_RTP_260_178Hz.bin"},
+	{"Version_Alert_RTP_261.bin"},
+	{"alarm_Alarm_clock_RTP_262_178Hz.bin"},
+	{"alarm_Beep_RTP_263_178Hz.bin"},
+	{"alarm_Breeze_RTP_264_178Hz.bin"},
+	{"alarm_Dawn_RTP_265_178Hz.bin"},
+	{"alarm_Dream_RTP_266_178Hz.bin"},
+	{"alarm_Fluttering_RTP_267_178Hz.bin"},
+	{"alarm_Flyer_RTP_268_178Hz.bin"},
+	{"alarm_Interesting_RTP_269_178Hz.bin"},
+	{"alarm_Leisurely_RTP_270_178Hz.bin"},
+	{"alarm_Memory_RTP_271_178Hz.bin"},
+	{"alarm_Relieved_RTP_272_178Hz.bin"},
+	{"alarm_Ripple_RTP_273_178Hz.bin"},
+	{"alarm_Slowly_RTP_274_178Hz.bin"},
+	{"alarm_spring_RTP_275_178Hz.bin"},
+	{"alarm_Stars_RTP_276_178Hz.bin"},
+	{"alarm_Surging_RTP_277_178Hz.bin"},
+	{"alarm_tactfully_RTP_278_178Hz.bin"},
+	{"alarm_The_wind_RTP_279_178Hz.bin"},
+	{"alarm_Walking_in_the_rain_RTP_280_178Hz.bin"},
+	{"BoHaoPanAnJian_281.bin"},
+	{"BoHaoPanAnNiu_282.bin"},
+	{"BoHaoPanKuaiJie_283.bin"},
+	{"DianHuaGuaDuan_284.bin"},
+	{"DianJinMoShiQieHuan_285.bin"},
+	{"HuaDongTiaoZhenDong_286.bin"},
+	{"LeiShen_287.bin"},
+	{"XuanZhongYouXi_288.bin"},
+	{"YeJianMoShiDaZi_289.bin"},
+	{"YouXiSheZhiKuang_290.bin"},
+	{"ZhuanYeMoShi_291.bin"},
+	{"Climber_RTP_292_178Hz.bin"},
+	{"Chase_RTP_293_178Hz.bin"},
+	{"shuntai24k_rtp_294.bin"},
+	{"wentai24k_rtp_295.bin"},
+	{"20ms_RTP_296.bin"},
+	{"40ms_RTP_297.bin"},
+	{"60ms_RTP_298.bin"},
+	{"80ms_RTP_299.bin"},
+	{"100ms_RTP_300.bin"},
+	{"120ms_RTP_301.bin"},
+	{"140ms_RTP_302.bin"},
+	{"160ms_RTP_303.bin"},
+	{"180ms_RTP_304.bin"},
+	{"200ms_RTP_305.bin"},
+	{"220ms_RTP_306.bin"},
+	{"240ms_RTP_307.bin"},
+	{"260ms_RTP_308.bin"},
+	{"280ms_RTP_309.bin"},
+	{"300ms_RTP_310.bin"},
+	{"320ms_RTP_311.bin"},
+	{"340ms_RTP_312.bin"},
+	{"360ms_RTP_313.bin"},
+	{"380ms_RTP_314.bin"},
+	{"400ms_RTP_315.bin"},
+	{"420ms_RTP_316.bin"},
+	{"440ms_RTP_317.bin"},
+	{"460ms_RTP_318.bin"},
+	{"480ms_RTP_319.bin"},
+	{"500ms_RTP_320.bin"},
+	{"AT500ms_RTP_321.bin"},
+
+	{"aw8697_reserved_322.bin"},
+	{"aw8697_reserved_323.bin"},
+	{"aw8697_reserved_324.bin"},
+	{"aw8697_reserved_325.bin"},
+	{"aw8697_reserved_326.bin"},
+	{"aw8697_reserved_327.bin"},
+	{"aw8697_reserved_328.bin"},
+	{"aw8697_reserved_329.bin"},
+	{"aw8697_reserved_330.bin"},
+	{"aw8697_reserved_331.bin"},
+	{"aw8697_reserved_332.bin"},
+	{"aw8697_reserved_333.bin"},
+	{"aw8697_reserved_334.bin"},
+	{"aw8697_reserved_335.bin"},
+	{"aw8697_reserved_336.bin"},
+	{"aw8697_reserved_337.bin"},
+	{"aw8697_reserved_338.bin"},
+	{"aw8697_reserved_339.bin"},
+	{"aw8697_reserved_340.bin"},
+	{"aw8697_reserved_341.bin"},
+	{"aw8697_reserved_342.bin"},
+	{"aw8697_reserved_343.bin"},
+	{"aw8697_reserved_344.bin"},
+	{"aw8697_reserved_345.bin"},
+	{"aw8697_reserved_346.bin"},
+	{"aw8697_reserved_347.bin"},
+	{"aw8697_reserved_348.bin"},
+	{"aw8697_reserved_349.bin"},
+	{"aw8697_reserved_350.bin"},
+	{"aw8697_reserved_351.bin"},
+	{"aw8697_reserved_352.bin"},
+	{"aw8697_reserved_353.bin"},
+	{"aw8697_reserved_354.bin"},
+	{"aw8697_reserved_355.bin"},
+	{"aw8697_reserved_356.bin"},
+	{"aw8697_reserved_357.bin"},
+	{"aw8697_reserved_358.bin"},
+	{"aw8697_reserved_359.bin"},
+	{"aw8697_reserved_360.bin"},
+	{"aw8697_reserved_361.bin"},
+	{"aw8697_reserved_362.bin"},
+	{"aw8697_reserved_363.bin"},
+	{"aw8697_reserved_364.bin"},
+	{"aw8697_reserved_365.bin"},
+	{"aw8697_reserved_366.bin"},
+	{"aw8697_reserved_367.bin"},
+	{"aw8697_reserved_368.bin"},
+	{"aw8697_reserved_369.bin"},
+	{"aw8697_reserved_370.bin"},
+
+	/* Add for OS14 Start */
+	{"aw8697_Nightsky_RTP_371_178Hz.bin"},
+	{"aw8697_TheStars_RTP_372_178Hz.bin"},
+	{"aw8697_TheSunrise_RTP_373_178Hz.bin"},
+	{"aw8697_TheSunset_RTP_374_178Hz.bin"},
+	{"aw8697_Meditate_RTP_375_178Hz.bin"},
+	{"aw8697_Distant_RTP_376_178Hz.bin"},
+	{"aw8697_Pond_RTP_377_178Hz.bin"},
+	{"aw8697_Moonlotus_RTP_378_178Hz.bin"},
+	{"aw8697_Ripplingwater_RTP_379_178Hz.bin"},
+	{"aw8697_Shimmer_RTP_380_178Hz.bin"},
+	{"aw8697_Batheearth_RTP_381_178Hz.bin"},
+	{"aw8697_Junglemorning_RTP_382_178Hz.bin"},
+	{"aw8697_Silver_RTP_383_178Hz.bin"},
+	{"aw8697_Elegantquiet_RTP_384_178Hz.bin"},
+	{"aw8697_Summerbeach_RTP_385_178Hz.bin"},
+	{"aw8697_Summernight_RTP_386_178Hz.bin"},
+	{"aw8697_Icesnow_RTP_387_178Hz.bin"},
+	{"aw8697_Wintersnow_RTP_388_178Hz.bin"},
+	{"aw8697_Rainforest_RTP_389_178Hz.bin"},
+	{"aw8697_Raineverything_RTP_390_178Hz.bin"},
+	{"aw8697_Staracross_RTP_391_178Hz.bin"},
+	{"aw8697_Fullmoon_RTP_392_178Hz.bin"},
+	{"aw8697_Clouds_RTP_393_178Hz.bin"},
+	{"aw8697_Wonderland_RTP_394_178Hz.bin"},
+	{"aw8697_Still_RTP_395_178Hz.bin"},
+	{"aw8697_Haunting_RTP_396_178Hz.bin"},
+	{"aw8697_Dragonfly_RTP_397_178Hz.bin"},
+	{"aw8697_Dropwater_RTP_398_178Hz.bin"},
+	{"aw8697_Fluctuation_RTP_399_178Hz.bin"},
+	{"aw8697_Blow_RTP_400_178Hz.bin"},
+	{"aw8697_Leaveslight_RTP_401_178Hz.bin"},
+	{"aw8697_Warmsun_RTP_402_178Hz.bin"},
+	{"aw8697_Snowflake_RTP_403_178Hz.bin"},
+	{"aw8697_Crystalclear_RTP_404_178Hz.bin"},
+	{"aw8697_Insects_RTP_405_178Hz.bin"},
+	{"aw8697_Dew_RTP_406_178Hz.bin"},
+	{"aw8697_Shine_RTP_407_178Hz.bin"},
+	{"aw8697_Frost_RTP_408_178Hz.bin"},
+	{"aw8697_Rainsplash_RTP_409_178Hz.bin"},
+	{"aw8697_Raindrop_RTP_410_178Hz.bin"},
+	/* Add for OS14 End */
 };
 #endif /* OPLUS_FEATURE_CHG_BASIC */
 
@@ -667,7 +2266,6 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_Overtone_channel_RTP_14.bin"},
 	{"aw8697_Receive_channel_RTP_15.bin"},
 	{"aw8697_Splash_channel_RTP_16.bin"},
-
 	{"aw8697_About_School_RTP_17.bin"},
 	{"aw8697_Bliss_RTP_18.bin"},
 	{"aw8697_Childhood_RTP_19.bin"},
@@ -706,7 +2304,6 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_sound_channel_RTP_50.bin"},
 
 	{"aw8697_high_temp_high_humidity_channel_RTP_51.bin"},
-
 	{"aw8697_old_steady_test_RTP_52.bin"},
 	{"aw8697_listen_pop_53.bin"},
 	{"aw8697_desk_7_RTP_54.bin"},
@@ -726,37 +2323,39 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_honor_unstoppable_RTP_67.bin"},
 	{"aw8697_honor_thousands_kill_RTP_68.bin"},
 	{"aw8697_honor_lengendary_RTP_69.bin"},
-	{"aw8697_Airy_morning_RTP_70.bin"},
-	{"aw8697_Temple_morning_RTP_71.bin"},
-	{"aw8697_Water_cicidas_72_RTP.bin"},
-	{"aw8697_Electro_club_RTP_73.bin"},
-	{"aw8697_Vacation_RTP_74.bin"},
-	{"aw8697_Jazz_funk_RTP_75.bin"},
-	{"aw8697_House_club_RTP_76.bin"},
-	{"aw8697_temple_tone_RTP_77.bin"},
-	{"aw8697_Jazz_dreamy_RTP_78.bin"},
-	{"aw8697_Jazz_modern_RTP_79.bin"},
-	{"aw8697_Tone_round_RTP_80.bin"},
-	{"aw8697_Digi_rise_RTP_81.bin"},
-	{"aw8697_Wood_phone_RTP_82.bin"},
-	{"aw8697_Hey_RTP_83.bin"},
-	{"aw8697_Zanza_RTP_84.bin"},
-	{"aw8697_Info_RTP_85.bin"},
-	{"aw8697_Tip_top_RTP_86.bin"},
-	{"aw8697_Opop_short_RTP_87.bin"},
-	{"aw8697_bowl_bells_RTP_88.bin"},
-	{"aw8697_jumpy_RTP_89.bin"},
+
+	{"aw8697_Freshmorning_RTP_70.bin"},
+	{"aw8697_Peaceful_RTP_71.bin"},
+	{"aw8697_Cicada_RTP_72.bin"},
+	{"aw8697_Electronica_RTP_73.bin"},
+	{"aw8697_Holiday_RTP_74.bin"},
+	{"aw8697_Funk_RTP_75.bin"},
+	{"aw8697_House_RTP_76.bin"},
+	{"aw8697_Temple_RTP_77.bin"},
+	{"aw8697_Dreamyjazz_RTP_78.bin"},
+	{"aw8697_Modern_RTP_79.bin"},
+
+	{"aw8697_Round_RTP_80.bin"},
+	{"aw8697_Rising_RTP_81.bin"},
+	{"aw8697_Wood_RTP_82.bin"},
+	{"aw8697_Heys_RTP_83.bin"},
+	{"aw8697_Mbira_RTP_84.bin"},
+	{"aw8697_News_RTP_85.bin"},
+	{"aw8697_Peak_RTP_86.bin"},
+	{"aw8697_Crisp_RTP_87.bin"},
+	{"aw8697_Singingbowls_RTP_88.bin"},
+	{"aw8697_Bounce_RTP_89.bin"},
 
 	{"aw8697_reserved_90.bin"},
 	{"aw8697_reserved_91.bin"},
 	{"aw8697_reserved_92.bin"},
 	{"aw8697_reserved_93.bin"},
-	{"ALCloudscape_170HZ.bin"},
-	{"ALGoodenergy_170HZ.bin"},
-	{"NTblink_170HZ.bin"},
-	{"NTwhoop_170HZ.bin"},
-	{"Newfeeling_170HZ.bin"},
-	{"nature_170HZ.bin"},
+	{"aw8697_ALCloudscape_94_170HZ.bin"},
+	{"aw8697_ALGoodenergy_95_170HZ.bin"},
+	{"aw8697_NTblink_96_170HZ.bin"},
+	{"aw8697_NTwhoop_97_170HZ.bin"},
+	{"aw8697_Newfeeling_98_170HZ.bin"},
+	{"aw8697_nature_99_170HZ.bin"},
 
 	{"aw8697_soldier_first_kill_RTP_100.bin"},
 	{"aw8697_soldier_second_kill_RTP_101.bin"},
@@ -778,12 +2377,11 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_fingerprint_effect7_RTP_116.bin"},
 	{"aw8697_fingerprint_effect8_RTP_117.bin"},
 	{"aw8697_breath_simulation_RTP_118.bin"},
-	{"aw8697_reserved_119.bin"},
+	{"aw8697_Telcel_Torreblanca_RTP_119.bin"},
 
 	{"aw8697_Miss_RTP_120.bin"},
 	{"aw8697_Scenic_RTP_121.bin"},
 	{"aw8697_voice_assistant_RTP_122.bin"},
-/* used for 7 */
 	{"aw8697_Appear_channel_RTP_123.bin"},
 	{"aw8697_Miss_RTP_124.bin"},
 	{"aw8697_Music_channel_RTP_125.bin"},
@@ -812,13 +2410,12 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_weather_smog_RTP_147.bin"},
 	{"aw8697_weather_snow_RTP_148.bin"},
 	{"aw8697_weather_rain_RTP_149.bin"},
-
-/* used for 7 end*/
 #endif
-	{"aw8697_rtp_lighthouse.bin"},
-	{"aw8697_rtp_silk.bin"},
-	{"aw8697_reserved_152.bin"},
-	{"aw8697_reserved_153.bin"},
+
+	{"aw8697_Master_Notification_RTP_150.bin"},
+	{"aw8697_Master_Artist_Ringtong_RTP_151.bin"},
+	{"aw8697_Master_Text_RTP_152.bin"},
+	{"aw8697_Master_Artist_Alarm_RTP_153.bin"},
 	{"aw8697_reserved_154.bin"},
 	{"aw8697_reserved_155.bin"},
 	{"aw8697_reserved_156.bin"},
@@ -837,6 +2434,7 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_168.bin"},
 	{"aw8697_reserved_169.bin"},
 	{"aw8697_oplus_gt_RTP_170_170Hz.bin"},
+
 	{"aw8697_Threefingers_Long_RTP_171.bin"},
 	{"aw8697_Threefingers_Up_RTP_172.bin"},
 	{"aw8697_Threefingers_Screenshot_RTP_173.bin"},
@@ -864,201 +2462,225 @@ static char aw_rtp_name[][AW_RTP_NAME_MAX] = {
 	{"aw8697_reserved_195.bin"},
 	{"aw8697_reserved_196.bin"},
 	{"aw8697_reserved_197.bin"},
-	{"aw8697_reserved_198.bin"},
-	{"aw8697_reserved_199.bin"},
-	{"aw8697_reserved_200.bin"},
+	{"alarm_Pacman_RTP_198.bin"},
+	{"notif_Pacman_RTP_199.bin"},
+	{"ringtone_Pacman_RTP_200.bin"},
+	{"ringtone_Alacrity_RTP_201.bin"},
+	{"ring_Amenity_RTP_202.bin"},
+	{"ringtone_Blues_RTP_203.bin"},
+	{"ring_Bounce_RTP_204.bin"},
+	{"ring_Calm_RTP_205.bin"},
+	{"ringtone_Cloud_RTP_206.bin"},
+	{"ringtone_Cyclotron_RTP_207.bin"},
+	{"ringtone_Distinct_RTP_208.bin"},
+	{"ringtone_Dynamic_RTP_209.bin"},
+	{"ringtone_Echo_RTP_210.bin"},
+	{"ringtone_Expect_RTP_211.bin"},
+	{"ringtone_Fanatical_RTP_212.bin"},
+	{"ringtone_Funky_RTP_213.bin"},
+	{"ringtone_Guitar_RTP_214.bin"},
+	{"ringtone_Harping_RTP_215.bin"},
+	{"ringtone_Highlight_RTP_216.bin"},
+	{"ringtone_Idyl_RTP_217.bin"},
+	{"ringtone_Innocence_RTP_218.bin"},
+	{"ringtone_Journey_RTP_219.bin"},
+	{"ringtone_Joyous_RTP_220.bin"},
+	{"ring_Lazy_RTP_221.bin"},
+	{"ringtone_Marimba_RTP_222.bin"},
+	{"ring_Mystical_RTP_223.bin"},
+	{"ringtone_Old_telephone_RTP_224.bin"},
+	{"ringtone_Oneplus_tune_RTP_225.bin"},
+	{"ringtone_Rhythm_RTP_226.bin"},
+	{"ringtone_Optimistic_RTP_227.bin"},
+	{"ringtone_Piano_RTP_228.bin"},
+	{"ring_Whirl_RTP_229.bin"},
+	{"VZW_Alrwave_RTP_230.bin"},
+	{"t-jingle_RTP_231.bin"},
+	{"ringtone_Eager_232.bin"},
+	{"ringtone_Ebullition_233.bin"},
+	{"ringtone_Friendship_234.bin"},
+	{"ringtone_Jazz_life_RTP_235.bin"},
+	{"ringtone_Sun_glittering_RTP_236.bin"},
+	{"notif_Allay_RTP_237.bin"},
+	{"notif_Allusion_RTP_238.bin"},
+	{"notif_Amiable_RTP_239.bin"},
+	{"notif_Blare_RTP_240.bin"},
+	{"notif_Blissful_RTP_241.bin"},
+	{"notif_Brisk_RTP_242.bin"},
+	{"notif_Bubble_RTP_243.bin"},
+	{"notif_Cheerful_RTP_244.bin"},
+	{"notif_Clear_RTP_245.bin"},
+	{"notif_Comely_RTP_246.bin"},
+	{"notif_Cozy_RTP_247.bin"},
+	{"notif_Ding_RTP_248.bin"},
+	{"notif_Effervesce_RTP_249.bin"},
+	{"notif_Elegant_RTP_250.bin"},
+	{"notif_Free_RTP_251.bin"},
+	{"notif_Hallucination_RTP_252.bin"},
+	{"notif_Inbound_RTP_253.bin"},
+	{"notif_Light_RTP_254.bin"},
+	{"notif_Meet_RTP_255.bin"},
+	{"notif_Naivety_RTP_256.bin"},
+	{"notif_Quickly_RTP_257.bin"},
+	{"notif_Rhythm_RTP_258.bin"},
+	{"notif_Surprise_RTP_259.bin"},
+	{"notif_Twinkle_RTP_260.bin"},
+	{"Version_Alert_RTP_261.bin"},
+	{"alarm_Alarm_clock_RTP_262.bin"},
+	{"alarm_Beep_RTP_263.bin"},
+	{"alarm_Breeze_RTP_264.bin"},
+	{"alarm_Dawn_RTP_265.bin"},
+	{"alarm_Dream_RTP_266.bin"},
+	{"alarm_Fluttering_RTP_267.bin"},
+	{"alarm_Flyer_RTP_268.bin"},
+	{"alarm_Interesting_RTP_269.bin"},
+	{"alarm_Leisurely_RTP_270.bin"},
+	{"alarm_Memory_RTP_271.bin"},
+	{"alarm_Relieved_RTP_272.bin"},
+	{"alarm_Ripple_RTP_273.bin"},
+	{"alarm_Slowly_RTP_274.bin"},
+	{"alarm_spring_RTP_275.bin"},
+	{"alarm_Stars_RTP_276.bin"},
+	{"alarm_Surging_RTP_277.bin"},
+	{"alarm_tactfully_RTP_278.bin"},
+	{"alarm_The_wind_RTP_279.bin"},
+	{"alarm_Walking_in_the_rain_RTP_280.bin"},
+	{"BoHaoPanAnJian_281.bin"},
+	{"BoHaoPanAnNiu_282.bin"},
+	{"BoHaoPanKuaiJie_283.bin"},
+	{"DianHuaGuaDuan_284.bin"},
+	{"DianJinMoShiQieHuan_285.bin"},
+	{"HuaDongTiaoZhenDong_286.bin"},
+	{"LeiShen_287.bin"},
+	{"XuanZhongYouXi_288.bin"},
+	{"YeJianMoShiDaZi_289.bin"},
+	{"YouXiSheZhiKuang_290.bin"},
+	{"ZhuanYeMoShi_291.bin"},
+	{"Climber_RTP_292.bin"},
+	{"Chase_RTP_293.bin"},
+	{"shuntai24k_rtp_294.bin"},
+	{"wentai24k_rtp_295.bin"},
+	{"20ms_RTP_296.bin"},
+	{"40ms_RTP_297.bin"},
+	{"60ms_RTP_298.bin"},
+	{"80ms_RTP_299.bin"},
+	{"100ms_RTP_300.bin"},
+	{"120ms_RTP_301.bin"},
+	{"140ms_RTP_302.bin"},
+	{"160ms_RTP_303.bin"},
+	{"180ms_RTP_304.bin"},
+	{"200ms_RTP_305.bin"},
+	{"220ms_RTP_306.bin"},
+	{"240ms_RTP_307.bin"},
+	{"260ms_RTP_308.bin"},
+	{"280ms_RTP_309.bin"},
+	{"300ms_RTP_310.bin"},
+	{"320ms_RTP_311.bin"},
+	{"340ms_RTP_312.bin"},
+	{"360ms_RTP_313.bin"},
+	{"380ms_RTP_314.bin"},
+	{"400ms_RTP_315.bin"},
+	{"420ms_RTP_316.bin"},
+	{"440ms_RTP_317.bin"},
+	{"460ms_RTP_318.bin"},
+	{"480ms_RTP_319.bin"},
+	{"500ms_RTP_320.bin"},
+	{"AT500ms_RTP_321.bin"},
+
+	{"aw8697_reserved_322.bin"},
+	{"aw8697_reserved_323.bin"},
+	{"aw8697_reserved_324.bin"},
+	{"aw8697_reserved_325.bin"},
+	{"aw8697_reserved_326.bin"},
+	{"aw8697_reserved_327.bin"},
+	{"aw8697_reserved_328.bin"},
+	{"aw8697_reserved_329.bin"},
+	{"aw8697_reserved_330.bin"},
+	{"aw8697_reserved_331.bin"},
+	{"aw8697_reserved_332.bin"},
+	{"aw8697_reserved_333.bin"},
+	{"aw8697_reserved_334.bin"},
+	{"aw8697_reserved_335.bin"},
+	{"aw8697_reserved_336.bin"},
+	{"aw8697_reserved_337.bin"},
+	{"aw8697_reserved_338.bin"},
+	{"aw8697_reserved_339.bin"},
+	{"aw8697_reserved_340.bin"},
+	{"aw8697_reserved_341.bin"},
+	{"aw8697_reserved_342.bin"},
+	{"aw8697_reserved_343.bin"},
+	{"aw8697_reserved_344.bin"},
+	{"aw8697_reserved_345.bin"},
+	{"aw8697_reserved_346.bin"},
+	{"aw8697_reserved_347.bin"},
+	{"aw8697_reserved_348.bin"},
+	{"aw8697_reserved_349.bin"},
+	{"aw8697_reserved_350.bin"},
+	{"aw8697_reserved_351.bin"},
+	{"aw8697_reserved_352.bin"},
+	{"aw8697_reserved_353.bin"},
+	{"aw8697_reserved_354.bin"},
+	{"aw8697_reserved_355.bin"},
+	{"aw8697_reserved_356.bin"},
+	{"aw8697_reserved_357.bin"},
+	{"aw8697_reserved_358.bin"},
+	{"aw8697_reserved_359.bin"},
+	{"aw8697_reserved_360.bin"},
+	{"aw8697_reserved_361.bin"},
+	{"aw8697_reserved_362.bin"},
+	{"aw8697_reserved_363.bin"},
+	{"aw8697_reserved_364.bin"},
+	{"aw8697_reserved_365.bin"},
+	{"aw8697_reserved_366.bin"},
+	{"aw8697_reserved_367.bin"},
+	{"aw8697_reserved_368.bin"},
+	{"aw8697_reserved_369.bin"},
+	{"aw8697_reserved_370.bin"},
+
+	/* Add for OS14 Start */
+	{"aw8697_Nightsky_RTP_371.bin"},
+	{"aw8697_TheStars_RTP_372.bin"},
+	{"aw8697_TheSunrise_RTP_373.bin"},
+	{"aw8697_TheSunset_RTP_374.bin"},
+	{"aw8697_Meditate_RTP_375.bin"},
+	{"aw8697_Distant_RTP_376.bin"},
+	{"aw8697_Pond_RTP_377.bin"},
+	{"aw8697_Moonlotus_RTP_378.bin"},
+	{"aw8697_Ripplingwater_RTP_379.bin"},
+	{"aw8697_Shimmer_RTP_380.bin"},
+	{"aw8697_Batheearth_RTP_381.bin"},
+	{"aw8697_Junglemorning_RTP_382.bin"},
+	{"aw8697_Silver_RTP_383.bin"},
+	{"aw8697_Elegantquiet_RTP_384.bin"},
+	{"aw8697_Summerbeach_RTP_385.bin"},
+	{"aw8697_Summernight_RTP_386.bin"},
+	{"aw8697_Icesnow_RTP_387.bin"},
+	{"aw8697_Wintersnow_RTP_388.bin"},
+	{"aw8697_Rainforest_RTP_389.bin"},
+	{"aw8697_Raineverything_RTP_390.bin"},
+	{"aw8697_Staracross_RTP_391.bin"},
+	{"aw8697_Fullmoon_RTP_392.bin"},
+	{"aw8697_Clouds_RTP_393.bin"},
+	{"aw8697_Wonderland_RTP_394.bin"},
+	{"aw8697_Still_RTP_395.bin"},
+	{"aw8697_Haunting_RTP_396.bin"},
+	{"aw8697_Dragonfly_RTP_397.bin"},
+	{"aw8697_Dropwater_RTP_398.bin"},
+	{"aw8697_Fluctuation_RTP_399.bin"},
+	{"aw8697_Blow_RTP_400.bin"},
+	{"aw8697_Leaveslight_RTP_401.bin"},
+	{"aw8697_Warmsun_RTP_402.bin"},
+	{"aw8697_Snowflake_RTP_403.bin"},
+	{"aw8697_Crystalclear_RTP_404.bin"},
+	{"aw8697_Insects_RTP_405.bin"},
+	{"aw8697_Dew_RTP_406.bin"},
+	{"aw8697_Shine_RTP_407.bin"},
+	{"aw8697_Frost_RTP_408.bin"},
+	{"aw8697_Rainsplash_RTP_409.bin"},
+	{"aw8697_Raindrop_RTP_410.bin"},
+	/* Add for OS14 End */
 };
 
-#ifdef OPLUS_FEATURE_CHG_BASIC
-static char aw_rtp_name_175Hz[][AW_RTP_NAME_MAX] = {
-	{"aw8697_rtp.bin"},
-	{"aw8697_Hearty_channel_RTP_1.bin"},
-	{"aw8697_Instant_channel_RTP_2_175Hz.bin"},
-	{"aw8697_Music_channel_RTP_3.bin"},
-	{"aw8697_Percussion_channel_RTP_4.bin"},
-	{"aw8697_Ripple_channel_RTP_5.bin"},
-	{"aw8697_Bright_channel_RTP_6.bin"},
-	{"aw8697_Fun_channel_RTP_7.bin"},
-	{"aw8697_Glittering_channel_RTP_8.bin"},
-	{"aw8697_Granules_channel_RTP_9_175Hz.bin"},
-	{"aw8697_Harp_channel_RTP_10.bin"},
-	{"aw8697_Impression_channel_RTP_11.bin"},
-	{"aw8697_Ingenious_channel_RTP_12_175Hz.bin"},
-	{"aw8697_Joy_channel_RTP_13_175Hz.bin"},
-	{"aw8697_Overtone_channel_RTP_14.bin"},
-	{"aw8697_Receive_channel_RTP_15_175Hz.bin"},
-	{"aw8697_Splash_channel_RTP_16_175Hz.bin"},
-
-	{"aw8697_About_School_RTP_17_175Hz.bin"},
-	{"aw8697_Bliss_RTP_18.bin"},
-	{"aw8697_Childhood_RTP_19_175Hz.bin"},
-	{"aw8697_Commuting_RTP_20_175Hz.bin"},
-	{"aw8697_Dream_RTP_21.bin"},
-	{"aw8697_Firefly_RTP_22_175Hz.bin"},
-	{"aw8697_Gathering_RTP_23.bin"},
-	{"aw8697_Gaze_RTP_24_175Hz.bin"},
-	{"aw8697_Lakeside_RTP_25_175Hz.bin"},
-	{"aw8697_Lifestyle_RTP_26.bin"},
-	{"aw8697_Memories_RTP_27_175Hz.bin"},
-	{"aw8697_Messy_RTP_28_175Hz.bin"},
-	{"aw8697_Night_RTP_29_175Hz.bin"},
-	{"aw8697_Passionate_Dance_RTP_30_175Hz.bin"},
-	{"aw8697_Playground_RTP_31_175Hz.bin"},
-	{"aw8697_Relax_RTP_32_175Hz.bin"},
-	{"aw8697_Reminiscence_RTP_33.bin"},
-	{"aw8697_Silence_From_Afar_RTP_34_175Hz.bin"},
-	{"aw8697_Silence_RTP_35_175Hz.bin"},
-	{"aw8697_Stars_RTP_36_175Hz.bin"},
-	{"aw8697_Summer_RTP_37_175Hz.bin"},
-	{"aw8697_Toys_RTP_38_175Hz.bin"},
-	{"aw8697_Travel_RTP_39.bin"},
-	{"aw8697_Vision_RTP_40.bin"},
-
-	{"aw8697_waltz_channel_RTP_41_175Hz.bin"},
-	{"aw8697_cut_channel_RTP_42_175Hz.bin"},
-	{"aw8697_clock_channel_RTP_43_175Hz.bin"},
-	{"aw8697_long_sound_channel_RTP_44_175Hz.bin"},
-	{"aw8697_short_channel_RTP_45_175Hz.bin"},
-	{"aw8697_two_error_remaind_RTP_46_175Hz.bin"},
-
-	{"aw8697_kill_program_RTP_47_175Hz.bin"},
-	{"aw8697_Simple_channel_RTP_48.bin"},
-	{"aw8697_Pure_RTP_49_175Hz.bin"},
-	{"aw8697_reserved_sound_channel_RTP_50.bin"},
-
-	{"aw8697_high_temp_high_humidity_channel_RTP_51.bin"},
-
-	{"aw8697_old_steady_test_RTP_52.bin"},
-	{"aw8697_listen_pop_53.bin"},
-	{"aw8697_desk_7_RTP_54_175Hz.bin"},
-	{"aw8697_nfc_10_RTP_55_175Hz.bin"},
-	{"aw8697_vibrator_remain_12_RTP_56_175Hz.bin"},
-	{"aw8697_notice_13_RTP_57.bin"},
-	{"aw8697_third_ring_14_RTP_58.bin"},
-	{"aw8697_reserved_59.bin"},
-
-	{"aw8697_honor_fisrt_kill_RTP_60_175Hz.bin"},
-	{"aw8697_honor_two_kill_RTP_61_175Hz.bin"},
-	{"aw8697_honor_three_kill_RTP_62_175Hz.bin"},
-	{"aw8697_honor_four_kill_RTP_63_175Hz.bin"},
-	{"aw8697_honor_five_kill_RTP_64_175Hz.bin"},
-	{"aw8697_honor_three_continu_kill_RTP_65_175Hz.bin"},
-	{"aw8697_honor_four_continu_kill_RTP_66_175Hz.bin"},
-	{"aw8697_honor_unstoppable_RTP_67_175Hz.bin"},
-	{"aw8697_honor_thousands_kill_RTP_68_175Hz.bin"},
-	{"aw8697_honor_lengendary_RTP_69_175Hz.bin"},
-	{"aw8697_Airy_morning_RTP_70_175Hz.bin"},
-	{"aw8697_Temple_morning_RTP_71_175Hz.bin"},
-	{"aw8697_Water_cicidas_72_RTP_175Hz.bin"},
-	{"aw8697_Electro_club_RTP_73_175Hz.bin"},
-	{"aw8697_Vacation_RTP_74_175Hz.bin"},
-	{"aw8697_Jazz_funk_RTP_75_175Hz.bin"},
-	{"aw8697_House_club_RTP_76_175Hz.bin"},
-	{"aw8697_temple_tone_RTP_77_175Hz.bin"},
-	{"aw8697_Jazz_dreamy_RTP_78_175Hz.bin"},
-	{"aw8697_Jazz_modern_RTP_79_175Hz.bin"},
-	{"aw8697_Tone_round_RTP_80_175Hz.bin"},
-	{"aw8697_Digi_rise_RTP_81_175Hz.bin"},
-	{"aw8697_Wood_phone_RTP_82_175Hz.bin"},
-	{"aw8697_Hey_RTP_83_175Hz.bin"},
-	{"aw8697_Zanza_RTP_84_175Hz.bin"},
-	{"aw8697_Info_RTP_85_175Hz.bin"},
-	{"aw8697_Tip_top_RTP_86_175Hz.bin"},
-	{"aw8697_Opop_short_RTP_87_175Hz.bin"},
-	{"aw8697_bowl_bells_RTP_88_175Hz.bin"},
-	{"aw8697_jumpy_RTP_89_175Hz.bin"},
-	{"aw8697_reserved_90.bin"},
-	{"aw8697_reserved_91.bin"},
-	{"aw8697_reserved_92.bin"},
-	{"aw8697_reserved_93.bin"},
-	{"ALCloudscape_170HZ.bin"},
-	{"ALGoodenergy_170HZ.bin"},
-	{"NTblink_170HZ.bin"},
-	{"NTwhoop_170HZ.bin"},
-	{"Newfeeling_170HZ.bin"},
-	{"nature_170HZ.bin"},
-
-	{"aw8697_soldier_first_kill_RTP_100_175Hz.bin"},
-	{"aw8697_soldier_second_kill_RTP_101_175Hz.bin"},
-	{"aw8697_soldier_third_kill_RTP_102_175Hz.bin"},
-	{"aw8697_soldier_fourth_kill_RTP_103_175Hz.bin"},
-	{"aw8697_soldier_fifth_kill_RTP_104_175Hz.bin"},
-	{"aw8697_stepable_regulate_RTP_105.bin"},
-	{"aw8697_voice_level_bar_edge_RTP_106.bin"},
-	{"aw8697_strength_level_bar_edge_RTP_107.bin"},
-	{"aw8697_charging_simulation_RTP_108.bin"},
-	{"aw8697_fingerprint_success_RTP_109.bin"},
-
-	{"aw8697_fingerprint_effect1_RTP_110.bin"},
-	{"aw8697_fingerprint_effect2_RTP_111.bin"},
-	{"aw8697_fingerprint_effect3_RTP_112.bin"},
-	{"aw8697_fingerprint_effect4_RTP_113.bin"},
-	{"aw8697_fingerprint_effect5_RTP_114.bin"},
-	{"aw8697_fingerprint_effect6_RTP_115.bin"},
-	{"aw8697_fingerprint_effect7_RTP_116.bin"},
-	{"aw8697_fingerprint_effect8_RTP_117.bin"},
-	{"aw8697_breath_simulation_RTP_118.bin"},
-	{"aw8697_reserved_119.bin"},
-
-	{"aw8697_Miss_RTP_120.bin"},
-	{"aw8697_Scenic_RTP_121_175Hz.bin"},
-	{"aw8697_voice_assistant_RTP_122.bin"},
-/* used for 7 */
-	{"aw8697_Appear_channel_RTP_123_175Hz.bin"},
-	{"aw8697_Miss_RTP_124_175Hz.bin"},
-	{"aw8697_Music_channel_RTP_125_175Hz.bin"},
-	{"aw8697_Percussion_channel_RTP_126_175Hz.bin"},
-	{"aw8697_Ripple_channel_RTP_127_175Hz.bin"},
-	{"aw8697_Bright_channel_RTP_128_175Hz.bin"},
-	{"aw8697_Fun_channel_RTP_129_175Hz.bin"},
-	{"aw8697_Glittering_channel_RTP_130_175Hz.bin"},
-	{"aw8697_Harp_channel_RTP_131_175Hz.bin"},
-	{"aw8697_Overtone_channel_RTP_132_175Hz.bin"},
-	{"aw8697_Simple_channel_RTP_133_175Hz.bin"},
-
-	{"aw8697_Seine_past_RTP_134_175Hz.bin"},
-	{"aw8697_Classical_ring_RTP_135_175Hz.bin"},
-	{"aw8697_Long_for_RTP_136_175Hz.bin"},
-	{"aw8697_Romantic_RTP_137_175Hz.bin"},
-	{"aw8697_Bliss_RTP_138_175Hz.bin"},
-	{"aw8697_Dream_RTP_139_175Hz.bin"},
-	{"aw8697_Relax_RTP_140_175Hz.bin"},
-	{"aw8697_Joy_channel_RTP_141_175Hz.bin"},
-	{"aw8697_weather_wind_RTP_142_175Hz.bin"},
-	{"aw8697_weather_cloudy_RTP_143_175Hz.bin"},
-	{"aw8697_weather_thunderstorm_RTP_144_175Hz.bin"},
-	{"aw8697_weather_default_RTP_145_175Hz.bin"},
-	{"aw8697_weather_sunny_RTP_146_175Hz.bin"},
-	{"aw8697_weather_smog_RTP_147_175Hz.bin"},
-	{"aw8697_weather_snow_RTP_148_175Hz.bin"},
-	{"aw8697_weather_rain_RTP_149_175Hz.bin"},
-/* used for 7 end*/
-	{"aw8697_rtp_lighthouse.bin"},
-	{"aw8697_rtp_silk.bin"},
-	{"aw8697_reserved_152.bin"},
-	{"aw8697_reserved_153.bin"},
-	{"aw8697_reserved_154.bin"},
-	{"aw8697_reserved_155.bin"},
-	{"aw8697_reserved_156.bin"},
-	{"aw8697_reserved_157.bin"},
-	{"aw8697_reserved_158.bin"},
-	{"aw8697_reserved_159.bin"},
-	{"aw8697_reserved_160.bin"},
-
-    /*  Added oplus ringtone start */
-	{"aw8697_oplus_its_oplus_RTP_161_175Hz.bin"},
-	{"aw8697_oplus_tune_RTP_162_175Hz.bin"},
-	{"aw8697_oplus_jingle_RTP_163_175Hz.bin"},
-	{"aw8697_reserved_164.bin"},
-	{"aw8697_reserved_165.bin"},
-	{"aw8697_reserved_166.bin"},
-	{"aw8697_reserved_167.bin"},
-	{"aw8697_reserved_168.bin"},
-	{"aw8697_reserved_169.bin"},
-	{"aw8697_oplus_gt_RTP_170_175Hz.bin"},
-    /*  Added oplus ringtone end */
-};
-#endif /* OPLUS_FEATURE_CHG_BASIC */
 
 static char aw_ram_name_19065[5][30] = {
 	{"aw8697_haptic_235.bin"},
@@ -1837,6 +3459,9 @@ static int container_init(int size)
 		aw_rtp = vmalloc(size);
 		if (!aw_rtp) {
 			aw_dev_err("%s: error allocating memory\n", __func__);
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+			(void)oplus_haptic_track_mem_alloc_err(HAPTIC_MEM_ALLOC_TRACK, size, __func__);
+#endif
 			return -ENOMEM;
 		}
 		aw_container_size = size;
@@ -1874,6 +3499,9 @@ int i2c_r_bytes(struct aw_haptic *aw_haptic, uint8_t reg_addr, uint8_t *buf,
 	ret = i2c_transfer(aw_haptic->i2c->adapter, msg, ARRAY_SIZE(msg));
 	if (ret < 0) {
 		aw_dev_err("%s: transfer failed.", __func__);
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+		(void)oplus_haptic_track_dev_err(HAPTIC_I2C_READ_TRACK_ERR, reg_addr, ret);
+#endif
 		return ret;
 	} else if (ret != 2) {
 		aw_dev_err("%s: transfer failed(size error).", __func__);
@@ -1896,9 +3524,13 @@ int i2c_w_bytes(struct aw_haptic *aw_haptic, uint8_t reg_addr, uint8_t *buf,
 	data[0] = reg_addr;
 	memcpy(&data[1], buf, len);
 	ret = i2c_master_send(aw_haptic->i2c, data, len + 1);
-	if (ret < 0)
+	if (ret < 0) {
 		aw_dev_err("%s: i2c master send 0x%02x error\n",
 			   __func__, reg_addr);
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+		(void)oplus_haptic_track_dev_err(HAPTIC_I2C_WRITE_TRACK_ERR, reg_addr, ret);
+#endif
+	}
 	kfree(data);
 	return ret;
 }
@@ -1926,6 +3558,8 @@ int i2c_w_bits(struct aw_haptic *aw_haptic, uint8_t reg_addr, uint32_t mask,
 	return 0;
 }
 
+#define DEFAULT_BOOST_VOLT 0x4F
+#define VMAX_GAIN_NUM 17
 static int parse_dt(struct device *dev, struct aw_haptic *aw_haptic,
 			 struct device_node *np)
 {
@@ -1935,24 +3569,81 @@ static int parse_dt(struct device *dev, struct aw_haptic *aw_haptic,
 		return -EPERM;
 	}
 	aw_dev_info("%s: reset gpio provide ok %d\n", __func__,
-		    aw_haptic->reset_gpio);
+		aw_haptic->reset_gpio);
 	aw_haptic->irq_gpio = of_get_named_gpio(np, "irq-gpio", 0);
 	if (aw_haptic->irq_gpio < 0)
 		aw_dev_err("%s: no irq gpio provided.\n", __func__);
 	else
 		aw_dev_info("%s: irq gpio provide ok irq = %d.\n",
-			    __func__, aw_haptic->irq_gpio);
+			__func__, aw_haptic->irq_gpio);
+
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	if (of_property_read_u32(np, "qcom,device_id", &aw_haptic->device_id))
 		aw_haptic->device_id = 815;
 	aw_dev_info("%s: device_id=%d\n", __func__, aw_haptic->device_id);
+#endif
 
-	if (of_property_read_u8(np, "oplus,aw86927_boost_voltage", &AW86927_HAPTIC_HIGH_LEVEL_REG_VAL)) {
-		AW86927_HAPTIC_HIGH_LEVEL_REG_VAL = 0x4F;//boost 8.4V
+	return 0;
+}
+
+static int parse_vibrate_param_dts(struct device *dev, struct aw_haptic *aw_haptic,
+			 struct device_node *np)
+{
+#ifdef OPLUS_FEATURE_CHG_BASIC
+
+	int max_boost_voltage = 0;
+	uint8_t vmax[VMAX_GAIN_NUM];
+	uint8_t gain[VMAX_GAIN_NUM];
+	uint32_t val = 0;
+	int i = 0;
+	int rc;
+
+	aw_haptic->livetap_support = of_property_read_bool(np, "oplus,livetap_support");
+	aw_dev_info("oplus,livetap_support = %d\n", aw_haptic->livetap_support);
+
+	if (of_property_read_u32(np, "oplus,aw86927_boost_voltage", &max_boost_voltage))
+		AW86927_HAPTIC_HIGH_LEVEL_REG_VAL = DEFAULT_BOOST_VOLT; /* boost 8.4V */
+	else
+		AW86927_HAPTIC_HIGH_LEVEL_REG_VAL = max_boost_voltage;
+	aw_dev_info("%s: aw86927 boost_voltage=%d\n", __func__, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);
+
+	val = of_property_read_u8_array(np, "haptic_hv_vmax",
+					vmax, ARRAY_SIZE(vmax));
+	if (val != 0) {
+		aw_dev_info("aw_haptic_vmax not found");
+	} else {
+		for (i = 0; i < ARRAY_SIZE(vmax); i++) {
+			vmax_map[i].vmax = vmax[i];
+			aw_dev_info("vmax_map vmax: 0x%x vmax: 0x%x", vmax_map[i].vmax, vmax[i]);
+		}
+	}
+	val = of_property_read_u8_array(np, "haptic_hv_gain",
+					gain, ARRAY_SIZE(gain));
+	if (val != 0) {
+		aw_dev_info("aw_haptic_gain not found");
+	} else {
+		for (i = 0; i < ARRAY_SIZE(gain); i++) {
+			vmax_map[i].gain = gain[i];
+			aw_dev_info("vmax_map gain: 0x%x gain: 0x%x", vmax_map[i].gain, gain[i]);
+		}
 	}
 
-	aw_dev_info("%s: aw86927 boost_voltage=%d\n", __func__, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);
+/* oplus add for drv2 lvl and time */
+	if (aw_haptic->device_id == DEVICE_ID_0815) {
+		rc = of_property_read_u8(np, "oplus,drv2_lvl",
+			&aw_haptic->info.cont_drv2_lvl);
+		if (rc) {
+			aw_haptic->info.cont_drv2_lvl = AW8692X_0815_CONT_DRV2_LVL;
+		}
+
+		rc = of_property_read_u8(np, "oplus,drv2_time",
+			&aw_haptic->info.cont_drv2_time);
+		if (rc) {
+			aw_haptic->info.cont_drv2_time = AW8692X_0815_CONT_DRV2_TIME;
+		}
+	}
 #endif
+
 	return 0;
 }
 
@@ -2032,8 +3723,6 @@ static int parse_chipid(struct aw_haptic *aw_haptic)
 	uint8_t cnt = 0;
 
 	for (cnt = 0; cnt < AW_READ_CHIPID_RETRIES; cnt++) {
-		/* hardware reset */
-		hw_reset(aw_haptic);
 		ret = read_chipid(aw_haptic, &reg);
 		aw_dev_info("%s: reg_val = 0x%02X\n",
 			    __func__, reg);
@@ -2090,29 +3779,44 @@ static int parse_chipid(struct aw_haptic *aw_haptic)
 	return -EINVAL;
 }
 
-static int ctrl_init(struct aw_haptic *aw_haptic, struct device *dev)
+static int ctrl_init(struct aw_haptic *aw_haptic)
 {
-	if (aw_haptic->chipid <= 0) {
-		aw_dev_info("%s: wrong chipid!\n", __func__);
-		return -EINVAL;
+	uint32_t reg = 0;
+	uint8_t cnt = 0;
+
+	aw_dev_info("%s: enter\n", __func__);
+	for (cnt = 0; cnt < AW_READ_CHIPID_RETRIES; cnt++) {
+		/* hardware reset */
+		hw_reset(aw_haptic);
+		if (read_chipid(aw_haptic, &reg) < 0)
+			aw_dev_err("%s: read chip id fail\n", __func__);
+		switch (reg) {
+/*
+		case AW8695_CHIPID:
+		case AW8697_CHIPID:
+			aw_haptic->func = &aw869x_func_list;
+			return 0;
+		case AW86905_CHIPID:
+		case AW86907_CHIPID:
+		case AW86915_CHIPID:
+		case AW86917_CHIPID:
+			aw_haptic->func = &aw869xx_func_list;
+			return 0;
+*/
+		case AW86925_CHIPID:
+		case AW86926_CHIPID:
+		case AW86927_CHIPID:
+		case AW86928_CHIPID:
+			aw_haptic->func = &aw8692x_func_list;
+			return 0;
+		default:
+			aw_dev_err("%s: unexpected chipid\n", __func__);
+			break;
+		}
+		usleep_range(AW_READ_CHIPID_RETRY_DELAY * 1000,
+			     AW_READ_CHIPID_RETRY_DELAY * 1000 + 500);
 	}
-	switch (aw_haptic->chipid) {
-	//case AW8695_CHIPID:
-	//case AW8697_CHIPID:
-		//aw_haptic->func = &aw869x_func_list;
-		//break;
-	case AW86925_CHIPID:
-	case AW86926_CHIPID:
-	case AW86927_CHIPID:
-	case AW86928_CHIPID:
-		aw_haptic->func = &aw8692x_func_list;
-		break;
-	default:
-		aw_dev_info("%s: unexpected chipid!\n",
-			    __func__);
-		return -EINVAL;
-	}
-	return 0;
+	return -EINVAL;
 }
 
 static void ram_play(struct aw_haptic *aw_haptic, uint8_t mode)
@@ -2259,6 +3963,9 @@ static void ram_load(const struct firmware *cont, void *context)
 		release_firmware(cont);
 		aw_dev_err("%s: Error allocating memory\n",
 			   __func__);
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+		(void)oplus_haptic_track_mem_alloc_err(HAPTIC_MEM_ALLOC_TRACK, cont->size + sizeof(int), __func__);
+#endif
 		return;
 	}
 	awinic_fw->len = cont->size;
@@ -2290,17 +3997,17 @@ static int ram_update(struct aw_haptic *aw_haptic)
 	aw_haptic->ram_init = false;
 	aw_haptic->rtp_init = false;
 
-	if (aw_haptic->device_id == 815) {
+	if (aw_haptic->device_id == DEVICE_ID_0815) {
 		if (aw_haptic->f0 < F0_VAL_MIN_0815 ||
 		    aw_haptic->f0 > F0_VAL_MAX_0815)
 			aw_haptic->f0 = 1700;
 
-	} else if (aw_haptic->device_id == 81538) {
+	} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 		if (aw_haptic->f0 < F0_VAL_MIN_081538 ||
 		    aw_haptic->f0 > F0_VAL_MAX_081538)
 			aw_haptic->f0 = 1500;
 
-	} else if (aw_haptic->device_id == 832) {
+	} else if (aw_haptic->device_id == DEVICE_ID_0832) {
 		if (aw_haptic->f0 < F0_VAL_MIN_0832 ||
 		    aw_haptic->f0 > F0_VAL_MAX_0832)
 			aw_haptic->f0 = 2350;
@@ -2329,19 +4036,19 @@ static int ram_update(struct aw_haptic *aw_haptic)
  *	}
  */
 
-	if (aw_haptic->device_id == 832) {
+	if (aw_haptic->device_id == DEVICE_ID_0832) {
 		aw_dev_info("%s:19065 haptic bin name  %s\n", __func__,
 			    aw_ram_name_19065[index]);
 		return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 			aw_ram_name_19065[index], aw_haptic->dev, GFP_KERNEL,
 			aw_haptic, ram_load);
-	} else if (aw_haptic->device_id == 833) {
+	} else if (aw_haptic->device_id == DEVICE_ID_0833) {
 		aw_dev_info("%s:19065 haptic bin name  %s\n", __func__,
 			    aw_ram_name_19161[index]);
 		return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
 			aw_ram_name_19161[index], aw_haptic->dev, GFP_KERNEL,
 			aw_haptic, ram_load);
-	} else if (aw_haptic->device_id == 81538) {
+	} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 		if (aw_haptic->vibration_style == AW_HAPTIC_VIBRATION_CRISP_STYLE) {
 			aw_dev_info("%s:150Hz haptic bin name  %s\n", __func__,
 				    aw_ram_name_150[index]);
@@ -2362,11 +4069,25 @@ static int ram_update(struct aw_haptic *aw_haptic)
 				aw_haptic, ram_load);
 		}
 	} else {
-		aw_dev_info("%s:haptic bin name  %s\n", __func__,
-			    aw_ram_name[index]);
-		return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
-			aw_ram_name[index], aw_haptic->dev, GFP_KERNEL,
-			aw_haptic, ram_load);
+		if (aw_haptic->vibration_style == AW_HAPTIC_VIBRATION_CRISP_STYLE) {
+			aw_dev_info("%s:170Hz haptic bin name %s\n", __func__,
+				    aw_ram_name[index]);
+			return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				aw_ram_name[index], aw_haptic->dev, GFP_KERNEL,
+				aw_haptic, ram_load);
+		} else if (aw_haptic->vibration_style == AW_HAPTIC_VIBRATION_SOFT_STYLE) {
+			aw_dev_info("%s:170Hz soft haptic bin name %s\n", __func__,
+				    aw_ram_name_170_soft[index]);
+			return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				aw_ram_name_170_soft[index], aw_haptic->dev, GFP_KERNEL,
+				aw_haptic, ram_load);
+		} else {
+			aw_dev_info("%s:haptic bin name  %s\n", __func__,
+					aw_ram_name[index]);
+			return request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+				aw_ram_name[index], aw_haptic->dev, GFP_KERNEL,
+				aw_haptic, ram_load);
+		}
 	}
 	return 0;
 
@@ -2443,6 +4164,10 @@ static int f0_cali(struct aw_haptic *aw_haptic)
 	if (aw_haptic->func->get_f0(aw_haptic)) {
 		aw_dev_err("%s: get f0 error, user defafult f0\n",
 			   __func__);
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+		(void)oplus_haptic_track_fre_cail(HAPTIC_F0_CALI_TRACK, aw_haptic->f0,
+						  0, "aw_haptic->func->get_f0 is null");
+#endif
 	} else {
 		/* max and min limit */
 		f0_limit = aw_haptic->f0;
@@ -2455,6 +4180,10 @@ static int f0_cali(struct aw_haptic *aw_haptic)
 			aw_dev_err("%s: f0 calibration out of range = %d!\n",
 				   __func__, aw_haptic->f0);
 			f0_limit = aw_haptic->info.f0_pre;
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+			(void)oplus_haptic_track_fre_cail(HAPTIC_F0_CALI_TRACK, aw_haptic->f0,
+							  -ERANGE, "f0 out of range");
+#endif
 			return -ERANGE;
 		}
 		aw_dev_info("%s: f0_limit = %d\n", __func__,
@@ -2490,6 +4219,62 @@ static int f0_cali(struct aw_haptic *aw_haptic)
 	/* restore standby work mode */
 	aw_haptic->func->play_stop(aw_haptic);
 	return ret;
+}
+
+void get_f0_cali_data(struct aw_haptic *aw_haptic)
+{
+	char f0_cali_lra = 0;
+	uint32_t f0_limit = 0;
+	uint32_t f0_cali_min = aw_haptic->info.f0_pre *
+				(100 - aw_haptic->info.f0_cali_percent) / 100;
+	uint32_t f0_cali_max = aw_haptic->info.f0_pre *
+				(100 + aw_haptic->info.f0_cali_percent) / 100;
+	int f0_cali_step = 0;
+
+/* max and min limit */
+	f0_limit = aw_haptic->f0;
+	aw_dev_info("%s: f0_pre = %d, f0_cali_min = %d, f0_cali_max = %d, f0 = %d\n",
+			__func__, aw_haptic->info.f0_pre,
+			f0_cali_min, f0_cali_max, aw_haptic->f0);
+
+	if ((aw_haptic->f0 < f0_cali_min) ||
+		aw_haptic->f0 > f0_cali_max) {
+		aw_dev_err("%s: f0 calibration out of range = %d!\n",
+				__func__, aw_haptic->f0);
+		f0_limit = aw_haptic->info.f0_pre;
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+		(void)oplus_haptic_track_fre_cail(HAPTIC_F0_CALI_TRACK, aw_haptic->f0, -ERANGE, "f0 out of range");
+#endif
+		return;
+	}
+	aw_dev_info("%s: f0_limit = %d\n", __func__,
+			(int)f0_limit);
+	/* calculate cali step */
+	f0_cali_step = 100000 * ((int)f0_limit -
+				(int)aw_haptic->info.f0_pre) /
+				((int)f0_limit * AW_OSC_CALI_ACCURACY);
+	aw_dev_info("%s: f0_cali_step = %d\n", __func__,
+			f0_cali_step);
+	if (f0_cali_step >= 0) {	/*f0_cali_step >= 0 */
+		if (f0_cali_step % 10 >= 5)
+			f0_cali_step = 32 + (f0_cali_step / 10 + 1);
+		else
+			f0_cali_step = 32 + f0_cali_step / 10;
+	} else {	/* f0_cali_step < 0 */
+		if (f0_cali_step % 10 <= -5)
+			f0_cali_step = 32 + (f0_cali_step / 10 - 1);
+		else
+			f0_cali_step = 32 + f0_cali_step / 10;
+	}
+	if (f0_cali_step > 31)
+		f0_cali_lra = (char)f0_cali_step - 32;
+	else
+		f0_cali_lra = (char)f0_cali_step + 32;
+	/* update cali step */
+	aw_haptic->f0_cali_data = (int)f0_cali_lra;
+
+	aw_dev_info("%s: f0_cali_data = 0x%02X\n",
+			__func__, aw_haptic->f0_cali_data);
 }
 
 static void rtp_trim_lra_cali(struct aw_haptic *aw_haptic)
@@ -2574,6 +4359,10 @@ static int rtp_osc_cali(struct aw_haptic *aw_haptic)
 	if (ret < 0) {
 		aw_dev_err("%s: failed to read %s\n", __func__,
 			   aw_rtp_name[0]);
+#ifdef CONFIG_HAPTIC_FEEDBACK_MODULE
+		(void)oplus_haptic_track_fre_cail(HAPTIC_OSC_CALI_TRACK, aw_haptic->f0, ret,
+						  "rtp_osc_cali request_firmware fail");
+#endif
 		return ret;
 	}
 	/*aw_haptic add stop,for irq interrupt during calibrate */
@@ -2614,9 +4403,6 @@ static int rtp_osc_cali(struct aw_haptic *aw_haptic)
 	disable_irq(gpio_to_irq(aw_haptic->irq_gpio));
 	/* haptic go */
 	aw_haptic->func->play_go(aw_haptic, true);
-	/* require latency of CPU & DMA not more then AW_PM_QOS_VALUE_VB us */
-	pm_qos_add_request(&aw_pm_qos_req_vb, PM_QOS_CPU_DMA_LATENCY,
-			   AW_PM_QOS_VALUE_VB);
 	while (1) {
 		if (!aw_haptic->func->rtp_get_fifo_afs(aw_haptic)) {
 #ifdef AW_ENABLE_RTP_PRINT_LOG
@@ -2624,7 +4410,13 @@ static int rtp_osc_cali(struct aw_haptic *aw_haptic)
 				 __func__, aw_haptic->rtp_cnt);
 #endif
 			mutex_lock(&aw_haptic->rtp_lock);
-			if ((aw_rtp->len - aw_haptic->rtp_cnt) <
+			aw_pm_qos_enable(aw_haptic, true);
+			if (aw_haptic->rtp_cnt < aw_haptic->ram.base_addr) {
+				if (aw_rtp->len - aw_haptic->rtp_cnt < aw_haptic->ram.base_addr)
+					buf_len = aw_rtp->len - aw_haptic->rtp_cnt;
+				else
+					buf_len = aw_haptic->ram.base_addr;
+			} else if ((aw_rtp->len - aw_haptic->rtp_cnt) <
 			    (aw_haptic->ram.base_addr >> 2))
 				buf_len = aw_rtp->len - aw_haptic->rtp_cnt;
 			else
@@ -2640,6 +4432,7 @@ static int rtp_osc_cali(struct aw_haptic *aw_haptic)
 						[aw_haptic->rtp_cnt], buf_len);
 				aw_haptic->rtp_cnt += buf_len;
 			}
+			aw_pm_qos_enable(aw_haptic, false);
 			mutex_unlock(&aw_haptic->rtp_lock);
 		}
 		if (aw_haptic->func->get_osc_status(aw_haptic)) {
@@ -2657,7 +4450,6 @@ static int rtp_osc_cali(struct aw_haptic *aw_haptic)
 			break;
 		}
 	}
-	pm_qos_remove_request(&aw_pm_qos_req_vb);
 	enable_irq(gpio_to_irq(aw_haptic->irq_gpio));
 	aw_haptic->microsecond = ktime_to_us(ktime_sub(aw_haptic->kend,
 						       aw_haptic->kstart));
@@ -2695,14 +4487,14 @@ static void vibrator_work_routine(struct work_struct *work)
 #endif
 
 	mutex_lock(&aw_haptic->lock);
-	aw_haptic->func->upload_lra(aw_haptic, AW_F0_CALI_LRA);
 	/* Enter standby mode */
 	aw_haptic->func->play_stop(aw_haptic);
 	if (aw_haptic->state) {
+		aw_haptic->func->upload_lra(aw_haptic, AW_F0_CALI_LRA);
 		if (aw_haptic->activate_mode == AW_RAM_LOOP_MODE) {
-			if (aw_haptic->device_id == 832
-				|| aw_haptic->device_id == 833
-				|| aw_haptic->device_id == 815) {
+			if (aw_haptic->device_id == DEVICE_ID_0832
+				|| aw_haptic->device_id == DEVICE_ID_0833
+				|| aw_haptic->device_id == DEVICE_ID_0815) {
 				ram_vbat_comp(aw_haptic, false);
 				aw_haptic->func->bst_mode_config(aw_haptic, AW_BST_BOOST_MODE);
 			} else {
@@ -2730,34 +4522,15 @@ static void vibrator_work_routine(struct work_struct *work)
 	mutex_unlock(&aw_haptic->lock);
 }
 
-static void aw_pm_qos_enable(struct aw_haptic *aw_haptic, bool enabled)
-{
-	mutex_lock(&aw_haptic->qos_lock);
-	if (enabled) {
-		if (!pm_qos_request_active(&aw_pm_qos_req_vb))
-			pm_qos_add_request(&aw_pm_qos_req_vb,
-					   PM_QOS_CPU_DMA_LATENCY,
-					   AW_PM_QOS_VALUE_VB);
-		else
-			pm_qos_update_request(&aw_pm_qos_req_vb,
-					      AW_PM_QOS_VALUE_VB);
-
-	} else {
-		pm_qos_remove_request(&aw_pm_qos_req_vb);
-		/* pm_qos_update_request(&aw_pm_qos_req_vb, PM_QOS_DEFAULT_VALUE); */
-	}
-	mutex_unlock(&aw_haptic->qos_lock);
-}
-
 static void rtp_play(struct aw_haptic *aw_haptic)
 {
 	uint8_t glb_state_val = 0;
 	uint32_t buf_len = 0;
 
 	aw_dev_info("%s: enter\n", __func__);
-	aw_pm_qos_enable(aw_haptic, true);
 	aw_haptic->rtp_cnt = 0;
 	mutex_lock(&aw_haptic->rtp_lock);
+	aw_pm_qos_enable(aw_haptic, true);
 	aw_haptic->func->dump_rtp_regs(aw_haptic);
 	while ((!aw_haptic->func->rtp_get_fifo_afs(aw_haptic))
 	       && (aw_haptic->play_mode == AW_RTP_MODE)) {
@@ -2807,6 +4580,7 @@ static void rtp_play(struct aw_haptic *aw_haptic)
 
 	if (aw_haptic->play_mode == AW_RTP_MODE)
 		aw_haptic->func->set_rtp_aei(aw_haptic, true);
+
 	aw_pm_qos_enable(aw_haptic, false);
 	aw_dev_info("%s: exit\n", __func__);
 	mutex_unlock(&aw_haptic->rtp_lock);
@@ -2820,7 +4594,7 @@ static const struct firmware *old_work_file_load_accord_f0(struct aw_haptic *aw_
 
 	if (aw_haptic->rtp_file_num == AW_WAVEFORM_INDEX_OLD_STEADY ||
 	    aw_haptic->rtp_file_num == AW_WAVEFORM_INDEX_HIGH_TEMP) {
-		if (aw_haptic->device_id == 815) {
+		if (aw_haptic->device_id == DEVICE_ID_0815) {
 			 if (aw_haptic->f0 <= 1610)
 				f0_file_num = 0;
 			else if (aw_haptic->f0 <= 1630)
@@ -2843,7 +4617,7 @@ static const struct firmware *old_work_file_load_accord_f0(struct aw_haptic *aw_
 				f0_file_num = 9;
 			else
 				f0_file_num = 10;
-		} else if (aw_haptic->device_id == 81538) {
+		} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 			if (aw_haptic->f0 <= 1410)
 				f0_file_num = 0;
 			else if (aw_haptic->f0 <= 1430)
@@ -2866,7 +4640,8 @@ static const struct firmware *old_work_file_load_accord_f0(struct aw_haptic *aw_
 				f0_file_num = 9;
 			else
 				f0_file_num = 10;
-		} else if (aw_haptic->device_id == 832 || aw_haptic->device_id == 833) {
+		} else if (aw_haptic->device_id == DEVICE_ID_0832 ||
+			   aw_haptic->device_id == DEVICE_ID_0833) {
 			if (aw_haptic->f0 <= 2255)
 				f0_file_num = 0;
 			else if (aw_haptic->f0 <= 2265)
@@ -2891,29 +4666,31 @@ static const struct firmware *old_work_file_load_accord_f0(struct aw_haptic *aw_
 				f0_file_num = 10;
 		}
 		if (aw_haptic->rtp_file_num == AW_WAVEFORM_INDEX_OLD_STEADY) {
-			if (aw_haptic->device_id == 815) {
+			if (aw_haptic->device_id == DEVICE_ID_0815) {
 				ret = request_firmware(&rtp_file,
 					aw_old_steady_test_rtp_name_0815[f0_file_num],
 					aw_haptic->dev);
-			} else if (aw_haptic->device_id == 81538) {
+			} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 				ret = request_firmware(&rtp_file,
 					aw_old_steady_test_rtp_name_081538[f0_file_num],
 					aw_haptic->dev);
-			} else if (aw_haptic->device_id == 832 || aw_haptic->device_id == 833) {
+			} else if (aw_haptic->device_id == DEVICE_ID_0832 ||
+				   aw_haptic->device_id == DEVICE_ID_0833) {
 				ret = request_firmware(&rtp_file,
 					aw_old_steady_test_rtp_name_0832[f0_file_num],
 					aw_haptic->dev);
 			}
 	} else {
-		if (aw_haptic->device_id == 815) {
+		if (aw_haptic->device_id == DEVICE_ID_0815) {
 				ret = request_firmware(&rtp_file,
 					aw_high_temp_high_humidity_0815[f0_file_num],
 					aw_haptic->dev);
-		} else if (aw_haptic->device_id == 81538) {
+		} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 				ret = request_firmware(&rtp_file,
 					aw_high_temp_high_humidity_081538[f0_file_num],
 					aw_haptic->dev);
-		} else if (aw_haptic->device_id == 832 || aw_haptic->device_id == 833) {
+		} else if (aw_haptic->device_id == DEVICE_ID_0832 ||
+			   aw_haptic->device_id == DEVICE_ID_0833) {
 				ret = request_firmware(&rtp_file,
 					aw_high_temp_high_humidity_0832[f0_file_num],
 					aw_haptic->dev);
@@ -3015,7 +4792,7 @@ static void rtp_work_routine(struct work_struct *work)
 	struct aw_haptic *aw_haptic = container_of(work, struct aw_haptic,
 						   rtp_work);
 
-	aw_dev_info("%s: enter\n", __func__);
+	aw_dev_info("%s: enter device_id = %d, f0 = %d\n", __func__, aw_haptic->device_id, aw_haptic->f0);
 	mutex_lock(&aw_haptic->rtp_lock);
 	aw_haptic->rtp_routine_on = 1;
 	/* fw loaded */
@@ -3025,25 +4802,33 @@ static void rtp_work_routine(struct work_struct *work)
 		aw_dev_info("%s: rtp_file_num[%d]\n", __func__,
 			    aw_haptic->rtp_file_num);
 		aw_haptic->rtp_routine_on = 1;
-		if (aw_haptic->device_id == 815) {
-			if (aw_haptic->f0 <= 1670) {
+		if (aw_haptic->device_id == DEVICE_ID_0815) {
+			if (aw_haptic->f0 <= DEVICE_ID_0815_F0_1630) {
 				ret = request_firmware(&rtp_file,
-				aw_rtp_name_165Hz[aw_haptic->rtp_file_num],
+				aw_rtp_name_162Hz[aw_haptic->rtp_file_num],
 				aw_haptic->dev);
-			} else if (aw_haptic->f0 <= 1725) {
+			} else if (aw_haptic->f0 <= DEVICE_ID_0815_F0_1670) {
+				ret = request_firmware(&rtp_file,
+				aw_rtp_name_166Hz[aw_haptic->rtp_file_num],
+				aw_haptic->dev);
+			} else if (aw_haptic->f0 <= DEVICE_ID_0815_F0_1710) {
 				ret = request_firmware(&rtp_file,
 				aw_rtp_name[aw_haptic->rtp_file_num],
 				aw_haptic->dev);
+			} else if (aw_haptic->f0 <= DEVICE_ID_0815_F0_1750) {
+				ret = request_firmware(&rtp_file,
+				aw_rtp_name_174Hz[aw_haptic->rtp_file_num],
+				aw_haptic->dev);
 			} else {
 				ret = request_firmware(&rtp_file,
-				aw_rtp_name_175Hz[aw_haptic->rtp_file_num],
+				aw_rtp_name_178Hz[aw_haptic->rtp_file_num],
 				aw_haptic->dev);
 			}
-		} else if (aw_haptic->device_id == 81538) {
+		} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 			ret = request_firmware(&rtp_file,
 			aw_rtp_name_150Hz[aw_haptic->rtp_file_num],
 			aw_haptic->dev);
-		} else if (aw_haptic->device_id == 832) {
+		} else if (aw_haptic->device_id == DEVICE_ID_0832) {
 			if (aw_haptic->f0 <= 2280) {
 			    ret = request_firmware(&rtp_file,
 			    aw_rtp_name_19065_226Hz[aw_haptic->rtp_file_num],
@@ -3117,10 +4902,10 @@ static void rtp_work_routine(struct work_struct *work)
 	memcpy(aw_rtp->data, rtp_file->data, rtp_file->size);
 	mutex_unlock(&aw_haptic->rtp_lock);
 	release_firmware(rtp_file);
-	if (aw_haptic->device_id == 815) {
+	if (aw_haptic->device_id == DEVICE_ID_0815) {
 		aw_dev_info("%s: rtp file [%s] size = %d, f0 = %d\n", __func__,
 		aw_rtp_name[aw_haptic->rtp_file_num], aw_rtp->len, aw_haptic->f0);
-	} else if (aw_haptic->device_id == 81538) {
+	} else if (aw_haptic->device_id == DEVICE_ID_81538) {
 		aw_dev_info("%s: rtp file [%s] size = %d, f0 = %d\n", __func__,
 		aw_rtp_name_150Hz[aw_haptic->rtp_file_num], aw_rtp->len, aw_haptic->f0);
 	} else {
@@ -3181,15 +4966,26 @@ static irqreturn_t irq_handle(int irq, void *data)
 	struct aw_haptic *aw_haptic = data;
 
 	aw_dev_dbg("%s: enter\n", __func__);
+
+#ifdef AAC_RICHTAP
+	if (aw_haptic->haptic_rtp_mode) {
+		aw_dev_info("exit %s:aw_haptic->haptic_rtp_mode = %d\n",
+				__func__, aw_haptic->haptic_rtp_mode);
+		return IRQ_HANDLED;
+	}
+#endif
+
 	if (!aw_haptic->func->get_irq_state(aw_haptic)) {
 		aw_dev_dbg("%s: aw_haptic rtp fifo almost empty\n", __func__);
 		if (aw_haptic->rtp_init) {
 			while ((!aw_haptic->func->rtp_get_fifo_afs(aw_haptic))
 			       && (aw_haptic->play_mode == AW_RTP_MODE)) {
 				mutex_lock(&aw_haptic->rtp_lock);
+				aw_pm_qos_enable(aw_haptic, true);
 				if (!aw_haptic->rtp_cnt) {
 					aw_dev_info("%s:aw_haptic->rtp_cnt is 0!\n",
 						    __func__);
+					aw_pm_qos_enable(aw_haptic, false);
 					mutex_unlock(&aw_haptic->rtp_lock);
 					break;
 				}
@@ -3200,6 +4996,7 @@ static irqreturn_t irq_handle(int irq, void *data)
 				if (!aw_rtp) {
 					aw_dev_info("%s:aw_rtp is null, break!\n",
 						    __func__);
+					aw_pm_qos_enable(aw_haptic, false);
 					mutex_unlock(&aw_haptic->rtp_lock);
 					break;
 				}
@@ -3233,9 +5030,11 @@ static irqreturn_t irq_handle(int irq, void *data)
 								     false);
 					aw_haptic->rtp_cnt = 0;
 					aw_haptic->rtp_init = false;
+					aw_pm_qos_enable(aw_haptic, false);
 					mutex_unlock(&aw_haptic->rtp_lock);
 					break;
 				}
+				aw_pm_qos_enable(aw_haptic, false);
 				mutex_unlock(&aw_haptic->rtp_lock);
 			}
 		} else {
@@ -3587,9 +5386,6 @@ static ssize_t duration_store(struct device *dev, struct device_attribute *attr,
 						   vib_dev);
 	uint32_t val = 0;
 	int rc = 0;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int boot_mode = get_boot_mode();
-#endif
 
 	rc = kstrtouint(buf, 0, &val);
 	if (rc < 0)
@@ -3599,7 +5395,7 @@ static ssize_t duration_store(struct device *dev, struct device_attribute *attr,
 #endif
 
 	/* setting 0 on duration is NOP for now */
-	if (val <= 0 || boot_mode == MSM_BOOT_MODE__FACTORY)
+	if (val <= 0)
 		return count;
 	aw_haptic->duration = val;
 	return count;
@@ -3624,12 +5420,10 @@ static ssize_t activate_store(struct device *dev, struct device_attribute *attr,
 	uint32_t val = 0;
 	int rc = 0;
 	int rtp_is_going_on = 0;
-#ifdef OPLUS_FEATURE_CHG_BASIC
-	int boot_mode = get_boot_mode();
-#endif
+
 	rtp_is_going_on = aw_haptic->func->juge_rtp_going(aw_haptic);
 	if (rtp_is_going_on) {
-		aw_dev_info("%s: rtp is going, boot_mode[%d]\n", __func__, boot_mode);
+		aw_dev_info("%s: rtp is going\n", __func__);
 		return count;
 	}
 	rc = kstrtouint(buf, 0, &val);
@@ -3646,28 +5440,6 @@ static ssize_t activate_store(struct device *dev, struct device_attribute *attr,
 	aw_haptic->state = val;
 	mutex_unlock(&aw_haptic->lock);
 #ifdef OPLUS_FEATURE_CHG_BASIC
-	if (aw_haptic->state && boot_mode == MSM_BOOT_MODE__FACTORY) {
-		mutex_lock(&aw_haptic->lock);
-		aw_haptic->func->play_stop(aw_haptic);
-		aw_haptic->gain = 0x80;
-		aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
-		aw_haptic->func->set_bst_vol(aw_haptic, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);
-		aw_haptic->func->set_rtp_aei(aw_haptic, false);
-		aw_haptic->func->irq_clear(aw_haptic);
-		mutex_unlock(&aw_haptic->lock);
-		if (45 < (sizeof(aw_rtp_name)/AW_RTP_NAME_MAX)) {
-			aw_haptic->rtp_file_num = 45;
-			if (45) {
-				/* schedule_work(&aw_haptic->rtp_work); */
-				queue_work(system_unbound_wq,
-					   &aw_haptic->rtp_work);
-			}
-		} else {
-			aw_dev_err("%s: rtp_file_num 0x%02x over max value\n",
-				   __func__, aw_haptic->rtp_file_num);
-		}
-		return count;
-	}
 	if (aw_haptic->state) {
 		aw_dev_info("%s: gain=0x%02x\n", __func__, aw_haptic->gain);
 		if (aw_haptic->gain >= AW_HAPTIC_RAM_VBAT_COMP_GAIN)
@@ -3675,7 +5447,8 @@ static ssize_t activate_store(struct device *dev, struct device_attribute *attr,
 
 		mutex_lock(&aw_haptic->lock);
 
-		if (aw_haptic->device_id == 815 || aw_haptic->device_id == 81538)
+		if (aw_haptic->device_id == DEVICE_ID_0815 ||
+		    aw_haptic->device_id == DEVICE_ID_81538)
 			aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
 		aw_haptic->func->set_repeat_seq(aw_haptic,
 						AW_WAVEFORM_INDEX_SINE_CYCLE);
@@ -3729,7 +5502,9 @@ static ssize_t index_show(struct device *dev, struct device_attribute *attr,
 	cdev_t *cdev = dev_get_drvdata(dev);
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->func->get_wav_seq(aw_haptic, &seq, 1);
+	mutex_unlock(&aw_haptic->lock);
 	aw_haptic->index = seq;
 	count += snprintf(buf, PAGE_SIZE, "%d\n", aw_haptic->index);
 	return count;
@@ -3768,26 +5543,6 @@ static ssize_t vmax_show(struct device *dev, struct device_attribute *attr,
 
 	return snprintf(buf, PAGE_SIZE, "0x%02x\n", aw_haptic->vmax);
 }
-
-static struct aw_vmax_map vmax_map[] = {
-	{800,  0x28, 0x40},//6.0V
-	{900,  0x28, 0x49},
-	{1000, 0x28, 0x51},
-	{1100, 0x28, 0x5A},
-	{1200, 0x28, 0x62},
-	{1300, 0x28, 0x6B},
-	{1400, 0x28, 0x73},
-	{1500, 0x28, 0x7C},
-	{1600, 0x2A, 0x80},//6.142
-	{1700, 0x31, 0x80},//6.568
-	{1800, 0x38, 0x80},//6.994
-	{1900, 0x3F, 0x80},//7.42
-	{2000, 0x46, 0x80},//7.846
-	{2100, 0x4C, 0x80},//8.272
-	{2200, 0x51, 0x80},//8.556
-	{2300, 0x58, 0x80},//8.982
-	{2400, 0x5E, 0x80},//9.408
-};
 
 static int convert_level_to_vmax(struct aw_haptic *aw_haptic, int val)
 {
@@ -3839,7 +5594,7 @@ static ssize_t vmax_store(struct device *dev, struct device_attribute *attr,
 		aw_haptic->gain = AW_HAPTIC_RAM_VBAT_COMP_GAIN;
 	}
 
-	if (aw_haptic->device_id == 833) {
+	if (aw_haptic->device_id == DEVICE_ID_0833) {
 		aw_haptic->vmax = AW86927_HAPTIC_HIGH_LEVEL_REG_VAL;
 		aw_haptic->gain = 0x80;
 	}
@@ -3896,8 +5651,10 @@ static ssize_t seq_show(struct device *dev, struct device_attribute *attr,
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
 
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->func->get_wav_seq(aw_haptic, aw_haptic->seq,
 				     AW_SEQUENCER_SIZE);
+	mutex_unlock(&aw_haptic->lock);
 	for (i = 0; i < AW_SEQUENCER_SIZE; i++) {
 		count += snprintf(buf + count, PAGE_SIZE - count,
 				  "seq%d = %d\n", i + 1, aw_haptic->seq[i]);
@@ -3938,7 +5695,9 @@ static ssize_t loop_show(struct device *dev, struct device_attribute *attr,
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
 
+	mutex_lock(&aw_haptic->lock);
 	count = aw_haptic->func->get_wav_loop(aw_haptic, buf);
+	mutex_unlock(&aw_haptic->lock);
 	count += snprintf(buf+count, PAGE_SIZE-count,
  			  "rtp_loop: 0x%02x\n", aw_haptic->rtp_loop);
 	return count;
@@ -3984,7 +5743,9 @@ static ssize_t reg_show(struct device *dev, struct device_attribute *attr,
 						   vib_dev);
 	ssize_t len = 0;
 
+	mutex_lock(&aw_haptic->lock);
 	len = aw_haptic->func->get_reg(aw_haptic, len, buf);
+	mutex_unlock(&aw_haptic->lock);
 	return len;
 }
 
@@ -3999,8 +5760,13 @@ static ssize_t reg_store(struct device *dev, struct device_attribute *attr,
 
 	if (sscanf(buf, "%x %x", &databuf[0], &databuf[1]) == 2) {
 		val = (uint8_t)databuf[1];
+		if (aw_haptic->func == &aw8692x_func_list &&
+		    (uint8_t)databuf[0] == AW8692X_REG_ANACFG20)
+			val &= AW8692X_BIT_ANACFG20_TRIM_LRA;
+		mutex_lock(&aw_haptic->lock);
 		i2c_w_bytes(aw_haptic, (uint8_t)databuf[0], &val,
 			    AW_I2C_BYTE_ONE);
+		mutex_unlock(&aw_haptic->lock);
 	}
 	return count;
 }
@@ -4036,6 +5802,14 @@ static ssize_t rtp_store(struct device *dev, struct device_attribute *attr,
 	}
 	aw_dev_info("%s: val [%d] \n", __func__, val);
 
+#ifdef AAC_RICHTAP
+	if (aw_haptic->haptic_rtp_mode) {
+		aw_dev_info("exit %s:aw_haptic->haptic_rtp_mode = %d\n",
+				__func__, aw_haptic->haptic_rtp_mode);
+		return count;
+	}
+#endif
+
 	if (val == 1025) {
 		mute = true;
 		return count;
@@ -4053,10 +5827,14 @@ static ssize_t rtp_store(struct device *dev, struct device_attribute *attr,
 		return count;
 	}
 	/*OP add for juge rtp on end*/
-	if (((val >=  RINGTONES_START_INDEX && val <= RINGTONES_END_INDEX)
-		|| (val >=  NEW_RING_START && val <= NEW_RING_END)
-		|| (val >=  OS12_NEW_RING_START && val <= OS12_NEW_RING_END)
-		|| (val >=  OPLUS_RING_START && val <= OPLUS_RING_END)
+	if (((val >= RINGTONES_START_INDEX && val <= RINGTONES_END_INDEX)
+		|| (val >= NEW_RING_START && val <= NEW_RING_END)
+		|| (val >= OS12_NEW_RING_START && val <= OS12_NEW_RING_END)
+		|| (val >= OS14_NEW_RING_START && val <= OS14_NEW_RING_END)
+		|| (val >= OPLUS_RING_START && val <= OPLUS_RING_END)
+		|| (val >= OPLUS_NEW_RING_1_START && val <= OPLUS_NEW_RING_1_END)
+		|| (val >= OPLUS_NEW_RING_2_START && val <= OPLUS_NEW_RING_2_END)
+		|| (val >= OPLUS_NEW_RING_3_START && val <= OPLUS_NEW_RING_3_END)
 		|| val == RINGTONES_SIMPLE_INDEX
 		|| val == RINGTONES_PURE_INDEX
 		|| val == AUDIO_READY_STATUS)) {
@@ -4081,17 +5859,25 @@ static ssize_t rtp_store(struct device *dev, struct device_attribute *attr,
 			    aw_haptic->pre_haptic_number);
 		val = aw_haptic->pre_haptic_number;
 	}
-	if (!val)
+	if (!val) {
 		op_clean_status(aw_haptic);
+		aw_haptic->func->play_stop(aw_haptic);
+		aw_haptic->func->set_rtp_aei(aw_haptic, false);
+		aw_haptic->func->irq_clear(aw_haptic);
+	}
 
-	aw_haptic->func->play_stop(aw_haptic);
-	aw_haptic->func->set_rtp_aei(aw_haptic, false);
-	aw_haptic->func->irq_clear(aw_haptic);
 	mutex_unlock(&aw_haptic->lock);
 	if (val < (sizeof(aw_rtp_name)/AW_RTP_NAME_MAX)) {
 		aw_haptic->rtp_file_num = val;
-		if (val)
-			queue_work(system_unbound_wq, &aw_haptic->rtp_work);
+		if (val) {
+			if (aw_haptic->device_id == DEVICE_ID_0815 &&
+			    ((val >= SG_INPUT_DOWN_HIGH && val <= SG_INPUT_UP_LOW) ||
+			     (val >= INPUT_LOW && val <= INPUT_HIGH))) {
+				queue_work(system_unbound_wq, &aw_haptic->rtp_key_work);
+			} else {
+				queue_work(system_unbound_wq, &aw_haptic->rtp_work);
+			}
+		}
 
 	} else {
 		aw_dev_err("%s: rtp_file_num 0x%02x over max value \n",
@@ -4111,6 +5897,7 @@ static ssize_t ram_update_show(struct device *dev,
 	cdev_t *cdev = dev_get_drvdata(dev);
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
+	mutex_lock(&aw_haptic->lock);
 	/* RAMINIT Enable */
 	aw_haptic->func->ram_init(aw_haptic, true);
 	aw_haptic->func->play_stop(aw_haptic);
@@ -4132,6 +5919,7 @@ static ssize_t ram_update_show(struct device *dev,
 	len += snprintf(buf + len, PAGE_SIZE - len, "\n");
 	/* RAMINIT Disable */
 	aw_haptic->func->ram_init(aw_haptic, false);
+	mutex_unlock(&aw_haptic->lock);
 	return len;
 }
 
@@ -4178,7 +5966,6 @@ static ssize_t f0_show(struct device *dev, struct device_attribute *attr,
 	mutex_lock(&aw_haptic->lock);
 	aw_haptic->func->upload_lra(aw_haptic, AW_WRITE_ZERO);
 	aw_haptic->func->get_f0(aw_haptic);
-	aw_haptic->func->upload_lra(aw_haptic, AW_F0_CALI_LRA);
 	mutex_unlock(&aw_haptic->lock);
 	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n", aw_haptic->f0);
 	return len;
@@ -4199,25 +5986,25 @@ static ssize_t f0_store(struct device *dev, struct device_attribute *attr,
 
 	aw_dev_info("%s: f0 = %d\n", __func__, val);
 
-	if(aw_haptic->device_id == 815) {
+	if(aw_haptic->device_id == DEVICE_ID_0815) {
 		aw_haptic->f0 = val;
 		if (aw_haptic->f0 < F0_VAL_MIN_0815 ||
 		    aw_haptic->f0 > F0_VAL_MAX_0815)
 			aw_haptic->f0 = 1700;
 
-	} else if(aw_haptic->device_id == 81538) {
+	} else if(aw_haptic->device_id == DEVICE_ID_81538) {
 		aw_haptic->f0 = val;
 		if (aw_haptic->f0 < F0_VAL_MIN_081538 ||
 		    aw_haptic->f0 > F0_VAL_MAX_081538)
 			aw_haptic->f0 = 1500;
 
-	} else if(aw_haptic->device_id == 832) {
+	} else if(aw_haptic->device_id == DEVICE_ID_0832) {
 		aw_haptic->f0 = val;
 		if (aw_haptic->f0 < F0_VAL_MIN_0832 ||
 		    aw_haptic->f0 > F0_VAL_MAX_0832)
 			aw_haptic->f0 = 2300;
 
-	} else if(aw_haptic->device_id == 833) {
+	} else if(aw_haptic->device_id == DEVICE_ID_0833) {
 		aw_haptic->f0 = val;
 		if (aw_haptic->f0 < F0_VAL_MIN_0833 ||
 		    aw_haptic->f0 > F0_VAL_MAX_0833)
@@ -4274,7 +6061,9 @@ static ssize_t cont_show(struct device *dev, struct device_attribute *attr,
 						   vib_dev);
 	ssize_t len = 0;
 
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->func->read_f0(aw_haptic);
+	mutex_unlock(&aw_haptic->lock);
 	len += snprintf(buf + len, PAGE_SIZE - len,
 			"cont_f0 = %d\n", aw_haptic->cont_f0);
 	return len;
@@ -4293,11 +6082,13 @@ static ssize_t cont_store(struct device *dev, struct device_attribute *attr,
 	if (rc < 0)
 		return rc;
 
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->func->play_stop(aw_haptic);
 	if (val) {
 		aw_haptic->func->upload_lra(aw_haptic, AW_F0_CALI_LRA);
 		aw_haptic->func->cont_config(aw_haptic);
 	}
+	mutex_unlock(&aw_haptic->lock);
 	return count;
 }
 
@@ -4326,7 +6117,9 @@ static ssize_t lra_resistance_show(struct device *dev,
 						   vib_dev);
 	ssize_t len = 0;
 
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->func->get_lra_resistance(aw_haptic);
+	mutex_unlock(&aw_haptic->lock);
 	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n",
 			aw_haptic->lra);
 	return len;
@@ -4378,7 +6171,9 @@ static ssize_t prct_mode_show(struct device *dev, struct device_attribute *attr,
 	ssize_t len = 0;
 	uint8_t reg_val = 0;
 
+	mutex_lock(&aw_haptic->lock);
 	reg_val = aw_haptic->func->get_prctmode(aw_haptic);
+	mutex_unlock(&aw_haptic->lock);
 	len += snprintf(buf + len, PAGE_SIZE - len, "prctmode = %d\n", reg_val);
 	return len;
 }
@@ -4391,14 +6186,14 @@ static ssize_t prct_mode_store(struct device *dev,
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
 	uint32_t databuf[2] = { 0, 0 };
-	uint32_t addr = 0;
-	uint32_t val = 0;
+	uint32_t prtime = 0;
+	uint32_t prlvl = 0;
 
 	if (sscanf(buf, "%x %x", &databuf[0], &databuf[1]) == 2) {
-		addr = databuf[0];
-		val = databuf[1];
+		prtime = databuf[0];
+		prlvl = databuf[1];
 		mutex_lock(&aw_haptic->lock);
-		aw_haptic->func->protect_config(aw_haptic, addr, val);
+		aw_haptic->func->protect_config(aw_haptic, prtime, prlvl);
 		mutex_unlock(&aw_haptic->lock);
 	}
 	return count;
@@ -4715,11 +6510,6 @@ static ssize_t awrw_store(struct device *dev, struct device_attribute *attr,
 		if (aw_haptic->i2c_info.reg_data != NULL)
 			kfree(aw_haptic->i2c_info.reg_data);
 		aw_haptic->i2c_info.reg_data = kmalloc(reg_num, GFP_KERNEL);
-		if (aw_haptic->i2c_info.reg_data == NULL) {
-			aw_dev_err("%s: kmalloc error\n",
-				   __func__);
-			return -ERANGE;
-		}
 		if (flag == AW_SEQ_WRITE) {
 			if ((reg_num * 5) != (strlen(buf) - 3 * 5)) {
 				aw_dev_err("%s: param error\n",
@@ -4736,11 +6526,24 @@ static ssize_t awrw_store(struct device *dev, struct device_attribute *attr,
 				}
 				aw_haptic->i2c_info.reg_data[i] = value;
 			}
+			if (aw_haptic->func == &aw8692x_func_list &&
+				 reg_addr == AW8692X_REG_ANACFG20)
+					aw_haptic->i2c_info.reg_data[0] &=
+						AW8692X_BIT_ANACFG20_TRIM_LRA;
+			else if (aw_haptic->func == &aw8692x_func_list &&
+				 reg_addr < AW8692X_REG_ANACFG20 &&
+				 (reg_addr + reg_num) > AW8692X_REG_ANACFG20)
+				    aw_haptic->i2c_info.reg_data[reg_num - 1] &=
+						AW8692X_BIT_ANACFG20_TRIM_LRA;
+			mutex_lock(&aw_haptic->lock);
 			i2c_w_bytes(aw_haptic, (uint8_t)reg_addr,
 				    aw_haptic->i2c_info.reg_data, reg_num);
+			mutex_unlock(&aw_haptic->lock);
 		} else if (flag == AW_SEQ_READ) {
+			mutex_lock(&aw_haptic->lock);
 			i2c_r_bytes(aw_haptic, reg_addr,
 				    aw_haptic->i2c_info.reg_data, reg_num);
+			mutex_unlock(&aw_haptic->lock);
 		}
 	} else {
 		aw_dev_err("%s: param error\n", __func__);
@@ -4756,7 +6559,7 @@ static ssize_t f0_data_show(struct device *dev,
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
 
-	len += snprintf(buf + len, PAGE_SIZE - len, "f0_cali_data = 0x%02X\n",
+	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n",
 			aw_haptic->f0_cali_data);
 
 	return len;
@@ -4775,8 +6578,14 @@ static ssize_t f0_data_store(struct device *dev,
 	rc = kstrtouint(buf, 0, &val);
 	if (rc < 0)
 		return rc;
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->f0_cali_data = val;
+	aw_dev_info("%s: f0_cali_data = %d\n", __func__, aw_haptic->f0_cali_data);
+	if (aw_haptic->f0_cali_data == 0) {
+		get_f0_cali_data(aw_haptic);
+	}
 	aw_haptic->func->upload_lra(aw_haptic, AW_F0_CALI_LRA);
+	mutex_unlock(&aw_haptic->lock);
 	return count;
 }
 
@@ -4788,7 +6597,7 @@ static ssize_t osc_data_show(struct device *dev,
 	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
 						   vib_dev);
 
-	len += snprintf(buf + len, PAGE_SIZE - len, "osc_cali_data = 0x%02X\n",
+	len += snprintf(buf + len, PAGE_SIZE - len, "%d\n",
 			aw_haptic->osc_cali_data);
 
 	return len;
@@ -4807,8 +6616,11 @@ static ssize_t osc_data_store(struct device *dev,
 	rc = kstrtouint(buf, 0, &val);
 	if (rc < 0)
 		return rc;
+	mutex_lock(&aw_haptic->lock);
 	aw_haptic->osc_cali_data = val;
+	aw_dev_info("%s: osc_cali_data = %d\n", __func__, aw_haptic->osc_cali_data);
 	aw_haptic->func->upload_lra(aw_haptic, AW_OSC_CALI_LRA);
+	mutex_unlock(&aw_haptic->lock);
 	return count;
 }
 
@@ -4949,14 +6761,16 @@ static ssize_t waveform_index_store(struct device *dev, struct device_attribute 
 						   vib_dev);
 	unsigned int databuf[1] = {0};
 
-	if (aw_haptic->device_id == 833) {
+	if (aw_haptic->device_id == DEVICE_ID_0833) {
+		mutex_lock(&aw_haptic->lock);
 		aw_haptic->vmax = AW86927_HAPTIC_HIGH_LEVEL_REG_VAL;
 		aw_haptic->gain = 0x80;
 		aw_haptic->func->set_gain(aw_haptic, aw_haptic->gain);
 		aw_haptic->func->set_bst_vol(aw_haptic, aw_haptic->vmax);
+		mutex_unlock(&aw_haptic->lock);
 	}
 
-	if (1 == sscanf(buf, "%x", &databuf[0])) {
+	if (1 == sscanf(buf, "%d", &databuf[0])) {
 		aw_dev_err("%s: waveform_index = %d\n", __func__, databuf[0]);
 		mutex_lock(&aw_haptic->lock);
 		aw_haptic->seq[0] = (unsigned char)databuf[0];
@@ -5027,6 +6841,7 @@ static ssize_t haptic_ram_test_store(struct device *dev,
 	aw_ramtest->len = tmp_len;
 
 	if (val == 1) {
+		mutex_lock(&aw_haptic->lock);
 		/* RAMINIT Enable */
 		aw_haptic->func->ram_init(aw_haptic, true);
 		for (j = 0; j < retries; j++) {
@@ -5072,6 +6887,7 @@ static ssize_t haptic_ram_test_store(struct device *dev,
 		}
 		/* RAMINIT Disable */
 		aw_haptic->func->ram_init(aw_haptic, false);
+		mutex_unlock(&aw_haptic->lock);
 	}
 	kfree(aw_ramtest);
 	kfree(pbuf);
@@ -5096,6 +6912,35 @@ static ssize_t device_id_store(struct device *dev,
 	return count;
 }
 
+static ssize_t livetap_support_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
+						   vib_dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", aw_haptic->livetap_support);
+}
+
+static ssize_t livetap_support_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	cdev_t *cdev = dev_get_drvdata(dev);
+	struct aw_haptic *aw_haptic = container_of(cdev, struct aw_haptic,
+						   vib_dev);
+	int val;
+
+	if (kstrtouint(buf, 0, &val))
+		return -EINVAL;
+
+	if (val > 0)
+		aw_haptic->livetap_support = true;
+	else
+		aw_haptic->livetap_support = false;
+
+	return count;
+}
+
 static ssize_t rtp_going_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
 {
@@ -5105,7 +6950,9 @@ static ssize_t rtp_going_show(struct device *dev,
 	ssize_t len = 0;
 	int val = -1;
 
+	mutex_lock(&aw_haptic->lock);
 	val = aw_haptic->func->juge_rtp_going(aw_haptic);
+	mutex_unlock(&aw_haptic->lock);
 	len += snprintf(buf+len, PAGE_SIZE-len, "%d\n", val);
 	return len;
 }
@@ -5200,8 +7047,10 @@ static ssize_t rtp_num_store(struct device *dev,
  /* Select [S_IWGRP] for ftm selinux */
 static DEVICE_ATTR(duration, S_IWUSR | S_IWGRP | S_IRUGO, duration_show, duration_store);
 static DEVICE_ATTR(activate, S_IWUSR | S_IWGRP | S_IRUGO, activate_show, activate_store);
-
 static DEVICE_ATTR(state, S_IWUSR | S_IRUGO, state_show, state_store);
+static DEVICE_ATTR(oplus_duration, S_IWUSR | S_IWGRP | S_IRUGO, duration_show, duration_store);
+static DEVICE_ATTR(oplus_activate, S_IWUSR | S_IWGRP | S_IRUGO, activate_show, activate_store);
+static DEVICE_ATTR(oplus_state, S_IWUSR | S_IRUGO, state_show, state_store);
 static DEVICE_ATTR(f0, S_IWUSR | S_IRUGO, f0_show, f0_store);
 static DEVICE_ATTR(seq, S_IWUSR | S_IRUGO, seq_show, seq_store);
 static DEVICE_ATTR(reg, S_IWUSR | S_IRUGO, reg_show, reg_store);
@@ -5249,6 +7098,8 @@ static DEVICE_ATTR(rtp_going, S_IWUSR | S_IRUGO, rtp_going_show,
 		   rtp_going_store);
 static DEVICE_ATTR(device_id, S_IWUSR | S_IRUGO, device_id_show,
 		   device_id_store);
+static DEVICE_ATTR(livetap_support, S_IWUSR | S_IRUGO, livetap_support_show,
+		   livetap_support_store);
 #endif
 
 static DEVICE_ATTR(gun_mode, S_IWUSR | S_IRUGO, gun_mode_show, gun_mode_store);
@@ -5258,6 +7109,9 @@ static struct attribute *vibrator_attributes[] = {
 	&dev_attr_state.attr,
 	&dev_attr_duration.attr,
 	&dev_attr_activate.attr,
+	&dev_attr_oplus_state.attr,
+	&dev_attr_oplus_duration.attr,
+	&dev_attr_oplus_activate.attr,
 	&dev_attr_activate_mode.attr,
 	&dev_attr_index.attr,
 	&dev_attr_vmax.attr,
@@ -5290,6 +7144,7 @@ static struct attribute *vibrator_attributes[] = {
 	&dev_attr_ram_test.attr,
 	&dev_attr_rtp_going.attr,
 	&dev_attr_device_id.attr,
+	&dev_attr_livetap_support.attr,
 #endif
 	&dev_attr_gun_mode.attr,
 	&dev_attr_rtp_num.attr,
@@ -5300,6 +7155,207 @@ static struct attribute_group vibrator_attribute_group = {
 	.attrs = vibrator_attributes
 };
 
+static void rtp_key_work_routine(struct work_struct *work)
+{
+	struct aw_haptic *aw_haptic = container_of(work, struct aw_haptic, rtp_key_work);
+	uint8_t *aw_haptic_rtp_key_data = NULL;
+	uint32_t aw_haptic_rtp_key_data_len = 0;
+	bool rtp_work_flag = false;
+	uint8_t reg_val = 0;
+	int cnt = 200;
+
+	aw_haptic->rtp_init = false;
+	mutex_lock(&aw_haptic->rtp_lock);
+	switch(aw_haptic->rtp_file_num) {
+	case SG_INPUT_DOWN_HIGH:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_302_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_302_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_302_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_302_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_302_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_302_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_302_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_302_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_302_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_302_178Hz);
+		}
+		break;
+	case SG_INPUT_UP_HIGH:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_303_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_303_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_303_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_303_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_303_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_303_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_303_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_303_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_303_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_303_178Hz);
+		}
+		break;
+	case SG_INPUT_DOWN_LOW:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_304_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_304_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_304_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_304_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_304_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_304_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_304_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_304_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_304_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_304_178Hz);
+		}
+		break;
+	case SG_INPUT_UP_LOW:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_305_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_305_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_305_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_305_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_305_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_305_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_305_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_305_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_305_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_305_178Hz);
+		}
+		break;
+	case INPUT_LOW:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_110_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_110_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_110_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_110_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_110_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_110_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_110_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_110_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_110_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_110_178Hz);
+		}
+		break;
+	case INPUT_MEDI:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_111_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_111_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_111_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_111_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_111_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_111_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_111_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_111_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_111_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_111_178Hz);
+		}
+		break;
+	case INPUT_HIGH:
+		if (aw_haptic->f0 <= OPLUS_162HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_112_162Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_112_162Hz);
+		} else if (aw_haptic->f0 <= OPLUS_166HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_112_166Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_112_166Hz);
+		} else if (aw_haptic->f0 <= OPLUS_170HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_112_170Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_112_170Hz);
+		} else if (aw_haptic->f0 <= OPLUS_174HZ_F0) {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_112_174Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_112_174Hz);
+		} else {
+			aw_haptic_rtp_key_data = aw_haptic_rtp_112_178Hz;
+			aw_haptic_rtp_key_data_len = sizeof(aw_haptic_rtp_112_178Hz);
+		}
+		break;
+	default:
+		goto undef_rtp;
+		break;
+	}
+#ifndef OPLUS_FEATURE_CHG_BASIC
+	kfree(aw_rtp);
+	aw_rtp = kzalloc(aw_haptic_rtp_key_data_len + sizeof(int), GFP_KERNEL);
+	if (!aw_rtp) {
+		mutex_unlock(&aw_haptic->rtp_lock);//vincent
+		aw_dev_err("%s: error allocating memory\n", __func__);
+		return;
+	}
+#else
+	if (container_init(aw_haptic_rtp_key_data_len + sizeof(int)) < 0) {
+		mutex_unlock(&aw_haptic->rtp_lock);
+		aw_dev_err("%s: error allocating memory\n", __func__);
+		return;
+	}
+#endif
+	aw_rtp->len = aw_haptic_rtp_key_data_len;
+	memcpy(aw_rtp->data, aw_haptic_rtp_key_data, aw_haptic_rtp_key_data_len);
+	mutex_unlock(&aw_haptic->rtp_lock);
+
+	mutex_lock(&aw_haptic->lock);
+	aw_haptic->rtp_init = true;
+	aw_haptic->func->upload_lra(aw_haptic, AW_OSC_CALI_LRA);
+	aw_haptic->func->set_rtp_aei(aw_haptic, false);
+	aw_haptic->func->irq_clear(aw_haptic);
+	aw_haptic->func->play_stop(aw_haptic);
+	/* gain */
+	ram_vbat_comp(aw_haptic, false);
+	/* rtp mode config */
+	aw_haptic->func->play_mode(aw_haptic, AW_RTP_MODE);
+	/* haptic go */
+	aw_haptic->func->play_go(aw_haptic, true);
+	mdelay(1);
+	while (cnt) {
+		reg_val = aw_haptic->func->get_glb_state(aw_haptic);
+		if ((reg_val & AW_GLBRD_STATE_MASK) == AW_STATE_RTP) {
+			cnt = 0;
+			rtp_work_flag = true;
+			aw_dev_info("%s: RTP_GO! glb_state=0x08\n", __func__);
+		} else {
+			cnt--;
+			usleep_range(2000, 2500);
+			aw_dev_dbg("%s: wait for RTP_GO, glb_state=0x%02X\n",
+				   __func__, reg_val);
+		}
+	}
+	if (rtp_work_flag) {
+		rtp_play(aw_haptic);
+	} else {
+		/* enter standby mode */
+		aw_haptic->func->play_stop(aw_haptic);
+		aw_dev_err("%s: failed to enter RTP_GO status!\n", __func__);
+	}
+	op_clean_status(aw_haptic);
+	mutex_unlock(&aw_haptic->lock);
+	return;
+undef_rtp:
+	mutex_unlock(&aw_haptic->rtp_lock);
+	return;
+}
 
 static void rtp_single_cycle_routine(struct work_struct *work)
 {
@@ -5594,6 +7650,7 @@ static int vibrator_init(struct aw_haptic *aw_haptic)
 	aw_haptic->timer.function = vibrator_timer_func;
 	INIT_WORK(&aw_haptic->vibrator_work, vibrator_work_routine);
 	INIT_WORK(&aw_haptic->rtp_work, rtp_work_routine);
+	INIT_WORK(&aw_haptic->rtp_key_work, rtp_key_work_routine);
 	INIT_WORK(&aw_haptic->rtp_single_cycle_work, rtp_single_cycle_routine);
 	INIT_WORK(&aw_haptic->rtp_regroup_work, rtp_regroup_routine);
 	mutex_init(&aw_haptic->lock);
@@ -5634,9 +7691,12 @@ static void rtp_work_proc(struct work_struct *work)
 	uint32_t count = 100;
 	uint8_t reg_val = 0x10;
 	unsigned int write_start;
+	int cnt = 200;
+	bool rtp_work_flag = false;
 
 	opbuf = aw_haptic->start_buf;
 	count = 100;
+	aw_haptic->rtp_cnt = 0;
 	while (true && count--) {
 		if (opbuf->status == MMAP_BUF_DATA_VALID) {
 			mutex_lock(&aw_haptic->lock);
@@ -5644,6 +7704,27 @@ static void rtp_work_proc(struct work_struct *work)
 			aw_haptic->func->set_rtp_aei(aw_haptic, true);
 			aw_haptic->func->irq_clear(aw_haptic);
 			aw_haptic->func->play_go(aw_haptic, true);
+
+			while (cnt) {
+				usleep_range(2000, 2500);
+				reg_val = aw_haptic->func->get_glb_state(aw_haptic);
+				if ((reg_val & AW_GLBRD_STATE_MASK) == AW_STATE_RTP) {
+					cnt = 0;
+					rtp_work_flag = true;
+					aw_dev_info("%s: RTP_GO! glb_state=0x08\n", __func__);
+				} else {
+					cnt--;
+					aw_dev_info("%s: wait for RTP_GO, glb_state=0x%02X\n",
+							__func__, reg_val);
+				}
+			}
+
+			if (!rtp_work_flag) {
+				aw_haptic->func->set_rtp_aei(aw_haptic, false);
+				aw_haptic->haptic_rtp_mode = false;
+				aw_dev_err("%s: failed to enter RTP_GO status!\n", __func__);
+				return;
+			}
 			mutex_unlock(&aw_haptic->lock);
 			break;
 		} else {
@@ -5657,8 +7738,8 @@ static void rtp_work_proc(struct work_struct *work)
 			aw_dev_info("Failed ! %s endless loop\n", __func__);
 			break;
 		}
-		if (reg_val & AW_BIT_SYSST_DONES || (aw_haptic->done_flag == true) || (opbuf->status == MMAP_BUF_DATA_FINISHED) \
-		   || (opbuf->status == MMAP_BUF_DATA_INVALID)) {
+		if (reg_val & AW_BIT_SYSST_DONES || (aw_haptic->done_flag == true) ||
+		    (opbuf->status == MMAP_BUF_DATA_FINISHED) || (opbuf->status == MMAP_BUF_DATA_INVALID)) {
 			break;
 		} else if (opbuf->status == MMAP_BUF_DATA_VALID && (reg_val & 0x01 << 4)) {
 			aw_haptic->func->set_rtp_data(aw_haptic, opbuf->data,
@@ -5801,6 +7882,7 @@ static long aw_file_unlocked_ioctl(struct file *file, unsigned int cmd,
 	struct aw_haptic *aw_haptic = (struct aw_haptic *)file->private_data;
 	uint32_t tmp;
 	int ret = 0;
+	int max_gain = DEFAULT_MAX_GAIN;
 
 	aw_dev_info("%s: cmd=0x%x, arg=0x%lx\n", __func__, cmd, arg);
 
@@ -5826,7 +7908,13 @@ static long aw_file_unlocked_ioctl(struct file *file, unsigned int cmd,
 			ret = -EINVAL;
 			break;
 		}
-		aw_haptic->func->set_bst_vol(aw_haptic, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);
+		if (aw_haptic->chipid == AW86927_CHIPID)
+			aw_haptic->func->set_bst_vol(aw_haptic, 0x4F);//boost 8.414V
+		else if (aw_haptic->chipid == AW86907_CHIPID)
+			aw_haptic->func->set_bst_vol(aw_haptic, 0x1D); /*boost 8.287V*/
+		else
+			aw_haptic->func->set_bst_vol(aw_haptic, 0x4F);//boost 8.414V
+
 		aw_haptic->func->upload_lra(aw_haptic, AW_OSC_CALI_LRA);
 		aw_haptic->func->play_mode(aw_haptic, AW_RTP_MODE);
 		aw_haptic->func->play_go(aw_haptic, true);
@@ -5843,18 +7931,23 @@ static long aw_file_unlocked_ioctl(struct file *file, unsigned int cmd,
 			ret = -EFAULT;
 		break;
 	case RICHTAP_SETTING_GAIN:
-		if (arg > 0x80)
-			arg = 0x80;
+		max_gain = vmax_map[ARRAY_SIZE(vmax_map) - 1].gain;
+		if (arg > max_gain)
+			arg = max_gain;
 		aw_haptic->func->set_gain(aw_haptic, arg);
 		break;
 	case RICHTAP_STREAM_MODE:
+		aw_haptic->done_flag = true;
+		aw_haptic->haptic_rtp_mode = false;
+		mutex_unlock(&aw_haptic->lock);
+		cancel_work_sync(&aw_haptic->haptic_rtp_work);
+		mutex_lock(&aw_haptic->lock);
 		haptic_clean_buf(aw_haptic, MMAP_BUF_DATA_INVALID);
 		aw_haptic->func->play_stop(aw_haptic);
 		aw_haptic->done_flag = false;
 		aw_haptic->haptic_rtp_mode = true;
-		aw_haptic->func->set_bst_vol(aw_haptic, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);//target boost 8.414V
-		/* no need to do, will do in rtp work routine */
-		//aw_haptic->func->upload_lra(aw_haptic, AW_OSC_CALI_LRA);
+		aw_haptic->func->set_bst_vol(aw_haptic, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);
+		aw_haptic->func->upload_lra(aw_haptic, AW_OSC_CALI_LRA);
 		schedule_work(&aw_haptic->haptic_rtp_work);
 		break;
 	case RICHTAP_STOP_MODE:
@@ -5865,10 +7958,12 @@ static long aw_file_unlocked_ioctl(struct file *file, unsigned int cmd,
 		 * aw_haptic->state = 0;
 		 * haptic_clean_buf(aw_haptic, MMAP_BUF_DATA_FINISHED);
 		 */
-		usleep_range(2000, 2100);
+		aw_haptic->haptic_rtp_mode = false;
 		aw_haptic->func->set_rtp_aei(aw_haptic, false);
 		aw_haptic->func->play_stop(aw_haptic);
-		aw_haptic->haptic_rtp_mode = false;
+		mutex_unlock(&aw_haptic->lock);
+		cancel_work_sync(&aw_haptic->haptic_rtp_work);
+		mutex_lock(&aw_haptic->lock);
 		/* wait_event_interruptible(haptic->doneQ,
 		 *			    !haptic->task_flag);
 		 */
@@ -5983,30 +8078,24 @@ static ssize_t proc_vibration_style_write(struct file *filp, const char __user *
 				      size_t count, loff_t *lo)
 {
 	struct aw_haptic *aw_haptic = (struct aw_haptic *)filp->private_data;
-	char *buffer = NULL;
+	char buffer[5] = { 0 };
 	int rc = 0;
 	int val;
-
-	buffer = (char *)kzalloc(count, GFP_KERNEL);
-	if(buffer == NULL) {
-		aw_dev_err("%s: alloc memory fail\n", __func__);
-		return count;
+	if (count > sizeof(buffer)) {
+		return -EFAULT;
 	}
-
+	if (buf == NULL) {
+		return -EFAULT;
+	}
 	if (copy_from_user(buffer, buf, count)) {
-		if(buffer != NULL) {
-			kfree(buffer);
-		}
 		aw_dev_err("%s: error.\n", __func__);
-		return count;
+		return -EFAULT;
 	}
 
 	aw_dev_err("buffer=%s", buffer);
 	rc = kstrtoint(buffer, 0, &val);
-	if (rc < 0) {
-		kfree(buffer);
+	if (rc < 0)
 		return count;
-	}
 	aw_dev_err("val = %d", val);
 
 	if (val == 0) {
@@ -6018,16 +8107,23 @@ static ssize_t proc_vibration_style_write(struct file *filp, const char __user *
 	} else {
 		aw_haptic->vibration_style = AW_HAPTIC_VIBRATION_CRISP_STYLE;
 	}
-	kfree(buffer);
 	return count;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0))
 static const struct file_operations proc_vibration_style_ops = {
 	.read = proc_vibration_style_read,
 	.write = proc_vibration_style_write,
 	.open =  aw_file_open,
 	.owner = THIS_MODULE,
 };
+#else
+static const struct proc_ops proc_vibration_style_ops = {
+	.proc_read = proc_vibration_style_read,
+	.proc_write = proc_vibration_style_write,
+	.proc_open =  aw_file_open,
+};
+#endif
 
 static int init_vibrator_proc(struct aw_haptic *aw_haptic)
 {
@@ -6088,12 +8184,15 @@ static void haptic_init(struct aw_haptic *aw_haptic)
 	aw_haptic->func->misc_para_init(aw_haptic);
 
 	aw_haptic->func->set_bst_peak_cur(aw_haptic);
-	aw_haptic->func->protect_config(aw_haptic, 0x01, 0x00);
 	aw_haptic->func->auto_bst_enable(aw_haptic, false);
 	aw_haptic->func->offset_cali(aw_haptic);
 	/* vbat compensation */
 	aw_haptic->func->vbat_mode_config(aw_haptic, AW_CONT_VBAT_HW_COMP_MODE);
 	aw_haptic->ram_vbat_comp = AW_RAM_VBAT_COMP_ENABLE;
+
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	aw_haptic->func->set_bst_vol(aw_haptic, AW86927_HAPTIC_HIGH_LEVEL_REG_VAL);
+#endif
 
 	//aw_haptic->func->trig_init(aw_haptic);
 	mutex_unlock(&aw_haptic->lock);
@@ -6208,13 +8307,27 @@ static int awinic_i2c_probe(struct i2c_client *i2c,
 		}
 	}
 
+	/* aw func ptr init */
+	ret = ctrl_init(aw_haptic);
+	if (ret < 0) {
+		aw_dev_err("%s: ctrl_init failed ret=%d\n", __func__, ret);
+		goto err_ctrl_init;
+	}
+
+	ret = aw_haptic->func->check_qualify(aw_haptic);
+	if (ret < 0) {
+		aw_dev_err("%s: qualify check failed ret=%d", __func__, ret);
+		goto err_ctrl_init;
+	}
+
 	/* aw_haptic chip id */
 	ret = parse_chipid(aw_haptic);
 	if (ret < 0) {
-		aw_dev_err("%s: read_chipid failed ret=%d\n",
-			   __func__, ret);
+		aw_dev_err("%s: read_chipid failed ret=%d\n", __func__, ret);
 		goto err_id;
 	}
+
+	parse_vibrate_param_dts(&i2c->dev, aw_haptic, np);
 
 	sw_reset(aw_haptic);
 
@@ -6222,19 +8335,6 @@ static int awinic_i2c_probe(struct i2c_client *i2c,
 	if (ret < 0)
 		aw_dev_err("%s: rtp alloc memory failed\n", __func__);
 
-	ret = ctrl_init(aw_haptic, &i2c->dev);
-	if (ret < 0) {
-		aw_dev_err("%s: ctrl_init failed ret=%d\n",
-			   __func__, ret);
-		goto err_ctrl_init;
-	}
-#ifdef AW_CHECK_QUALIFY
-	ret = aw_haptic->func->check_qualify(aw_haptic);
-	if (ret < 0) {
-		aw_dev_err("%s: qualify check failed ret=%d", __func__, ret);
-		goto err_ctrl_init;
-	}
-#endif
 	aw_haptic->func->haptic_value_init(aw_haptic);
 
 	/* aw_haptic irq */
@@ -6256,7 +8356,10 @@ static int awinic_i2c_probe(struct i2c_client *i2c,
 	aw_haptic->motor_old_test_mode = 0;
 #endif
 
-	aw_dev_info("%s:0909 test  probe completed successfully!\n", __func__);
+	/* ram init */
+	ram_update(aw_haptic);
+
+	aw_dev_info("%s:1010 test  probe completed successfully!\n", __func__);
 
 	return 0;
 
@@ -6335,7 +8438,7 @@ static struct i2c_driver awinic_i2c_driver = {
 		   .of_match_table = of_match_ptr(awinic_dt_match),
 		   },
 	.probe = awinic_i2c_probe,
-	.remove = awinic_i2c_remove,
+	.remove = (void *)awinic_i2c_remove,
 	.id_table = awinic_i2c_id,
 };
 

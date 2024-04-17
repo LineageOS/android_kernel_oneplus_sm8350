@@ -25,7 +25,14 @@
 #include "ufshci.h"
 #include "ufs_quirks.h"
 #include "ufshcd-crypto-qti.h"
-
+/*feature-memorymonitor-v001-1-begin*/
+#include <scsi/scsi.h>
+#include <scsi/scsi_ioctl.h>
+#include <scsi/scsi_cmnd.h>
+/*feature-memorymonitor-v001-1-end*/
+/*feature-memorymonitor-v001-2-begin*/
+#include "../sd.h"
+/*feature-memorymonitor-v001-2-end*/
 #define UFS_QCOM_DEFAULT_DBG_PRINT_EN	\
 	(UFS_QCOM_DBG_PRINT_REGS_EN | UFS_QCOM_DBG_PRINT_TEST_BUS_EN)
 
@@ -546,12 +553,6 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 	enum phy_mode mode = (host->limit_rate == PA_HS_MODE_B) ?
 					PHY_MODE_UFS_HS_B : PHY_MODE_UFS_HS_A;
 	int submode = host->limit_phy_submode;
-
-	/* Reset UFS Host Controller and PHY */
-	ret = ufs_qcom_host_reset(hba);
-	if (ret)
-		dev_warn(hba->dev, "%s: host reset returned %d\n",
-				  __func__, ret);
 
 	if (host->hw_ver.major < 0x4)
 		submode = UFS_QCOM_PHY_SUBMODE_NON_G4;
@@ -2453,6 +2454,114 @@ out:
 	return err;
 }
 
+/*feature-memorymonitor-v001-3-begin*/
+static int monitor_verify_command(unsigned char *cmd)
+{
+    if (cmd[0] != 0x3B && cmd[0] != 0x3C && cmd[0] != 0xC0)
+        return false;
+
+    return true;
+}
+
+/**
+ * ufs_ioctl_monitor - special cmd for memory monitor
+ * @hba: per-adapter instance
+ * @buf_user: user space buffer for ioctl data
+ * @return: 0 for success negative error code otherwise
+ *
+ */
+int ufs_ioctl_monitor(struct scsi_device *dev, void __user *buf_user)
+{
+	struct scsi_disk *sdp = (struct scsi_disk *)dev_get_drvdata(&dev->sdev_gendev);
+	struct request_queue *q = dev->request_queue;
+	struct gendisk *disk = sdp->disk;
+	struct request *rq;
+	struct scsi_request *req;
+	struct scsi_ioctl_command __user *sic = (struct scsi_ioctl_command __user *)buf_user;
+	int err;
+	unsigned int in_len, out_len, bytes, opcode, cmdlen;
+	char *buffer = NULL;
+
+	/*
+	 * get in an out lengths, verify they don't exceed a page worth of data
+	 */
+	if (get_user(in_len, &sic->inlen))
+		return -EFAULT;
+	if (get_user(out_len, &sic->outlen))
+		return -EFAULT;
+	if (in_len > PAGE_SIZE || out_len > PAGE_SIZE)
+		return -EINVAL;
+	if (get_user(opcode, sic->data))
+		return -EFAULT;
+
+	bytes = max(in_len, out_len);
+	if (bytes) {
+		buffer = kzalloc(bytes, q->bounce_gfp | GFP_USER| __GFP_NOWARN);
+		if (!buffer)
+			return -ENOMEM;
+
+	}
+
+	rq = blk_get_request(q, in_len ? REQ_OP_SCSI_OUT : REQ_OP_SCSI_IN,
+			__GFP_RECLAIM);
+	if (IS_ERR(rq)) {
+		err = PTR_ERR(rq);
+		goto error_free_buffer;
+	}
+	req = scsi_req(rq);
+
+	cmdlen = COMMAND_SIZE(opcode);
+	if ((VENDOR_SPECIFIC_CDB == opcode) &&(0 == strncmp(dev->vendor, "SAMSUNG ", 8)))
+		cmdlen = 16;
+
+	/*
+	 * get command and data to send to device, if any
+	 */
+	err = -EFAULT;
+	req->cmd_len = cmdlen;
+	if (copy_from_user(req->cmd, sic->data, cmdlen))
+		goto error;
+
+	if (in_len && copy_from_user(buffer, sic->data + cmdlen, in_len))
+		goto error;
+
+	if (!monitor_verify_command(req->cmd))
+		goto error;
+
+	/* default.  possible overriden later */
+	req->retries = 5;
+
+	if (bytes && blk_rq_map_kern(q, rq, buffer, bytes, __GFP_RECLAIM)) {
+		err = DRIVER_ERROR << 24;
+		goto error;
+	}
+
+	blk_execute_rq(q, disk, rq, 0);
+
+#define OMAX_SB_LEN 16          /* For backward compatibility */
+	err = req->result & 0xff;	/* only 8 bit SCSI status */
+	if (err) {
+		if (req->sense_len && req->sense) {
+			bytes = (OMAX_SB_LEN > req->sense_len) ?
+				req->sense_len : OMAX_SB_LEN;
+			if (copy_to_user(sic->data, req->sense, bytes))
+				err = -EFAULT;
+		}
+	} else {
+		if (copy_to_user(sic->data, buffer, out_len))
+			err = -EFAULT;
+	}
+
+error:
+	blk_put_request(rq);
+
+error_free_buffer:
+	kfree(buffer);
+
+	return err;
+}
+/*feature-memorymonitor-v001-3-end*/
+
 /**
  * ufs_qcom_ioctl - ufs ioctl callback registered in scsi_host
  * @dev: scsi device required for per LUN queries
@@ -2482,6 +2591,13 @@ ufs_qcom_ioctl(struct scsi_device *dev, unsigned int cmd, void __user *buffer)
 					   buffer);
 		pm_runtime_put_sync(hba->dev);
 		break;
+	/*feature-memorymonitor-v001-4-begin*/
+	case UFS_IOCTL_MONITOR:
+		pm_runtime_get_sync(hba->dev);
+		err = ufs_ioctl_monitor(dev, buffer);
+		pm_runtime_put_sync(hba->dev);
+		break;
+	/*feature-memorymonitor-v001-4-end*/
 	default:
 		err = -ENOIOCTLCMD;
 		dev_dbg(hba->dev, "%s: Unsupported ioctl cmd %d\n", __func__,
@@ -3491,6 +3607,13 @@ static void ufs_qcom_parse_lpm(struct ufs_qcom_host *host)
 static void ufs_qcom_device_reset(struct ufs_hba *hba)
 {
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
+	int ret = 0;
+
+	/* Reset UFS Host Controller and PHY */
+	ret = ufs_qcom_host_reset(hba);
+	if (ret)
+		dev_warn(hba->dev, "%s: host reset returned %d\n",
+				  __func__, ret);
 
 	/* reset gpio is optional */
 	if (!host->device_reset)

@@ -290,10 +290,6 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 	}
 #endif
 
-	rc = cam_sensor_util_regulator_powerup(soc_info);
-	if (rc < 0)
-		return rc;
-
 	rc = msm_sensor_init_default_params(s_ctrl);
 	if (rc < 0) {
 		CAM_ERR(CAM_SENSOR,

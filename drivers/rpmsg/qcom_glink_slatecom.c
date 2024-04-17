@@ -1900,7 +1900,7 @@ static void glink_slatecom_handle_rx_done(struct glink_slatecom *glink,
 	mutex_unlock(&channel->intent_lock);
 }
 
-static int glink_slatecom_process_cmd(struct glink_slatecom *glink, void *rx_data,
+static void glink_slatecom_process_cmd(struct glink_slatecom *glink, void *rx_data,
 				  u32 rx_size)
 {
 	struct glink_slatecom_msg *msg;
@@ -1909,18 +1909,12 @@ static int glink_slatecom_process_cmd(struct glink_slatecom *glink, void *rx_dat
 	unsigned int param3;
 	unsigned int param4;
 	unsigned int cmd;
-	u32 offset = 0;
-	int ret = 0;
+	int offset = 0;
+	int ret;
 	u16 name_len;
 	char *name;
 
 	while (offset < rx_size) {
-		if (rx_size - offset < sizeof(struct glink_slatecom_msg)) {
-			ret = -EBADMSG;
-			GLINK_ERR(glink, "%s: Error %d process cmd\n", __func__, ret);
-			return ret;
-		}
-
 		msg = (struct glink_slatecom_msg *)(rx_data + offset);
 		offset += sizeof(*msg);
 
@@ -1941,7 +1935,7 @@ static int glink_slatecom_process_cmd(struct glink_slatecom *glink, void *rx_dat
 		case SLATECOM_CMD_CLOSE_ACK:
 			glink_slatecom_rx_defer(glink,
 					   rx_data + offset - sizeof(*msg),
-					   rx_size - offset + sizeof(*msg), 0);
+					   rx_size + offset - sizeof(*msg), 0);
 			break;
 		case SLATECOM_CMD_RX_INTENT_REQ:
 			glink_slatecom_handle_intent_req(glink, param1, param2);
@@ -1954,7 +1948,7 @@ static int glink_slatecom_process_cmd(struct glink_slatecom *glink, void *rx_dat
 			name = rx_data + offset;
 			glink_slatecom_rx_defer(glink,
 					   rx_data + offset - sizeof(*msg),
-					   rx_size - offset + sizeof(*msg),
+					   rx_size + offset - sizeof(*msg),
 					   ALIGN(name_len, SLATECOM_ALIGNMENT));
 
 			offset += ALIGN(name_len, SLATECOM_ALIGNMENT);
@@ -2003,7 +1997,6 @@ static int glink_slatecom_process_cmd(struct glink_slatecom *glink, void *rx_dat
 			break;
 		}
 	}
-	return ret;
 }
 
 /**

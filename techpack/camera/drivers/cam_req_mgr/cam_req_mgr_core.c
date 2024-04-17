@@ -436,19 +436,9 @@ static int __cam_req_mgr_traverse(struct cam_req_mgr_traverse *traverse_data)
 				 * traverse skip
 				 */
 #ifndef OPLUS_FEATURE_CAMERA_COMMON
-				//lanhe add for use RDI for sensor apply
 				if (tbl->skip_traverse > 0) {
 					apply_data[tbl->pd].req_id = -1;
 					tbl->skip_traverse--;
-				}
-#else
-				if(traverse_data->rdi_traverse == false)
-				{
-					if (tbl->skip_traverse > 0)
-					{
-						apply_data[tbl->pd].req_id = -1;
-						tbl->skip_traverse--;
-					}
 				}
 #endif
 			}
@@ -2367,7 +2357,7 @@ end:
 
 		if (!rc) {
 			rc = __cam_req_mgr_inject_delay(link->req.l_tbl,
-				slot->idx, trigger);
+				slot->idx, true);
 			if (rc < 0)
 				CAM_DBG(CAM_CRM,
 					"Req: %lld needs to inject delay at RDI SOF", slot->req_id);
@@ -2380,7 +2370,6 @@ end:
 		rc = __cam_req_mgr_send_rdi_req(link, link->req.in_q, trigger, &dev);
 	}
 #endif
-
 	mutex_unlock(&session->lock);
 	return rc;
 }
@@ -2511,7 +2500,6 @@ static int  __cam_req_mgr_setup_in_q(struct cam_req_mgr_req_data *req)
 	//lanhe add
 	in_q->rdi_rd_idx = 0;
 #endif
-
 	mutex_unlock(&req->lock);
 
 	return 0;
@@ -2546,7 +2534,6 @@ static int __cam_req_mgr_reset_in_q(struct cam_req_mgr_req_data *req)
 	//lanhe add
 	in_q->rdi_rd_idx = 0;
 #endif
-
 	mutex_unlock(&req->lock);
 
 	return 0;
@@ -3633,6 +3620,10 @@ static int cam_req_mgr_cb_add_req(struct cam_req_mgr_add_request *add_req)
 	dev_req->link_hdl = add_req->link_hdl;
 	dev_req->dev_hdl = add_req->dev_hdl;
 	dev_req->trigger_eof = add_req->trigger_eof;
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+	//lanhe add
+	dev_req->use_rdi_sof_apply = add_req->use_rdi_sof_apply;
+#endif
 	dev_req->skip_at_sof = add_req->skip_at_sof;
 	dev_req->skip_at_eof = add_req->skip_at_eof;
 	if (dev_req->trigger_eof) {
@@ -3640,10 +3631,6 @@ static int cam_req_mgr_cb_add_req(struct cam_req_mgr_add_request *add_req)
 		CAM_DBG(CAM_REQ, "Req_id: %llu, eof_event_cnt: %d",
 			dev_req->req_id, link->eof_event_cnt);
 	}
-#ifdef OPLUS_FEATURE_CAMERA_COMMON
-	//lanhe add
-	dev_req->use_rdi_sof_apply = add_req->use_rdi_sof_apply;
-#endif
 
 	task->process_cb = &cam_req_mgr_process_add_req;
 	rc = cam_req_mgr_workq_enqueue_task(task, link, CRM_TASK_PRIORITY_0);
@@ -3751,6 +3738,15 @@ static int __cam_req_mgr_check_for_dual_trigger(
 
 	CAM_DBG(CAM_CRM, "Only one device has generated trigger for %s",
 		(trigger == CAM_TRIGGER_POINT_SOF) ? "SOF" : "EOF");
+
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
+		link->trigger_cnt[0][trigger] = 0;
+		link->trigger_cnt[1][trigger] = 0;
+
+		CAM_WARN(CAM_CRM,
+			"Reset the trigger cnt for %s trigger",
+			(trigger == CAM_TRIGGER_POINT_SOF) ? "SOF" : "EOF");
+#endif
 
 	return rc;
 }
@@ -3931,7 +3927,11 @@ static int cam_req_mgr_cb_notify_trigger(
 		link->watchdog->pause_timer = false;
 
 	if (link->dual_trigger) {
+#ifndef OPLUS_FEATURE_CAMERA_COMMON
 		if ((trigger_id >= 0) && (trigger_id <
+#else
+		if ((trigger != CAM_TRIGGER_POINT_RDI_SOF) && (trigger_id >= 0) && (trigger_id <
+#endif
 			CAM_REQ_MGR_MAX_TRIGGERS)) {
 			link->trigger_cnt[trigger_id][trigger]++;
 			rc = __cam_req_mgr_check_for_dual_trigger(link, trigger);

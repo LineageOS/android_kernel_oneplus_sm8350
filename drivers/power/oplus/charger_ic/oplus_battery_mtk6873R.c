@@ -2899,9 +2899,6 @@ static int battery_get_property(struct power_supply *psy,
 				val->intval = g_oplus_chip->batt_fcc * 1000;
 			}
 			break;
-		case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-			val->intval = 0;
-			break;
 		default:
 			rc = oplus_battery_get_property(psy, psp, val);
 			break;
@@ -3656,6 +3653,5 @@ static void __exit mtk_charger_exit(void)
 module_exit(mtk_charger_exit);
 
 
-MODULE_AUTHOR("LiYue");
 MODULE_DESCRIPTION("OPLUS Charger Driver");
 MODULE_LICENSE("GPL");

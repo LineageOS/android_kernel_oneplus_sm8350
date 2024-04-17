@@ -98,7 +98,7 @@ static void ssc_interactive_set_brightness(uint16_t brigtness)
 */
 
 	if (brigtness == ssc_cxt->a_info.brightness) {
-		pr_info("brigtness=%d is the same\n", brigtness);
+		/*pr_info("brigtness=%d is the same\n", brigtness);*/
 		spin_unlock(&ssc_cxt->rw_lock);
 		return;
 	}

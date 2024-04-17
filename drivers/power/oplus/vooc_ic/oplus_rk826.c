@@ -247,7 +247,7 @@ static int oplus_i2c_dma_read(struct i2c_client *client, u16 addr, s32 len, u8 *
 {
 	int ret = 0;
 	s32 retry = 0;
-	u8 buffer[2] = {0};
+	u8 buffer[2] = { 0 };
 	struct i2c_msg msg[2] = {
 		{
 			.addr = (client->addr & I2C_MASK_FLAG),
@@ -258,7 +258,7 @@ static int oplus_i2c_dma_read(struct i2c_client *client, u16 addr, s32 len, u8 *
 		{
 			.addr = (client->addr & I2C_MASK_FLAG),
 			.flags = I2C_M_RD,
-			.buf = (__u8 *)gpDMABuf_pa,   /*modified by PengNan*/
+			.buf = (__u8 *)gpDMABuf_pa, /*modified by PengNan*/
 			.len = len,
 		},
 	};
@@ -270,14 +270,13 @@ static int oplus_i2c_dma_read(struct i2c_client *client, u16 addr, s32 len, u8 *
 		mutex_unlock(&dma_wr_access_rk826);
 		return -1;
 	}
-	//chg_debug("vooc dma i2c read: 0x%x, %d bytes(s)\n", addr, len);
+	/* chg_debug("vooc dma i2c read: 0x%x, %d bytes(s)\n", addr, len); */
 	for (retry = 0; retry < 5; ++retry) {
+		if (unlikely(retry > 0))
+			usleep_range(10000, 10001); /* try again after 10ms */
 		ret = i2c_transfer(client->adapter, &msg[0], 2);
-		if (ret < 0) {
-			memcpy(rxbuf, gpDMABuf_pa, len);
-			mutex_unlock(&dma_wr_access_rk826);
-			return ret;
-		}
+		if (ret < 0)
+			continue;
 		memcpy(rxbuf, gpDMABuf_pa, len);
 		mutex_unlock(&dma_wr_access_rk826);
 		return 0;

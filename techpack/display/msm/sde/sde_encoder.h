@@ -193,11 +193,17 @@ struct sde_encoder_ops {
  * @pm_qos_cpu_req:		qos request for all cpu core frequency
  * @valid_cpu_mask:		actual voted cpu core mask
  * @mode_info:                  stores the current mode and should be used
+ * @delay_kickoff      boolean to delay the kickoff, used in case
+ *             of esd attack to ensure esd workqueue detects
+ *             the previous frame transfer completion before
+ *             next update is triggered.
  *				only in commit phase
  * @delay_kickoff		boolean to delay the kickoff, used in case
  *				of esd attack to ensure esd workqueue detects
  *				the previous frame transfer completion before
  *				next update is triggered.
+ *@fps_switch_high_to_low:	boolean to note direction of fps switch
+ *@update_clocks_on_complete_commit:	boolean to force update DSI clocks
  */
 struct sde_encoder_virt {
 	struct drm_encoder base;
@@ -270,6 +276,8 @@ struct sde_encoder_virt {
 	struct cpumask valid_cpu_mask;
 	struct msm_mode_info mode_info;
 	bool delay_kickoff;
+	bool fps_switch_high_to_low;
+	bool update_clocks_on_complete_commit;
 #ifdef OPLUS_BUG_STABILITY
 	struct hrtimer fakeframe_timer;
 	struct kthread_work fakeframe_work;
@@ -365,10 +373,12 @@ int sde_encoder_poll_line_counts(struct drm_encoder *encoder);
  *	Delayed: Block until next trigger can be issued.
  * @encoder:	encoder pointer
  * @params:	kickoff time parameters
+ * @old_crtc_state:     pointer to old crtc state
  * @Returns:	Zero on success, last detected error otherwise
  */
 int sde_encoder_prepare_for_kickoff(struct drm_encoder *encoder,
-		struct sde_encoder_kickoff_params *params);
+		struct sde_encoder_kickoff_params *params,
+		struct drm_crtc_state *old_crtc_state);
 
 /**
  * sde_encoder_trigger_kickoff_pending - Clear the flush bits from previous
@@ -416,6 +426,14 @@ int sde_encoder_wait_for_event(struct drm_encoder *drm_encoder,
  */
 int sde_encoder_idle_request(struct drm_encoder *drm_enc);
 
+/**
+ * sde_encoder_update_complete_commit - when there is DMS FPS switch
+ *		in old_crtc_state, decrease DSI clocks as per low fps.
+ * @encoder:    encoder pointer
+ * @old_state:    pointer to old crtc state
+ */
+void sde_encoder_update_complete_commit(struct drm_encoder *drm_enc,
+		struct drm_crtc_state *old_state, bool *update_perf);
 /*
  * sde_encoder_get_fps - get interface frame rate of the given encoder
  * @encoder: Pointer to drm encoder object
@@ -676,6 +694,13 @@ static inline bool sde_encoder_is_widebus_enabled(struct drm_encoder *drm_enc)
 	sde_enc = to_sde_encoder_virt(drm_enc);
 	return sde_enc->mode_info.wide_bus_en;
 }
+
+/**
+ * sde_encoder_in_crtc_has_fps_switch_flag_set - return fps_switch_high_to_low in sde enc
+ * @crtc:	Pointer to drm crtc structure
+ * @Return: true if there is fps_switch from high_to_low
+ */
+bool sde_encoder_in_crtc_has_fps_switch_flag_set(struct drm_crtc *crtc);
 
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)
 /**

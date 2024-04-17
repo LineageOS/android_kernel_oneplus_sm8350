@@ -153,26 +153,65 @@ void da9313_dump_registers(void)
 {
 	int rc;
 	int addr;
-
 	unsigned int val_buf[DA9313_REG2_NUMBER] = { 0x0 };
 
 	for (addr = DA9313_FIRST_REG; addr <= DA9313_LAST_REG; addr++) {
 		rc = da9313_read_reg(addr, &val_buf[addr]);
-		if (rc) {
+		if (rc)
 			chg_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
-		} else {
-			chg_err("success addr = %d, value = 0x%x\n",
-				addr, val_buf[addr]);
-		}
+		else
+			chg_debug("success addr = %d, value = 0x%x\n",
+				   addr, val_buf[addr]);
 	}
 
 	for (addr = DA9313_FIRST2_REG; addr <= DA9313_LAST2_REG; addr++) {
 		rc = da9313_read_reg(addr, &val_buf[addr]);
-		if (rc) {
+		if (rc)
 			chg_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
-		}
+		else
+			chg_debug("success addr = %d, value = 0x%x\n",
+				  addr, val_buf[addr]);
 	}
 }
+
+
+static ssize_t da9313_regs_show(struct device *dev,
+				struct device_attribute *attr, char *buf)
+{
+	ssize_t len = 0;
+	int addr = 0;
+	int reg_val = 0;
+
+	for (addr = DA9313_FIRST_REG; addr <= DA9313_LAST_REG; addr++) {
+		da9313_read_reg(addr, &reg_val);
+		len += snprintf(buf + len, PAGE_SIZE - len,
+				"reg:0x%02x=0x%02x \n", addr, reg_val);
+	}
+
+	for (addr = DA9313_FIRST2_REG; addr <= DA9313_LAST2_REG; addr++) {
+		da9313_read_reg(addr, &reg_val);
+		len += snprintf(buf + len, PAGE_SIZE - len,
+				"reg:0x%02x=0x%02x \n", addr, reg_val);
+	}
+
+	return len;
+}
+
+static ssize_t da9313_regs_store(struct device *dev,
+				 struct device_attribute *attr, const char *buf,
+				 size_t count)
+{
+	return count;
+}
+
+static DEVICE_ATTR(read_regs, S_IWUSR | S_IRUGO, da9313_regs_show, da9313_regs_store);
+static struct attribute *da9313_attributes[] = { &dev_attr_read_regs.attr,
+						NULL };
+
+static struct attribute_group da9313_attribute_group = {
+	.attrs = da9313_attributes
+};
+
 
 static int da9313_work_mode_set(int work_mode)
 {
@@ -277,7 +316,6 @@ int da9313_hardware_init(void)
 	rc = da9313_config_interface(REG04_DA9313_ADDRESS,
 				     REG04_DA9313_PVC_MODE_AUTO,
 				     REG04_DA9313_PVC_MODE_MASK);
-	da9313_dump_registers();
 	return rc;
 }
 
@@ -293,14 +331,13 @@ int max77932_hardware_init(void)
 	if (atomic_read(&divider_ic->suspended) == 1) {
 		return 0;
 	}
-	chg_err("max77932 hardware init\n");
+	chg_info("max77932 hardware init\n");
 	da9313_config_interface(0x5, (BIT(4) | BIT(5)),
 				(BIT(0) | BIT(4) | BIT(5)));
 	da9313_config_interface(0x6, BIT(5), BIT(5));
 	da9313_config_interface(0x7, BIT(3), BIT(3));
 	da9313_config_interface(0x8, BIT(1), BIT(1));
 	da9313_config_interface(0x9, (BIT(0) | BIT(2)), (BIT(0) | BIT(2)));
-	da9313_dump_registers();
 	return rc;
 }
 
@@ -316,9 +353,9 @@ int max77938_hardware_init(void)
 	if (atomic_read(&divider_ic->suspended) == 1) {
 		return 0;
 	}
-	chg_err("max77938 hardware init\n");
+
+	chg_info("max77938 hardware init\n");
 	rc = da9313_config_interface(0x8, (BIT(4) | BIT(5)), (BIT(4) | BIT(5)));
-	da9313_dump_registers();
 	return rc;
 }
 
@@ -335,7 +372,7 @@ int sd77313_hardware_init(void)
 		return 0;
 	}
 
-	chg_err("sd77313 hardware init\n");
+	chg_info("sd77313 hardware init\n");
 	da9313_dump_registers();
 	return rc;
 }
@@ -345,8 +382,7 @@ int read_value_from_reg(int reg_num)
 	int reg_value = 0;
 
 	__da9313_read_reg(reg_num, &reg_value);
-	chg_err("da9313_read_reg reg_num = %d reg_value = %d\n", reg_num,
-		reg_value);
+	chg_debug("da9313_read_reg reg_num = %d reg_value = %d\n", reg_num, reg_value);
 
 	return reg_value;
 }
@@ -753,6 +789,7 @@ static int da9313_driver_probe(struct i2c_client *client,
 			       const struct i2c_device_id *id)
 {
 	struct chip_da9313 *divider_ic;
+	int ret = 0;
 
 	divider_ic = devm_kzalloc(&client->dev, sizeof(struct chip_da9313),
 				  GFP_KERNEL);
@@ -767,10 +804,14 @@ static int da9313_driver_probe(struct i2c_client *client,
 	the_chip = divider_ic;
 	divider_ic->fixed_mode_set_by_dev_file = false;
 	halfv_chip_init(divider_ic);
-	da9313_dump_registers();
 
 	da9313_hardware_init();
 	init_da9313_proc(divider_ic);
+
+	ret = sysfs_create_group(&divider_ic->dev->kobj, &da9313_attribute_group);
+	if (ret < 0) {
+		chg_debug(" sysfs_create_group error fail\n");
+	}
 
 	return 0;
 }

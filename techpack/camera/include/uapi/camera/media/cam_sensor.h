@@ -492,6 +492,6 @@ struct cam_flash_query_cap_info {
 } __attribute__ ((packed));
 
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
-#include "oplus/media/oplus_cam_sensor.h"
+	#include "oplus/media/oplus_cam_sensor.h"
 #endif
 #endif

@@ -92,10 +92,19 @@
 #define SC8547_IBUS_UCP_FALL_DEGLITCH_SET_10US   0
 #define SC8547_IBUS_UCP_FALL_DEGLITCH_SET_5MS    1
 
+#define SC8547A_IBUS_UCP_FALL_DEGLITCH_SET_MASK   0x30
+#define SC8547A_IBUS_UCP_FALL_DEGLITCH_SET_SHIFT  4
+#define SC8547A_IBUS_UCP_FALL_DEGLITCH_SET_10US   0
+#define SC8547A_IBUS_UCP_FALL_DEGLITCH_SET_5MS    1
+#define SC8547A_IBUS_UCP_FALL_DEGLITCH_SET_50MS   2
+#define SC8547A_IBUS_UCP_FALL_DEGLITCH_SET_100MS  3
+
 #define	SC8547_IBUS_OCP_MASK                0x0F
 #define	SC8547_IBUS_OCP_SHIFT               0
 #define	SC8547_IBUS_OCP_BASE                1200
 #define	SC8547_IBUS_OCP_LSB                 300
+
+#define	SC8547A_IBUS_OCP_MASK                SC8547_IBUS_OCP_MASK
 
 /* Register 06h */
 #define SC8547_REG_06                       0x06
@@ -516,6 +525,9 @@
 /* Register 20h */
 #define SC8547_REG_20                       0x20
 #define SC8547_TDIE_POL_L_MASK              0xFF
+#define SC8547_TDIE_MIN 0
+#define SC8547_TDIE_MAX 200
+
 
 /* Register 21h */
 #define SC8547_REG_21                       0x21
@@ -756,6 +768,7 @@
 #define SC8547_VBUS_EN_RANGE_ENABLE         0
 #define SC8547_VBUS_EN_RANGE_DISABLE        1
 
+#define SC8547A_DEVICE_ID        			0x67
 
 #define GET_VBAT_PREDATA_DEFAULT (0x64 << SC8547_DATA_H_SHIFT) | 0x02;
 #define EXEC_TIME_THR	1500

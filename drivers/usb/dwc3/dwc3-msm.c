@@ -87,6 +87,11 @@
 #define PWR_EVNT_LPM_OUT_RX_ELECIDLE_IRQ_MASK	BIT(12)
 #define PWR_EVNT_LPM_OUT_L1_MASK		BIT(13)
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+#define USB3_PRI_LINK_REGS_LLUCTL(n)	(0xd024 + ((n) * 0x80))
+#define FORCE_GEN1_MASK			BIT(10)
+#endif
+
 /* QSCRATCH_GENERAL_CFG register bit offset */
 #define PIPE_UTMI_CLK_SEL	BIT(0)
 #define PIPE3_PHYSTATUS_SW	BIT(3)
@@ -3883,7 +3888,7 @@ static irqreturn_t msm_dwc3_pwr_irq(int irq, void *data)
 	if (mdwc->drd_state == DRD_STATE_PERIPHERAL_SUSPEND) {
 		dev_info(mdwc->dev, "USB Resume start\n");
 #ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
-		update_marker("M - USB device resume started");
+		place_marker("M - USB device resume started");
 #endif
 	}
 
@@ -5386,6 +5391,9 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 {
 	struct dwc3 *dwc = platform_get_drvdata(mdwc->dwc3);
 	int ret = 0;
+#ifdef OPLUS_FEATURE_CHG_BASIC
+	u32 val;
+#endif
 
 	/*
 	 * The vbus_reg pointer could have multiple values
@@ -5470,6 +5478,14 @@ static int dwc3_otg_start_host(struct dwc3_msm *mdwc, int on)
 			}
 		}
 
+#ifdef OPLUS_FEATURE_CHG_BASIC
+		/* disable host gen2 */
+		if (mdwc->ss_phy->flags & PHY_HOST_MODE){
+			dwc3_msm_write_reg_field(mdwc->base, USB3_PRI_LINK_REGS_LLUCTL(0), FORCE_GEN1_MASK, 1);
+			val = dwc3_msm_read_reg_field(mdwc->base, USB3_PRI_LINK_REGS_LLUCTL(0), FORCE_GEN1_MASK);
+			dev_info(mdwc->dev, "Turn on host: FORCE_GEN1_MASK = %d", val);
+		}
+#endif
 		/* Reduce the U3 exit handshake timer from 8us to approximately
 		 * 300ns to avoid lfps handshake interoperability issues
 		 */
@@ -6033,7 +6049,7 @@ static int dwc3_msm_pm_resume(struct device *dev)
 			mdwc->drd_state == DRD_STATE_PERIPHERAL_SUSPEND) {
 		dev_info(mdwc->dev, "USB Resume start\n");
 #ifdef CONFIG_QGKI_MSM_BOOT_TIME_MARKER
-		update_marker("M - USB device resume started");
+		place_marker("M - USB device resume started");
 #endif
 	}
 

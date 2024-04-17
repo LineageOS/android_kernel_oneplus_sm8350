@@ -14,7 +14,12 @@
 
 #include <linux/interrupt.h>
 #include <linux/i2c.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <mt-plat/charger_type.h>
+#else
+#include <mt-plat/v1/charger_type.h>
+#endif
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 #include <linux/slab.h>
 #include <linux/irq.h>
@@ -36,7 +41,9 @@
 #elif defined(CONFIG_OPLUS_CHARGER_MTK6763) || defined(CONFIG_CHARGER_SY6974)
 #include <linux/module.h>
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 #include <mt-plat/mtk_gpio.h>
+#endif
 
 #include <mt-plat/mtk_rtc.h>
 
@@ -251,7 +258,7 @@ static int sy6974_input_current_limit_write(int value)
 	int rc = 0;
 //	int i = 0;
 //	int j = 0;
-    u8 reg_val;
+	u8 reg_val;
 //	int chg_vol = 0;
 //	int aicl_point_temp = 0;
 //	int chg_vol_all[10] = {0};
@@ -261,18 +268,14 @@ static int sy6974_input_current_limit_write(int value)
 		chg_err("charger in suspended.\n");
 		return 0;
 	}
-    if(value <= 0) {
-        sy6974_suspend_charger();
-        sy6974_disable_charging();
-	    rc = sy6974_config_interface(chip, REG00_SY6974_ADDRESS, 0, REG00_SY6974_INPUT_CURRENT_LIMIT_MASK);
-        chg_debug("%s, aicr <= 0, disable sub ic\n", __func__);
-    } else {
-        sy6974_unsuspend_charger();
-		sy6974_enable_charging();
-        reg_val = (value - SY6974_INLIM_OFFSET) / SY6974_INLIM_STEP << SY6974_INLIM_SHIFT;
-        chg_debug("%s, aicr = %d,reg = %d\n", __func__, value, reg_val);
-        rc = sy6974_config_interface(chip, REG00_SY6974_ADDRESS, reg_val, REG00_SY6974_INPUT_CURRENT_LIMIT_MASK);
-    }
+	if (value <= 0) {
+		rc = sy6974_config_interface(chip, REG00_SY6974_ADDRESS, 0, REG00_SY6974_INPUT_CURRENT_LIMIT_MASK);
+        	chg_debug("%s, aicr <= 0, disable sub ic\n", __func__);
+	} else {
+		reg_val = (value - SY6974_INLIM_OFFSET) / SY6974_INLIM_STEP << SY6974_INLIM_SHIFT;
+		chg_debug("%s, aicr = %d,reg = %d\n", __func__, value, reg_val);
+		rc = sy6974_config_interface(chip, REG00_SY6974_ADDRESS, reg_val, REG00_SY6974_INPUT_CURRENT_LIMIT_MASK);
+	}
 #if 0
     chg_debug("usb input max current limit=%d setting %02x\n", value, i);
 	aicl_point_temp = chip->sw_aicl_point;

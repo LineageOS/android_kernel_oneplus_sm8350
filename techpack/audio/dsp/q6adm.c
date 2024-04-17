@@ -25,6 +25,10 @@
 #include <linux/proc_fs.h>
 #include "../asoc/msm-qti-pp-config.h"
 #endif /* OPLUS_FEATURE_AUDIODETECT */
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "feedback/oplus_audio_kernel_fb.h"
+#include "dsp/oplus_lvve_err_fb.h"
+#endif
 
 #define TIMEOUT_MS 1000
 
@@ -1204,12 +1208,24 @@ int adm_apr_send_pkt(void *data, wait_queue_head_t *wait,
 		} else	if (!ret) {
 			pr_err_ratelimited("%s: request timedout\n",
 				__func__);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+			if (apr_get_q6_state() == APR_SUBSYS_LOADED) {
+				ratelimited_fb("payload@@q6adm.c:request timedout,ret=%d,port_idx=%d,copp_idx=%d,opcode=%d", \
+						ret, port_idx, copp_idx, opcode);
+			}
+#endif
 			ret = -ETIMEDOUT;
 		} else {
 			ret = 0;
 		}
 	} else if (ret == 0) {
 		pr_err("%s: packet not transmitted\n", __func__);
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		if (apr_get_q6_state() == APR_SUBSYS_LOADED) {
+			ratelimited_fb("payload@@q6adm.c:packet not transmitted,ret=%d,port_idx=%d,copp_idx=%d,opcode=%d", \
+				ret, port_idx, copp_idx, opcode);
+		}
+#endif
 		/* apr_send_pkt can return 0 when nothing is transmitted */
 		ret = -EINVAL;
 	}
@@ -4453,6 +4469,18 @@ int adm_close(int port_id, int perf_mode, int copp_idx)
 		pr_err("%s: Invalid copp idx: %d\n", __func__, copp_idx);
 		return -EINVAL;
 	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if ((atomic_read(&this_adm.copp.app_type[port_idx][copp_idx]) == VOICE_OR_VOIP_APP_TYPE) && \
+		((atomic_read(&this_adm.copp.topology[port_idx][copp_idx]) == VOICE_TOPOLOGY_LVVEFQ_TX_SM) || \
+			(atomic_read(&this_adm.copp.topology[port_idx][copp_idx]) == VOICE_TOPOLOGY_LVVEFQ_TX_DM) || \
+			(atomic_read(&this_adm.copp.topology[port_idx][copp_idx]) == VOICE_TOPOLOGY_LVVEFQ_TX_QM) || \
+			(atomic_read(&this_adm.copp.topology[port_idx][copp_idx]) == VOICE_TOPOLOGY_LVVEFQ_RX) || \
+			(atomic_read(&this_adm.copp.topology[port_idx][copp_idx]) == AUDIO_TOPOLOGY_LVVEFQ_RX))
+		) {
+		oplus_adm_get_lvve_err_fb(port_id, copp_idx);
+	}
+#endif
 
 	port_channel_map[port_idx].set_channel_map = false;
 	app_type = atomic_read(&this_adm.copp.app_type[port_idx][copp_idx]);

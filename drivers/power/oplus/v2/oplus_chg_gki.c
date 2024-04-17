@@ -5,7 +5,10 @@
 #include <linux/slab.h>
 #include <linux/of_platform.h>
 #include <linux/power_supply.h>
+#include <linux/sched/clock.h>
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 #include <soc/oplus/system/oplus_project.h>
+#endif
 #include <oplus_chg.h>
 #include <oplus_chg_voter.h>
 #include <oplus_chg_module.h>
@@ -14,8 +17,11 @@
 #include <oplus_mms.h>
 #include <oplus_mms_gauge.h>
 #include <oplus_mms_wired.h>
+#include <oplus_chg_ufcs.h>
+#include <oplus_chg_wls.h>
 
 struct oplus_gki_device {
+	struct device *dev;
 	struct power_supply *usb_psy;
 	struct power_supply *batt_psy;
 	struct power_supply *wls_psy;
@@ -26,9 +32,12 @@ struct oplus_gki_device {
 	struct mms_subscribe *vooc_subs;
 	struct oplus_mms *wired_topic;
 	struct oplus_mms *gauge_topic;
+	struct oplus_mms *main_gauge_topic;
 	struct oplus_mms *wls_topic;
 	struct oplus_mms *comm_topic;
 	struct oplus_mms *vooc_topic;
+	struct oplus_mms *ufcs_topic;
+	struct mms_subscribe *ufcs_subs;
 
 	struct work_struct gauge_update_work;
 
@@ -36,6 +45,12 @@ struct oplus_gki_device {
 	struct votable *wired_fcc_votable;
 	struct votable *fv_votable;
 	struct votable *vooc_curr_votable;
+	struct votable *ufcs_curr_votable;
+
+	struct delayed_work status_keep_clean_work;
+	struct delayed_work status_keep_delay_unlock_work;
+	struct wakeup_source *status_wake_lock;
+	bool status_wake_lock_on;
 
 	bool led_on;
 
@@ -54,6 +69,7 @@ struct oplus_gki_device {
 	int batt_chg_type;
 	int ui_soc;
 	int batt_capacity_mah;
+	int time_to_full;
 
 	bool wired_online;
 	int wired_type;
@@ -63,7 +79,6 @@ struct oplus_gki_device {
 	bool vooc_started;
 
 	bool wls_online;
-	int wls_type;
 
 	bool smart_charging_screenoff;
 };
@@ -102,26 +117,91 @@ is_vooc_curr_votable_available(struct oplus_gki_device *chip)
 	return !!chip->vooc_curr_votable;
 }
 
+__maybe_unused static bool
+is_ufcs_curr_votable_available(struct oplus_gki_device *chip)
+{
+	if (!chip->ufcs_curr_votable)
+		chip->ufcs_curr_votable = find_votable("UFCS_CURR");
+	return !!chip->ufcs_curr_votable;
+}
+
+static bool is_main_gauge_topic_available(struct oplus_gki_device *chip)
+{
+	if (!chip->main_gauge_topic)
+		chip->main_gauge_topic = oplus_mms_get_by_name("gauge:0");
+
+	return !!chip->main_gauge_topic;
+}
+
+#define KEEP_CLEAN_INTERVAL	2000
 static int wls_psy_get_prop(struct power_supply *psy,
 		enum power_supply_property prop,
 		union power_supply_propval *pval)
 {
 	struct oplus_gki_device *chip = power_supply_get_drvdata(psy);
+	union mms_msg_data data = { 0 };
 	int rc = 0;
+	int bms_temp_compensation;
+	static bool pre_wls_online;
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_ONLINE:
 		pval->intval = chip->wls_online;
+		oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_STATUS_KEEP, &data, true);
+		if (data.intval != WLS_SK_NULL) {
+			pval->intval = 1;
+		} else {
+			if (pre_wls_online && pval->intval == 0) {
+				if (!chip->status_wake_lock_on) {
+					chg_info("acquire status_wake_lock\n");
+					__pm_stay_awake(chip->status_wake_lock);
+					chip->status_wake_lock_on = true;
+				}
+				pre_wls_online = pval->intval;
+				oplus_chg_wls_set_status_keep(chip->wls_topic, WLS_SK_BY_KERNEL);
+				pval->intval = 1;
+				schedule_delayed_work(&chip->status_keep_clean_work, msecs_to_jiffies(KEEP_CLEAN_INTERVAL));
+			} else {
+				pre_wls_online = pval->intval;
+				if (chip->status_wake_lock_on) {
+					cancel_delayed_work_sync(&chip->status_keep_clean_work);
+					schedule_delayed_work(&chip->status_keep_clean_work, 0);
+				}
+			}
+		}
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
+		oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_VOUT, &data, true);
+		pval->intval = data.intval;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_VOUT, &data, true);
+		pval->intval = data.intval * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_IOUT, &data, true);
+		pval->intval = data.intval;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_IOUT, &data, true);
+		pval->intval = data.intval * 1000;
+		break;
+	case POWER_SUPPLY_PROP_TEMP:
+		if (is_support_parallel_battery(chip->gauge_topic) &&
+		    is_main_gauge_topic_available(chip)) {
+			rc = oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_TEMP, &data, false);
+			pval->intval = data.intval;
+		} else {
+			bms_temp_compensation = oplus_comm_get_bms_heat_temp_compensation(chip->comm_topic);
+			if (bms_temp_compensation != 0 && chip->temperature < OPLUS_BMS_HEAT_THRE)
+				pval->intval = chip->temperature - bms_temp_compensation;
+			else
+				pval->intval = chip->temperature;
+		}
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
+		pval->intval = chip->wls_online;
 		break;
 	default:
 		chg_err("get prop %d is not supported\n", prop);
@@ -154,6 +234,8 @@ static enum power_supply_property wls_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_PRESENT,
 };
 
@@ -361,6 +443,19 @@ static int oplus_gki_get_ui_soc(struct oplus_gki_device *chip)
 	return ui_soc;
 }
 
+#define OPLUS_NS_TO_MS (1000 * 1000)
+int oplus_chg_get_curr_time_ms(unsigned long *time_ms)
+{
+	u64 ts_nsec;
+
+	ts_nsec = local_clock();
+	*time_ms = ts_nsec / OPLUS_NS_TO_MS;
+
+	return *time_ms;
+}
+
+#define KPOC_FORCE_VBUS_MV 5000
+#define FORCE_VBUS_5V_TIME 10000
 static int battery_psy_get_prop(struct power_supply *psy,
 		enum power_supply_property prop,
 		union power_supply_propval *pval)
@@ -368,10 +463,24 @@ static int battery_psy_get_prop(struct power_supply *psy,
 	struct oplus_gki_device *chip = power_supply_get_drvdata(psy);
 	union mms_msg_data data = { 0 };
 	int rc = 0;
+	int bms_temp_compensation;
+	static int pre_batt_status;
+	unsigned long cur_chg_time = 0;
+
+	if (chip->gauge_topic == NULL)
+		return -ENODEV;
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_STATUS:
-		pval->intval = chip->batt_status;
+		if  (!IS_ERR_OR_NULL(chip->wls_topic))
+			(void)oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_STATUS_KEEP, &data, true);
+		if (data.intval) {
+			pval->intval = pre_batt_status;
+		} else {
+			pval->intval = chip->batt_status;
+			if  (chip->wls_online)
+				pre_batt_status = pval->intval;
+		}
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
 		pval->intval = chip->batt_health;
@@ -413,8 +522,13 @@ static int battery_psy_get_prop(struct power_supply *psy,
 #endif
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
-		rc = oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_CURR,
-					     &data, (chip->wired_online || chip->wls_online));
+		if (is_support_parallel_battery(chip->gauge_topic) &&
+		    is_main_gauge_topic_available(chip))
+			rc = oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_CURR,
+						     &data, (chip->wired_online || chip->wls_online));
+		else
+			rc = oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_CURR,
+						     &data, (chip->wired_online || chip->wls_online));
 		pval->intval = data.intval;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
@@ -425,7 +539,18 @@ static int battery_psy_get_prop(struct power_supply *psy,
 		pval->intval = 1;
 		break;
 	case POWER_SUPPLY_PROP_TEMP:
-		pval->intval = chip->temperature;
+		if (is_support_parallel_battery(chip->gauge_topic) &&
+		    is_main_gauge_topic_available(chip)) {
+			rc = oplus_mms_get_item_data(chip->main_gauge_topic, GAUGE_ITEM_TEMP,
+						     &data, false);
+			pval->intval = data.intval;
+		} else {
+			bms_temp_compensation = oplus_comm_get_bms_heat_temp_compensation(chip->comm_topic);
+			if (bms_temp_compensation != 0 && chip->temperature < OPLUS_BMS_HEAT_THRE)
+				pval->intval = chip->temperature - bms_temp_compensation;
+			else
+				pval->intval = chip->temperature;
+		}
 		break;
 	case POWER_SUPPLY_PROP_TECHNOLOGY:
 		pval->intval = POWER_SUPPLY_TECHNOLOGY_LION;
@@ -449,10 +574,11 @@ static int battery_psy_get_prop(struct power_supply *psy,
 			pval->strval = "oplus battery";
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_AVG:
-		pval->intval = 1800;
-		break;
 	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-		pval->intval = 1800;
+		if (chip->time_to_full > 0 && oplus_gki_get_ui_soc(chip) == 100)
+			pval->intval = 0;
+		else
+			pval->intval = chip->time_to_full;
 		break;
 	case POWER_SUPPLY_PROP_TIME_TO_EMPTY_AVG:
 		pval->intval = 3600;
@@ -469,6 +595,9 @@ static int battery_psy_get_prop(struct power_supply *psy,
 			pval->intval = 0; /* TODO */
 		else
 			pval->intval = oplus_wired_get_vbus();
+		if (oplus_is_power_off_charging() &&
+		    oplus_chg_get_curr_time_ms(&cur_chg_time) < FORCE_VBUS_5V_TIME)
+			pval->intval = KPOC_FORCE_VBUS_MV;
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_MIN:
 		rc = oplus_mms_get_item_data(chip->gauge_topic,
@@ -498,6 +627,8 @@ static int battery_psy_get_prop(struct power_supply *psy,
 	return rc;
 }
 
+#define TTF_UPDATE_UEVENT_BIT		BIT(30)
+#define TTF_VALUE_MASK			GENMASK(29, 0)
 static int battery_psy_set_prop(struct power_supply *psy,
 		enum power_supply_property prop,
 		const union power_supply_propval *pval)
@@ -505,6 +636,9 @@ static int battery_psy_set_prop(struct power_supply *psy,
 	struct oplus_gki_device *chip = power_supply_get_drvdata(psy);
 	int val;
 	int rc = 0;
+
+	if (chip->gauge_topic == NULL)
+		return -ENODEV;
 
 	switch (prop) {
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
@@ -519,14 +653,23 @@ static int battery_psy_set_prop(struct power_supply *psy,
 				vote(chip->wired_icl_votable, HIDL_VOTER, false, 0, true);
 				if (is_vooc_curr_votable_available(chip))
 					vote(chip->vooc_curr_votable, HIDL_VOTER, false, 0, false);
+				if (is_ufcs_curr_votable_available(chip))
+					vote(chip->ufcs_curr_votable, HIDL_VOTER, false, 0, false);
 			} else {
 				vote(chip->wired_icl_votable, HIDL_VOTER, (val == 0) ? false : true, val, true);
 				if (is_vooc_curr_votable_available(chip))
 					vote(chip->vooc_curr_votable, HIDL_VOTER, (val == 0) ? false : true, val, false);
+				if (is_ufcs_curr_votable_available(chip))
+					vote(chip->ufcs_curr_votable, HIDL_VOTER, (val == 0) ? false : true, val, false);
 			}
 		} else {
 			rc = -ENOTSUPP;
 		}
+		break;
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
+		chip->time_to_full = (pval->intval & TTF_VALUE_MASK) > 0 ? (pval->intval & TTF_VALUE_MASK) : 0;
+		if ((pval->intval & TTF_UPDATE_UEVENT_BIT) && (!IS_ERR_OR_NULL(chip->batt_psy)))
+			power_supply_changed(chip->batt_psy);
 		break;
 	default:
 		chg_err("set prop %d is not supported\n", prop);
@@ -543,6 +686,8 @@ static int battery_psy_prop_is_writeable(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT:
 		return 1;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
+		return 1;
+	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
 		return 1;
 	default:
 		break;
@@ -561,8 +706,10 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 	POWER_SUPPLY_PROP_CURRENT_NOW,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT,
 	POWER_SUPPLY_PROP_CHARGE_CONTROL_LIMIT_MAX,
+#endif
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_TECHNOLOGY,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
@@ -591,12 +738,16 @@ static const struct power_supply_desc batt_psy_desc = {
 };
 
 #define FORCE_UPDATE_TIME	60
+#define HIGH_TEMP_UPDATE_THD	500
+#define HIGH_TEMP_UPDATE_TIME	10
 static void oplus_gki_gauge_update_work(struct work_struct *work)
 {
 	struct oplus_gki_device *chip =
 		container_of(work, struct oplus_gki_device, gauge_update_work);
 	union mms_msg_data data = { 0 };
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 	int eng_version;
+#endif
 	static unsigned long update_time = 0;
 
 	oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_VOL_MAX, &data,
@@ -621,16 +772,23 @@ static void oplus_gki_gauge_update_work(struct work_struct *work)
 	if (chip->wired_online)
 		chip->charger_cycle = oplus_wired_get_charger_cycle();
 
+#ifndef CONFIG_DISABLE_OPLUS_FUNCTION
 	eng_version = get_eng_version();
 	if (eng_version == AGING || eng_version == HIGH_TEMP_AGING ||
 	    eng_version == FACTORY || chip->wired_online || chip->wls_online) {
-		if (chip->batt_psy)
+#else
+	if (chip->wired_online || chip->wls_online) {
+#endif
+		if (!IS_ERR_OR_NULL(chip->batt_psy))
 			power_supply_changed(chip->batt_psy);
 	} else {
-		if (time_is_before_jiffies(update_time)) {
-			if (chip->batt_psy)
+		if ((chip->temperature >= HIGH_TEMP_UPDATE_THD
+		    && time_is_before_eq_jiffies(update_time + (unsigned long)(HIGH_TEMP_UPDATE_TIME * HZ))) ||
+		    (chip->temperature < HIGH_TEMP_UPDATE_THD
+		    && time_is_before_eq_jiffies(update_time + (unsigned long)(FORCE_UPDATE_TIME * HZ)))) {
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
-			update_time = jiffies + FORCE_UPDATE_TIME * HZ;
+			update_time = jiffies;
 		}
 	}
 }
@@ -656,7 +814,7 @@ static void oplus_gki_gauge_subs_callback(struct mms_subscribe *subs,
 				chip->batt_exist = false;
 			else
 				chip->batt_exist = data.intval;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case GAUGE_ITEM_AUTH:
@@ -695,6 +853,7 @@ static void oplus_gki_subscribe_gauge_topic(struct oplus_mms *topic, void *prv_d
 	struct oplus_gki_device *chip = prv_data;
 	struct power_supply_config psy_cfg = {};
 	union mms_msg_data data = { 0 };
+	struct power_supply *psy = NULL;
 	int rc;
 
 	chip->gauge_topic = topic;
@@ -741,7 +900,7 @@ static void oplus_gki_subscribe_gauge_topic(struct oplus_mms *topic, void *prv_d
 		chip->batt_auth = !!data.intval;
 	}
 	rc = oplus_mms_get_item_data(chip->gauge_topic, GAUGE_ITEM_HMAC, &data,
-				     false);
+				     true);
 	if (rc < 0) {
 		chg_err("can't get GAUGE_ITEM_HMAC data, rc=%d\n", rc);
 		chip->batt_hmac = false;
@@ -751,9 +910,15 @@ static void oplus_gki_subscribe_gauge_topic(struct oplus_mms *topic, void *prv_d
 
 	chip->batt_capacity_mah = oplus_gauge_get_batt_capacity_mah(chip->gauge_topic);
 
+	psy = power_supply_get_by_name("battery");
+	if (psy != NULL) {
+		chg_info("battery power_sypply already registered\n");
+		return;
+	}
+
 	psy_cfg.drv_data = chip;
 	chip->batt_psy = devm_power_supply_register(&topic->dev, &batt_psy_desc, &psy_cfg);
-	if (IS_ERR(chip->batt_psy)) {
+	if (IS_ERR_OR_NULL(chip->batt_psy)) {
 		chg_err("Failed to register battery power supply, rc=%ld\n",
 			PTR_ERR(chip->batt_psy));
 		goto psy_err;
@@ -805,7 +970,7 @@ static void oplus_gki_wired_subs_callback(struct mms_subscribe *subs,
 					usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
 			}
 			chg_info("psy_type=%d\n", usb_psy_desc.type);
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case WIRED_ITEM_CHG_TYPE:
@@ -819,17 +984,17 @@ static void oplus_gki_wired_subs_callback(struct mms_subscribe *subs,
 					usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
 			}
 			chg_info("psy_type=%d\n", usb_psy_desc.type);
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case WIRED_ITEM_BC12_COMPLETED:
 			if (chip->wired_type == OPLUS_CHG_USB_TYPE_UNKNOWN)
 				usb_psy_desc.type = POWER_SUPPLY_TYPE_USB_DCP;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		default:
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		}
@@ -876,7 +1041,7 @@ static void oplus_gki_subscribe_wired_topic(struct oplus_mms *topic, void *prv_d
 	psy_cfg.drv_data = chip;
 	chip->usb_psy = devm_power_supply_register(&topic->dev, &usb_psy_desc,
 						   &psy_cfg);
-	if (IS_ERR(chip->usb_psy)) {
+	if (IS_ERR_OR_NULL(chip->usb_psy)) {
 		chg_err("Failed to register usb power supply, rc=%ld\n",
 			PTR_ERR(chip->usb_psy));
 		goto psy_err;
@@ -889,11 +1054,60 @@ psy_err:
 	oplus_mms_unsubscribe(chip->wired_subs);
 }
 
+#define WLS_SK_TIME	5000
+#define WLS_SK_DELAY_UNLOCK_TIME	100
+static void oplus_chg_wls_status_keep_clean_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_gki_device *chip =
+		container_of(dwork, struct oplus_gki_device, status_keep_clean_work);
+	union mms_msg_data data = { 0 };
+
+	oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_STATUS_KEEP, &data, true);
+	if (data.intval == WLS_SK_BY_HAL) {
+		oplus_chg_wls_set_status_keep(chip->wls_topic, WLS_SK_WAIT_TIMEOUT);
+		schedule_delayed_work(&chip->status_keep_clean_work, msecs_to_jiffies(WLS_SK_TIME));
+		return;
+	}
+
+	oplus_chg_wls_set_status_keep(chip->wls_topic, WLS_SK_NULL);
+	if (chip->batt_psy)
+		power_supply_changed(chip->batt_psy);
+	schedule_delayed_work(&chip->status_keep_delay_unlock_work, msecs_to_jiffies(WLS_SK_DELAY_UNLOCK_TIME));
+}
+
+static void oplus_chg_wls_status_keep_delay_unlock_work(struct work_struct *work)
+{
+	struct delayed_work *dwork = to_delayed_work(work);
+	struct oplus_gki_device *chip =
+		container_of(dwork, struct oplus_gki_device, status_keep_delay_unlock_work);
+
+	if (chip->status_wake_lock_on) {
+		chg_info("release status_wake_lock\n");
+		__pm_relax(chip->status_wake_lock);
+		chip->status_wake_lock_on = false;
+	}
+}
+
 static void oplus_gki_wls_subs_callback(struct mms_subscribe *subs,
 					   enum mms_msg_type type, u32 id)
 {
+	struct oplus_gki_device *chip = subs->priv_data;
+	union mms_msg_data data = { 0 };
+
 	switch (type) {
 	case MSG_TYPE_ITEM:
+		switch (id) {
+		case WLS_ITEM_PRESENT:
+			oplus_mms_get_item_data(chip->wls_topic, id, &data, false);
+			chip->wls_online = !!data.intval;
+			chg_info("wls_present=%d\n", chip->wls_online);
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
+				power_supply_changed(chip->batt_psy);
+			break;
+		default:
+			break;
+		}
 		break;
 	default:
 		break;
@@ -904,24 +1118,29 @@ static void oplus_gki_subscribe_wls_topic(struct oplus_mms *topic, void *prv_dat
 {
 	struct oplus_gki_device *chip = prv_data;
 	struct power_supply_config psy_cfg = {};
+	union mms_msg_data data = { 0 };
 
 	chip->wls_topic = topic;
-	chip->wls_subs =
-		oplus_mms_subscribe(chip->wls_topic, chip,
-				    oplus_gki_wls_subs_callback, "gki");
+	chip->wls_subs = oplus_mms_subscribe(chip->wls_topic, chip, oplus_gki_wls_subs_callback, "gki");
 	if (IS_ERR_OR_NULL(chip->wls_subs)) {
-		chg_err("subscribe gauge topic error, rc=%ld\n",
-			PTR_ERR(chip->wls_subs));
+		chg_err("subscribe wls topic error, rc=%ld\n", PTR_ERR(chip->wls_subs));
 		return;
 	}
 
+	oplus_mms_get_item_data(chip->wls_topic, WLS_ITEM_PRESENT, &data, true);
+	chip->wls_online = !!data.intval;
+
 	psy_cfg.drv_data = chip;
-	chip->wls_psy = devm_power_supply_register(&topic->dev, &batt_psy_desc, &psy_cfg);
-	if (IS_ERR(chip->wls_psy)) {
-		chg_err("Failed to register wireless power supply, rc=%ld\n",
-			PTR_ERR(chip->wls_psy));
+	chip->wls_psy = devm_power_supply_register(&topic->dev, &wls_psy_desc, &psy_cfg);
+	if (IS_ERR_OR_NULL(chip->wls_psy)) {
+		chg_err("Failed to register wireless power supply, rc=%ld\n", PTR_ERR(chip->wls_psy));
 		goto psy_err;
 	}
+
+	INIT_DELAYED_WORK(&chip->status_keep_clean_work, oplus_chg_wls_status_keep_clean_work);
+	INIT_DELAYED_WORK(&chip->status_keep_delay_unlock_work, oplus_chg_wls_status_keep_delay_unlock_work);
+	chip->status_wake_lock = wakeup_source_register(NULL, "status_wake_lock");
+	chip->status_wake_lock_on = false;
 
 	return;
 
@@ -943,21 +1162,21 @@ static void oplus_gki_comm_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->batt_status = data.intval;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case COMM_ITEM_BATT_HEALTH:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->batt_health = data.intval;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case COMM_ITEM_BATT_CHG_TYPE:
 			oplus_mms_get_item_data(chip->comm_topic, id, &data,
 						false);
 			chip->batt_chg_type = data.intval;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case COMM_ITEM_UI_SOC:
@@ -970,7 +1189,7 @@ static void oplus_gki_comm_subs_callback(struct mms_subscribe *subs,
 			} else {
 				chip->ui_soc_ready = true;
 			}
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case COMM_ITEM_LED_ON:
@@ -980,11 +1199,15 @@ static void oplus_gki_comm_subs_callback(struct mms_subscribe *subs,
 			if (chip->led_on &&
 			    is_vooc_curr_votable_available(chip))
 				vote(chip->vooc_curr_votable, HIDL_VOTER, false, 0, false);
+
+			if (chip->led_on &&
+			    is_ufcs_curr_votable_available(chip))
+				vote(chip->ufcs_curr_votable, HIDL_VOTER, false, 0, false);
 			break;
 		case COMM_ITEM_CHARGING_DISABLE:
 		case COMM_ITEM_CHARGE_SUSPEND:
 		case COMM_ITEM_NOTIFY_CODE:
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		default:
@@ -1048,18 +1271,18 @@ static void oplus_gki_vooc_subs_callback(struct mms_subscribe *subs,
 			oplus_mms_get_item_data(chip->vooc_topic, id, &data,
 						false);
 			chip->vooc_charging = data.intval;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		case VOOC_ITEM_VOOC_STARTED:
 			oplus_mms_get_item_data(chip->vooc_topic, id, &data,
 						false);
 			chip->vooc_started = data.intval;
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		default:
-			if (chip->batt_psy)
+			if (!IS_ERR_OR_NULL(chip->batt_psy))
 				power_supply_changed(chip->batt_psy);
 			break;
 		}
@@ -1093,6 +1316,84 @@ static void oplus_gki_subscribe_vooc_topic(struct oplus_mms *topic,
 	chip->vooc_started = !!data.intval;
 }
 
+static void oplus_gki_ufcs_subs_callback(struct mms_subscribe *subs,
+					     enum mms_msg_type type, u32 id)
+{
+	struct oplus_gki_device *chip = subs->priv_data;
+
+	switch (type) {
+	case MSG_TYPE_ITEM:
+		if (chip->batt_psy)
+			power_supply_changed(chip->batt_psy);
+		break;
+	default:
+		break;
+	}
+}
+
+static void oplus_gki_subscribe_ufcs_topic(struct oplus_mms *topic,
+					       void *prv_data)
+{
+	struct oplus_gki_device *chip = prv_data;
+
+	chip->ufcs_topic = topic;
+	chip->ufcs_subs = oplus_mms_subscribe(chip->ufcs_topic, chip, oplus_gki_ufcs_subs_callback, "gki");
+	if (IS_ERR_OR_NULL(chip->ufcs_subs)) {
+		chg_err("subscribe ufcs topic error, rc=%ld\n",
+			PTR_ERR(chip->ufcs_subs));
+		return;
+	}
+}
+
+static int oplus_gki_driver_probe(struct platform_device *pdev)
+{
+	struct oplus_gki_device *gki_dev = g_gki_dev;
+	struct power_supply *psy = NULL;
+	struct power_supply_config psy_cfg = {};
+
+	if (gki_dev == NULL) {
+		chg_err("g_gki_dev is NULL\n");
+		return -ENODEV;
+	}
+
+	gki_dev->dev = &pdev->dev;
+	psy = power_supply_get_by_name("battery");
+	if (psy != NULL) {
+		chg_info("battery power_sypply already registered\n");
+		return 0;
+	}
+
+	psy_cfg.drv_data = gki_dev;
+	gki_dev->batt_psy = devm_power_supply_register(gki_dev->dev, &batt_psy_desc, &psy_cfg);
+	if (IS_ERR_OR_NULL(gki_dev->batt_psy)) {
+		chg_err("Failed to register battery power supply, rc=%ld\n",
+			PTR_ERR(gki_dev->batt_psy));
+		return PTR_ERR(gki_dev->batt_psy);
+	}
+
+	return 0;
+}
+
+static int oplus_gki_driver_remove(struct platform_device *pdev)
+{
+	return 0;
+}
+
+static const struct of_device_id oplus_chg_gki_match[] = {
+	{ .compatible = "oplus,chg-gki" },
+	{},
+};
+
+static struct platform_driver oplus_chg_gki_driver = {
+	.driver = {
+		.name = "oplus_chg_gki",
+		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(oplus_chg_gki_match),
+	},
+	.probe = oplus_gki_driver_probe,
+	.remove = oplus_gki_driver_remove,
+};
+
 static __init int oplus_chg_gki_init(void)
 {
 	struct oplus_gki_device *gki_dev;
@@ -1112,6 +1413,7 @@ static __init int oplus_chg_gki_init(void)
 		gki_dev->smart_charging_screenoff = of_property_read_bool(
 			node, "oplus,smart_charging_screenoff");
 
+	gki_dev->time_to_full = 0;
 	INIT_WORK(&gki_dev->gauge_update_work, oplus_gki_gauge_update_work);
 
 	oplus_mms_wait_topic("gauge", oplus_gki_subscribe_gauge_topic, gki_dev);
@@ -1119,7 +1421,9 @@ static __init int oplus_chg_gki_init(void)
 	oplus_mms_wait_topic("wireless", oplus_gki_subscribe_wls_topic, gki_dev);
 	oplus_mms_wait_topic("common", oplus_gki_subscribe_comm_topic, gki_dev);
 	oplus_mms_wait_topic("vooc", oplus_gki_subscribe_vooc_topic, gki_dev);
+	oplus_mms_wait_topic("ufcs", oplus_gki_subscribe_ufcs_topic, gki_dev);
 
+	platform_driver_register(&oplus_chg_gki_driver);
 	return 0;
 }
 
@@ -1140,9 +1444,16 @@ static __exit void oplus_chg_gki_exit(void)
 		oplus_mms_unsubscribe(g_gki_dev->gauge_subs);
 	if (!IS_ERR_OR_NULL(g_gki_dev->wls_subs))
 		oplus_mms_unsubscribe(g_gki_dev->wls_subs);
+	if (!IS_ERR_OR_NULL(g_gki_dev->comm_subs))
+		oplus_mms_unsubscribe(g_gki_dev->comm_subs);
+	if (!IS_ERR_OR_NULL(g_gki_dev->vooc_subs))
+		oplus_mms_unsubscribe(g_gki_dev->vooc_subs);
+	if (!IS_ERR_OR_NULL(g_gki_dev->ufcs_subs))
+		oplus_mms_unsubscribe(g_gki_dev->ufcs_subs);
 
 	kfree(g_gki_dev);
 	g_gki_dev = NULL;
+	platform_driver_unregister(&oplus_chg_gki_driver);
 }
 
 oplus_chg_module_register(oplus_chg_gki);
