@@ -29,6 +29,7 @@
 #include "../../../../../../kernel/msm-5.4/drivers/usb/typec/tcpc/inc/tcpci_typec.h"
 #include "../oplus_charger.h"
 #include "oplus_sy6974b.h"
+#include "oplus_sy6970_reg.h"
 //#undef dev_info
 //#define dev_info dev_err
 
@@ -37,11 +38,17 @@
 #define PROBE_CNT_MAX			30
 /* 10ms * 100 = 1000ms = 1s */
 #define USB_TYPE_POLLING_INTERVAL	10
-#define USB_TYPE_POLLING_CNT_MAX	100
+#define USB_TYPE_POLLING_CNT_MAX	200
 #define UNIT_TRANS_1000			1000
+
+#define PORT_ERROR 0
+#define PORT_A 1
+#define PORT_PD_WITH_USB 2
+#define PORT_PD_WITHOUT_USB 3
 
 extern void oplus_otg_enable_by_buckboost(void);
 extern void oplus_otg_disable_by_buckboost(void);
+extern void tcpc_late_sync(void);
 
 enum dr {
 	DR_IDLE,
@@ -107,6 +114,11 @@ static const char * const iio_channel_map[] = {
 };
 
 static struct rt_pd_manager_data *g_rpmd = NULL;
+
+void __attribute__((weak)) oplus_set_prswap(bool swap)
+{
+	return;
+}
 
 static int smblib_get_prop(struct rt_pd_manager_data *rpmd,
 			   enum iio_psy_property ipp,
@@ -266,12 +278,26 @@ static inline void start_usb_peripheral(struct rt_pd_manager_data *rpmd)
 
 void oplus_start_usb_peripheral(void)
 {
-        if (NULL == g_rpmd) {
+	if (g_rpmd == NULL) {
 		return;
 	}
 
 	printk(KERN_ERR "%s \n", __func__);
 	start_usb_peripheral(g_rpmd);
+	return;
+}
+
+void oplus_enable_device_mode(bool enable)
+{
+	if (g_rpmd == NULL) {
+		return;
+	}
+
+	printk(KERN_INFO "%s %d\n", __func__ , enable);
+	if(enable)
+		start_usb_peripheral(g_rpmd);
+	else
+		stop_usb_peripheral(g_rpmd);
 	return;
 }
 
@@ -282,6 +308,27 @@ bool oplus_pd_without_usb(void)
 	if (!tcpm_inquire_pd_connected(g_rpmd->tcpc))
 		return false;
 	return (tcpm_inquire_dpm_flags(g_rpmd->tcpc) & DPM_FLAGS_PARTNER_USB_COMM) ? false : true;
+}
+
+int oplus_check_pd_usb_type(void)
+{
+	struct tcpc_device *tcpc;
+	int ret = 0;
+
+	tcpc = tcpc_dev_get_by_name("type_c_port0");
+	if (!tcpc) {
+		chg_err("get type_c_port0 fail\n");
+		return PORT_ERROR;
+	}
+
+	if (!tcpm_inquire_pd_connected(tcpc))
+		return PORT_A;
+
+	ret = tcpm_inquire_dpm_flags(tcpc);
+	if (ret & DPM_FLAGS_PARTNER_USB_COMM)
+		return PORT_PD_WITH_USB;
+
+	return PORT_PD_WITHOUT_USB;
 }
 
 bool oplus_pd_connected(void)
@@ -306,7 +353,7 @@ static void usb_dwork_handler(struct work_struct *work)
 		return;
 	}
 
-	dev_info(rpmd->dev, "%s %s\n", __func__, dr_names[usb_dr]);
+	dev_dbg(rpmd->dev, "%s %s\n", __func__, dr_names[usb_dr]);
 
 	switch (usb_dr) {
 	case DR_IDLE:
@@ -316,7 +363,7 @@ static void usb_dwork_handler(struct work_struct *work)
 		break;
 	case DR_DEVICE:
 		ret = smblib_get_prop(rpmd, POWER_SUPPLY_PROP_REAL_TYPE, &val);
-		dev_info(rpmd->dev, "%s polling_cnt = %d, ret = %d type = %d\n",
+		dev_dbg(rpmd->dev, "%s polling_cnt = %d, ret = %d type = %d\n",
 				    __func__, ++rpmd->usb_type_polling_cnt,
 				    ret, val.intval);
 
@@ -401,6 +448,7 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 	enum typec_pwr_opmode opmode = TYPEC_PWR_MODE_USB;
 	uint32_t partner_vdos[VDO_MAX_NR];
 	union power_supply_propval val = {.intval = 0};
+	static bool otg_enable = false;
 	struct oplus_chg_chip *g_oplus_chip = oplus_chg_get_chg_struct();
 
 	switch (event) {
@@ -433,8 +481,11 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		/* enable/disable OTG power output */
 		if (noti->vbus_state.mv) {
 			oplus_otg_enable_by_buckboost();
+			otg_enable = true;
 		} else {
-			oplus_otg_disable_by_buckboost();
+			if (otg_enable)
+				oplus_otg_disable_by_buckboost();
+			otg_enable = false;
 		}
 		break;
 	case TCP_NOTIFY_TYPEC_STATE:
@@ -620,6 +671,10 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 		if (noti->swap_state.new_role == PD_ROLE_SINK) {
 			dev_info(rpmd->dev, "%s swap power role to sink\n",
 					    __func__);
+			if (g_oplus_chip && g_oplus_chip->chg_ops &&
+			    g_oplus_chip->chg_ops->set_prswap)
+				g_oplus_chip->chg_ops->set_prswap(true);
+			/*oplus_set_prswap(true);*/
 			/*
 			 * report charger plug-in without charger type detection
 			 * to not interfering with USB2.0 communication
@@ -1160,6 +1215,7 @@ static int rt_pd_manager_probe(struct platform_device *pdev)
 	}
 
 	g_rpmd = rpmd;
+	tcpc_late_sync();
 out:
 	platform_set_drvdata(pdev, rpmd);
 	dev_info(rpmd->dev, "%s %s!!\n", __func__, ret == -EPROBE_DEFER ?

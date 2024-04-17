@@ -2997,6 +2997,12 @@ static int msm_compr_trigger(struct snd_compr_stream *cstream, int cmd)
 				prtd->last_buffer = 1;
 				msm_compr_send_buffer(prtd);
 			}
+#ifdef OPLUS_ARCH_EXTENDS
+		/* Apply CR#3577423 to fix CtsMediaAudioTestCases test fail */
+		} else {
+			pr_err("%s: fail to send partial buffer to dsp\n",__func__);
+			rc = -EPERM;
+#endif /*OPLUS_ARCH_EXTENDS*/
 		}
 
 		atomic_set(&prtd->drain, 1);

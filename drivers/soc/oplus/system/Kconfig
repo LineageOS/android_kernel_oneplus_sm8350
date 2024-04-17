@@ -30,21 +30,7 @@ config OPLUS_BUG_STABILITY_EFFECTON_QGKI
   help
 	define this config to fix stability bug only effect on qgki
 
-config OPLUS_FEATURE_DETAILHEAD
-  tristate "config detail kmsg"
-  help
-	define this config to add cpu number and current id and current comm to kmsg
-
-
 source "drivers/soc/oplus/system/feedback/Kconfig"
 source "drivers/soc/oplus/system/oplus_project/Kconfig"
 source "drivers/soc/oplus/system/project_info/Kconfig"
 source "drivers/soc/oplus/system/cmdline_parser/Kconfig"
-
-#ifdef OPLUS_FEATURE_MM_FEEDBACK
-source "drivers/soc/oplus/system/oplus_mm_fb/Kconfig"
-#endif /* OPLUS_FEATURE_MM_FEEDBACK */
-
-#ifdef OPLUS_FEATURE_ACM
-source "drivers/soc/oplus/system/acm/Kconfig"
-#endif /* OPLUS_FEATURE_ACM */

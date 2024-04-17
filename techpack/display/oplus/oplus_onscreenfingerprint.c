@@ -45,6 +45,9 @@ extern u32 oplus_onscreenfp_vblank_count;
 extern ktime_t oplus_onscreenfp_pressed_time;
 extern unsigned int is_project(int project);
 
+#ifdef OPLUS_BUG_STABILITY
+bool oplus_enhance_mipi_strength = false;
+#endif
 static struct oplus_brightness_alpha brightness_alpha_lut[] = {
 	{0, 0xff},
 	{1, 0xee},
@@ -429,6 +432,9 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 {
 	struct dsi_parser_utils *utils = &panel->utils;
 	int ret = 0;
+	const char *regs = NULL;
+	u32 len = 0;
+	int i = 0;
 
 	dsi_panel_parse_oplus_fod_config(panel);
 	dsi_panel_parse_oplus_backlight_remapping_config(panel);
@@ -454,6 +460,12 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 	DSI_INFO("is_pxlw_iris5: %s",
 		 panel->oplus_priv.is_pxlw_iris5 ? "true" : "false");
 
+#ifdef OPLUS_BUG_STABILITY
+	oplus_enhance_mipi_strength = utils->read_bool(utils->data,
+					 "oplus,enhance_mipi_strength");
+	DSI_INFO("enhance_mipi_strength: %s",
+		 oplus_enhance_mipi_strength ? "true" : "false");
+#endif
 	panel->oplus_priv.is_osc_support = utils->read_bool(utils->data, "oplus,osc-support");
 	pr_info("[%s]osc mode support: %s", __func__, panel->oplus_priv.is_osc_support ? "Yes" : "Not");
 
@@ -472,6 +484,9 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 			pr_err("[%s]failed get panel parameter: oplus,mdss-dsi-osc-clk-mode1-rate\n", __func__);
 			panel->oplus_priv.osc_clk_mode1_rate = 0;
 		}
+		/*Display.LCD.Params, 2022-10-18 add for luna-A(21603) panel osc config*/
+		if (!strcmp(panel->oplus_priv.vendor_name, "AMS643YE01"))
+			dynamic_osc_clock = panel->oplus_priv.osc_clk_mode1_rate;
 	}
 
 	/* Add for apollo */
@@ -544,6 +559,13 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 			"oplus,mdss-dsi-dre-enabled");
 	DSI_INFO("oplus,mdss-dsi-cabc-enabled: %s", panel->oplus_priv.dre_enabled ? "true" : "false");
 
+	panel->oplus_priv.lp_config_flag = utils->read_bool(utils->data,
+			"oplus,mdss-dsi-lp-config-flag");
+	DSI_INFO("oplus,mdss-dsi-lp-config-flag: ", panel->oplus_priv.lp_config_flag ? "true" : "false");
+
+	panel->oplus_priv.seed_read_back_flag = utils->read_bool(utils->data,
+			"oplus,seed-read-back-flag");
+	DSI_INFO("oplus,seed-read-back-flag: %s", panel->oplus_priv.seed_read_back_flag ? "true" : "false");
 /*******************************************
 	fp_type usage:
 	bit(0):lcd capacitive fingerprint(aod/fod are not supported)
@@ -561,6 +583,32 @@ int dsi_panel_parse_oplus_config(struct dsi_panel *panel)
 		panel->oplus_priv.fp_type = BIT(2);
 	}
 	pr_err("fp_type=0x%x", panel->oplus_priv.fp_type);
+
+	ret = utils->read_u32(utils->data, "oplus,dsi-serial-number-index",
+				 &panel->oplus_ser.serial_number_index);
+	if (ret) {
+		pr_info("[%s] failed to get oplus,dsi-serial-number-index\n", __func__);
+		/* Default sync start index is set 0 */
+		panel->oplus_ser.serial_number_index = 0;
+	}
+
+	regs = utils->get_property(utils->data, "oplus,dsi-serial-number-multi-regs",
+				&len);
+	if (!regs) {
+		pr_err("[%s] failed to get oplus,dsi-serial-number-multi-regs\n", __func__);
+	} else {
+		panel->oplus_ser.serial_number_multi_regs =
+			kzalloc((sizeof(u32) * len), GFP_KERNEL);
+		if (!panel->oplus_ser.serial_number_multi_regs)
+			return -EINVAL;
+		for (i = 0; i < len; i++) {
+			panel->oplus_ser.serial_number_multi_regs[i] = regs[i];
+		}
+	}
+
+	panel->oplus_ser.is_switch_page = utils->read_bool(utils->data,
+			"oplus,dsi-serial-number-switch-page");
+	DSI_INFO("oplus,dsi-serial-number-switch-page: %s", panel->oplus_ser.is_switch_page ? "true" : "false");
 
 	return 0;
 }

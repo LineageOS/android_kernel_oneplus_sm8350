@@ -108,6 +108,8 @@ enum tfa_fw_event { /* not all available on each device */
 #define SB_PARAM_GET_EXCURSION_FILTERS  0x8A    /* Get excursion filters */
 #define SB_PARAM_SET_EXCURSION_FILTERS  0x0A    /* Set excursion filters */
 
+#define SB_PARAM_GET_FRES               0x9C
+
 /*	SET: TAPTRIGGER */
 #define TAP_PARAM_SET_ALGO_PARAMS		0x01
 #define TAP_PARAM_SET_DECIMATION_PARAMS 0x02
@@ -158,4 +160,5 @@ enum tfa_fw_event { /* not all available on each device */
 #define TFA2_FW_ReZ_SCALE	65536
 #define TFA1_FW_ReZ_SCALE	16384
 
+#define TFA2_FW_FRES_SCALE   2048
 #endif /* TFA98XX_INTERNALS_H */

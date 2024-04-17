@@ -528,11 +528,34 @@ static void iris_mipi_abyp_switch(bool enter_abyp)
 	}
 }
 
+static int _iris_lp_check_gpio_status(int cnt, int target_status)
+{
+	int i;
+	int abyp_status_gpio;
+
+	if (cnt <= 0) {
+		IRIS_LOGE("invalid param, cnt is %d", cnt);
+		return -EINVAL;
+	}
+
+	IRIS_LOGD("%s, cnt = %d, target_status = %d", __func__, cnt, target_status);
+
+	/* check abyp gpio status */
+	for (i = 0; i < cnt; i++) {
+		abyp_status_gpio = iris_check_abyp_ready();
+		IRIS_LOGD("%s, %d, ABYP status: %d.", __func__, i, abyp_status_gpio);
+		if (abyp_status_gpio == target_status)
+			break;
+		udelay(3 * 1000);
+	}
+
+	return abyp_status_gpio;
+}
+
 bool iris_fast_cmd_abyp_enter(void)
 {
 	struct iris_cfg *pcfg;
-	int i;
-	int abyp_status_gpio;
+	int abyp_status_gpio, toler_cnt;
 	ktime_t ktime0;
 	ktime_t ktime1;
 	uint32_t timeus;
@@ -541,42 +564,49 @@ bool iris_fast_cmd_abyp_enter(void)
 	if (debug_lp_opt & 0x400)
 		ktime0 = ktime_get();
 
+	toler_cnt = 3;
 	IRIS_LOGI("Enter abyp mode start");
 	/* HS enter abyp */
 	iris_send_ipopt_cmds(IRIS_IP_SYS, 0x8);
 	udelay(100);
 
+enter_abyp_begin:
 	/* check abyp gpio status */
-	for (i = 0; i < 10; i++) {
-		abyp_status_gpio = iris_check_abyp_ready();
-		IRIS_LOGD("%s, ABYP status: %d.", __func__, abyp_status_gpio);
-		if (abyp_status_gpio == 1) {
-			if (debug_lp_opt & 0x400) {
-				ktime1 = ktime_get();
-				timeus = (u32)ktime_to_us(ktime1) - (u32)ktime_to_us(ktime0);
-				ktime0 = ktime1;
-				IRIS_LOGI("spend time switch ABYP %d us", timeus);
-			}
-			//power off domains, switch clocks mux
-			iris_send_ipopt_cmds(IRIS_IP_SYS, 0x22);
-			//power off PLL, gate clocks
-			iris_send_ipopt_cmds(IRIS_IP_SYS, 0x23);
-			IRIS_LOGD("ABYP enter LP");
-			if (debug_lp_opt & 0x400) {
-				ktime1 = ktime_get();
-				timeus = (u32)ktime_to_us(ktime1) - (u32)ktime_to_us(ktime0);
-				ktime0 = ktime1;
-				IRIS_LOGI("spend time ABYP LP %d us", timeus);
-			}
-
-			pcfg->abypss_ctrl.abypass_mode = ANALOG_BYPASS_MODE;
-			break;
+	abyp_status_gpio = _iris_lp_check_gpio_status(5, 1);
+	IRIS_LOGD("%s, ABYP status: %d.", __func__, abyp_status_gpio);
+	if (abyp_status_gpio == 1) {
+		if (debug_lp_opt & 0x400) {
+			ktime1 = ktime_get();
+			timeus = (u32)ktime_to_us(ktime1) - (u32)ktime_to_us(ktime0);
+			ktime0 = ktime1;
+			IRIS_LOGI("spend time switch ABYP %d us", timeus);
 		}
-		udelay(3 * 1000);
+		//power off domains, switch clocks mux
+		iris_send_ipopt_cmds(IRIS_IP_SYS, 0x22);
+		//power off PLL, gate clocks
+		iris_send_ipopt_cmds(IRIS_IP_SYS, 0x23);
+		IRIS_LOGD("ABYP enter LP");
+		if (debug_lp_opt & 0x400) {
+			ktime1 = ktime_get();
+			timeus = (u32)ktime_to_us(ktime1) - (u32)ktime_to_us(ktime0);
+			ktime0 = ktime1;
+			IRIS_LOGI("spend time ABYP LP %d us", timeus);
+		}
+
+		pcfg->abypss_ctrl.abypass_mode = ANALOG_BYPASS_MODE;
 	}
+
 	if (abyp_status_gpio == 0) {
-		IRIS_LOGE("Enter abyp mode Failed!");
-		return true;
+		if (toler_cnt > 0) {
+			IRIS_LOGW("Enter abyp retry %d", toler_cnt);
+			iris_reset_chip();
+			pcfg->iris_initialized = false;
+			toler_cnt--;
+			goto enter_abyp_begin;
+		} else {
+			IRIS_LOGE("Enter abyp mode Failed!");
+			return true;
+		}
 	}
 	IRIS_LOGI("Enter abyp done");
 	return false;
@@ -587,6 +617,7 @@ bool iris_fast_cmd_abyp_exit(void)
 	struct dsi_display *display = NULL;
 	struct iris_cfg *pcfg;
 	int abyp_status_gpio;
+	int toler_cnt = 3;
 	int next_fps, next_vres;
 	bool high;
 	ktime_t ktime0;
@@ -615,6 +646,7 @@ bool iris_fast_cmd_abyp_exit(void)
 	IRIS_LOGI("cur_fps:%d, cur_vres:%d, next_fps:%d, next_vres:%d, high:%d",
 			pcfg->cur_fps_in_iris, pcfg->cur_vres_in_iris, next_fps, next_vres, high);
 
+exit_abyp_loop:
 	iris_send_one_wired_cmd(IRIS_POWER_DOWN_MIPI);
 	udelay(3500);
 	iris_send_one_wired_cmd(IRIS_POWER_UP_MIPI);
@@ -710,7 +742,17 @@ bool iris_fast_cmd_abyp_exit(void)
 		return true;
 	}
 
-	IRIS_LOGE("Exit abyp mode Failed!");
+	if (abyp_status_gpio != 0) {
+		if (toler_cnt > 0) {
+			IRIS_LOGW("Exit abyp retry, %d", toler_cnt);
+			iris_reset_chip();
+			pcfg->iris_initialized = false;
+			toler_cnt--;
+			goto exit_abyp_loop;
+		} else {
+			IRIS_LOGE("Exit abyp failed!");
+		}
+	}
 	return false;
 }
 

@@ -2,7 +2,7 @@
 #define __OPLUS_CHG_CORE_H__
 
 #include <linux/version.h>
-#include <oplus_chg_symbol.h>
+#include "oplus_chg_symbol.h"
 
 extern int oplus_log_level;
 
@@ -45,7 +45,7 @@ enum {
 
 #define true_or_false_str(condition) (condition ? "true" : "false")
 
-#ifdef CONFIG_OPLUS_CHARGER_MTK
+#if (defined(CONFIG_OPLUS_CHARGER_MTK) || LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0))
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
 #include <uapi/linux/rtc.h>
 
@@ -139,7 +139,7 @@ static inline struct timespec current_kernel_time(void)
 	return timespec64_to_timespec(ts64);
 }
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)) */
-#endif /* CONFIG_OPLUS_CHARGER_MTK */
+#endif /* defined(CONFIG_OPLUS_CHARGER_MTK) || LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0) */
 
 #define PD_SRC_PDO_TYPE(pdo)		(((pdo) >> 30) & 3)
 #define PD_SRC_PDO_TYPE_FIXED		0
@@ -173,6 +173,9 @@ typedef enum {
 	CHARGER_SUBTYPE_FASTCHG_SVOOC,
 	CHARGER_SUBTYPE_PD,
 	CHARGER_SUBTYPE_QC,
+	CHARGER_SUBTYPE_PPS,
+	CHARGER_SUBTYPE_UFCS,
+	CHARGER_SUBTYPE_PE20,
 } OPLUS_CHARGER_SUBTYPE;
 
 typedef enum {
@@ -208,6 +211,22 @@ enum {
 	NOTIFY_SHORT_C_BAT_DYNAMIC_ERR_CODE5,
 	NOTIFY_CHARGER_TERMINAL,
 	NOTIFY_GAUGE_I2C_ERR,
+	NOTIFY_FAST_CHG_END_ERROR = 23,
+	NOTIFY_MOS_OPEN_ERROR,
+	NOTIFY_CURRENT_UNBALANCE,
+	NOTIFY_GAUGE_STUCK = 26,
+	NOTIFY_GAUGE_SOC_JUMP,
+};
+
+enum oplus_chg_err_code {
+	OPLUS_ERR_CODE_I2C,
+	OPLUS_ERR_CODE_OCP,
+	OPLUS_ERR_CODE_OVP,
+	OPLUS_ERR_CODE_UCP,
+	OPLUS_ERR_CODE_UVP,
+	OPLUS_ERR_CODE_TIMEOUT,
+	OPLUS_ERR_CODE_OVER_HEAT,
+	OPLUS_ERR_CODE_COLD,
 };
 
 enum oplus_chg_qc_version {
@@ -283,6 +302,25 @@ enum oplus_chg_wls_trx_status {
 	OPLUS_CHG_WLS_TRX_STATUS_DISENABLE,
 };
 
+enum oplus_chg_wls_event_code {
+	WLS_EVENT_RX_UNKNOWN,
+	WLS_EVENT_RX_EPP_CAP,
+	WLS_EVENT_RX_UVP_ALARM,
+	WLS_EVENT_RX_UVP_CLEAR,
+	WLS_EVENT_TRX_CHECK,
+};
+
+enum fastchg_protocol_type {
+	PROTOCOL_CHARGING_UNKNOWN = 0,
+	PROTOCOL_CHARGING_PPS_OPLUS,
+	PROTOCOL_CHARGING_PPS_THIRD,
+	PROTOCOL_CHARGING_UFCS_THIRD,
+	PROTOCOL_CHARGING_UFCS_OPLUS,
+	PROTOCOL_CHARGING_SVOOC_OPLUS,
+	PROTOCOL_CHARGING_SVOOC_THIRD,
+	PROTOCOL_CHARGING_MAX = 100,
+};
+
 #define USB_TEMP_HIGH		BIT(0)
 #define USB_WATER_DETECT	BIT(1)
 #define USB_RESERVE2		BIT(2)
@@ -292,5 +330,7 @@ enum oplus_chg_wls_trx_status {
 
 bool oplus_is_power_off_charging(void);
 bool oplus_is_charger_reboot(void);
+struct timespec oplus_current_kernel_time(void);
+bool oplus_is_ptcrb_version(void);
 
 #endif /* __OPLUS_CHG_CORE_H__ */

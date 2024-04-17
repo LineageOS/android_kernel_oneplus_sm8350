@@ -71,6 +71,8 @@
 
 		/* SW Support Feature Control */
 		black_gesture_support;
+		black_gesture_indep_support;
+		sportify_aod_gesture_support;
 		//fw_edge_limit_support;
 		pressure_report_support;
 		charger_pump_support;
@@ -191,6 +193,7 @@
 	oplus,support_epp_plus;
 	oplus,wls_chg_fw = "IDT_P9415_45W";
 	oplus,wls_power_mw = <50000>;
+	oplus,wls_phone_id = <0x04>;
 	oplus,cp_boost_en-gpio = <&pm8350c_gpios 1 0x00>;
 	pinctrl-names = "default", "wrx_en_active", "wrx_en_sleep",
 			"cp_boost_en_active", "cp_boost_en_sleep";
@@ -243,6 +246,9 @@
 		oem,rf_uevent_feature_enable;
 		pinctrl-names = "oem_rf_cable_active";
 		pinctrl-0= <&rf_cable_ant0_active>;
+	};
+	sensor_fb {
+		compatible = "oplus,sensor-feedback";
 	};
 	//#endif /* OPLUS_FEATURE_RF_CABLE_DETECT */
 	//#ifdef OPLUS_FEATURE_SENSOR_SMEM

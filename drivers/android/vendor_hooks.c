@@ -17,14 +17,12 @@
 #include <trace/hooks/fpsimd.h>
 #include <trace/hooks/topology.h>
 #include <trace/hooks/debug.h>
+#include <trace/hooks/oplus_ufs.h>
 #include <trace/hooks/minidump.h>
 #include <trace/hooks/wqlockup.h>
 #include <trace/hooks/sysrqcrash.h>
 #include <trace/hooks/cgroup.h>
 #include <trace/hooks/sys.h>
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
-#include <trace/hooks/oplus_ufs.h>
-#endif
 
 /*
  * Export tracepoints that act as a bare tracehook (ie: have no trace event
@@ -49,6 +47,8 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rwsem_read_wait_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rwsem_read_wait_finish);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rwsem_write_wait_start);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_rwsem_write_wait_finish);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_gen_proc_devinfo);
+EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_latency_hist);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_sched_show_task);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ptype_head);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_kfree_skb);
@@ -76,7 +76,3 @@ EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_map_util_freq);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_em_pd_energy);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_cgroup_set_task);
 EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_syscall_prctl_finished);
-#if IS_ENABLED(CONFIG_OPLUS_FEATURE_UFS_DRIVER)
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_gen_proc_devinfo);
-EXPORT_TRACEPOINT_SYMBOL_GPL(android_vh_ufs_latency_hist);
-#endif

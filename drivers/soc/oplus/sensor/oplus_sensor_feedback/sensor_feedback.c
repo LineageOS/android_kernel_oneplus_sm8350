@@ -111,8 +111,8 @@ struct sensor_fb_conf g_fb_conf[] = {
 	{PS_OFFSET_DATA_ID, "device_ps_offset_data", SENSOR_DEVICE_TYPE},
 	{PS_PD_DATA_ID, "device_ps_pd_data", SENSOR_DEVICE_TYPE},
 	{PS_BOOT_PD_DATA_ID, "device_ps_boot_pd_data", SENSOR_DEVICE_TYPE},
-        {PS_DYNAMIC_CALI_ID, "device_ps_dynamic_cali", SENSOR_DEBUG_DEVICE_TYPE},
-        {PS_ZERO_CALI_ID, "device_ps_zero_cali", SENSOR_DEBUG_DEVICE_TYPE},
+	{PS_DYNAMIC_CALI_ID, "device_ps_dynamic_cali", SENSOR_DEBUG_DEVICE_TYPE},
+	{PS_ZERO_CALI_ID, "device_ps_zero_cali", SENSOR_DEBUG_DEVICE_TYPE},
 
 	{ALS_INIT_FAIL_ID, "device_als_init_fail", SENSOR_DEVICE_TYPE},
 	{ALS_I2C_ERR_ID, "device_als_i2c_err", SENSOR_DEVICE_TYPE},
@@ -134,7 +134,7 @@ struct sensor_fb_conf g_fb_conf[] = {
 	{ACCEL_CALI_DATA_ID, "device_acc_cali_data", SENSOR_DEBUG_DEVICE_TYPE},
 	{ACCEL_DATA_BLOCK_ID, "device_acc_data_block", SENSOR_DEVICE_TYPE},
 	{ACCEL_SUB_DATA_BLOCK_ID, "device_sub_acc_data_block", SENSOR_DEVICE_TYPE},
-        {ACCEL_DATA_FULL_RANGE_ID, "device_acc_data_full_range", SENSOR_DEVICE_TYPE},
+	{ACCEL_DATA_FULL_RANGE_ID, "device_acc_data_full_range", SENSOR_DEVICE_TYPE},
 
 	{GYRO_INIT_FAIL_ID, "device_gyro_init_fail", SENSOR_DEVICE_TYPE},
 	{GYRO_I2C_ERR_ID, "device_gyro_i2c_err", SENSOR_DEVICE_TYPE},
@@ -144,6 +144,8 @@ struct sensor_fb_conf g_fb_conf[] = {
 	{GYRO_FIRST_REPORT_DELAY_COUNT_ID, "device_gyro_rpt_delay", SENSOR_DEBUG_DEVICE_TYPE},
 	{GYRO_ORIGIN_DATA_TO_ZERO_ID, "device_gyro_to_zero", SENSOR_DEBUG_DEVICE_TYPE},
 	{GYRO_CALI_DATA_ID, "device_gyro_cali_data", SENSOR_DEBUG_DEVICE_TYPE},
+	{GYRO_DATA_BLOCK_ID, "device_gyro_data_block", SENSOR_DEVICE_TYPE},
+	{GYRO_SUB_DATA_BLOCK_ID, "device_gyro_sub_data_block", SENSOR_DEVICE_TYPE},
 
 
 	{MAG_INIT_FAIL_ID, "device_mag_init_fail", SENSOR_DEVICE_TYPE},
@@ -154,7 +156,8 @@ struct sensor_fb_conf g_fb_conf[] = {
 	{MAG_FIRST_REPORT_DELAY_COUNT_ID, "device_mag_rpt_delay", SENSOR_DEBUG_DEVICE_TYPE},
 	{MAG_ORIGIN_DATA_TO_ZERO_ID, "device_mag_to_zero", SENSOR_DEBUG_DEVICE_TYPE},
 	{MAG_CALI_DATA_ID, "device_mag_cali_data", SENSOR_DEBUG_DEVICE_TYPE},
-
+	{MAG_DATA_BLOCK_ID, "device_mag_data_block_data", SENSOR_DEBUG_DEVICE_TYPE},
+	{MAG_DATA_FULL_RANGE_ID, "device_mag_data_full_range", SENSOR_DEBUG_DEVICE_TYPE},
 
 	{SAR_INIT_FAIL_ID, "device_sar_init_fail", SENSOR_DEVICE_TYPE},
 	{SAR_I2C_ERR_ID, "device_sar_i2c_err", SENSOR_DEVICE_TYPE},
@@ -164,7 +167,8 @@ struct sensor_fb_conf g_fb_conf[] = {
 	{SAR_FIRST_REPORT_DELAY_COUNT_ID, "device_sar_rpt_delay", SENSOR_DEBUG_DEVICE_TYPE},
 	{SAR_ORIGIN_DATA_TO_ZERO_ID, "device_sar_to_zero", SENSOR_DEBUG_DEVICE_TYPE},
 	{SAR_CALI_DATA_ID, "device_sar_cali_data", SENSOR_DEBUG_DEVICE_TYPE},
-
+	{HALL_STATUS_ID, "device_hall_status", SENSOR_DEVICE_TYPE},
+	{HALL_TRIGGER_COUNT, "hall_trigger_count", SENSOR_DEVICE_TYPE},
 
 	{POWER_SENSOR_INFO_ID, "debug_power_sns_info", SENSOR_DEBUG_POWER_TYPE},
 	{POWER_ACCEL_INFO_ID, "debug_power_acc_info", SENSOR_DEBUG_POWER_TYPE},
@@ -181,6 +185,8 @@ struct sensor_fb_conf g_fb_conf[] = {
 	{DOUBLE_TAP_PREVENTED_BY_ATTITUDE_ID, "device_double_prevented_by_attitude", SENSOR_DEBUG_DEVICE_TYPE},
 	{DOUBLE_TAP_PREVENTED_BY_FREEFALL_Z_ID, "device_double_prevented_by_freefall_z", SENSOR_DEBUG_DEVICE_TYPE},
 	{DOUBLE_TAP_PREVENTED_BY_FREEFALL_SLOPE_ID, "device_double_prevented_by_freefall_slope", SENSOR_DEBUG_DEVICE_TYPE},
+
+	{BAROMETER_I2C_ERR_ID, "device_bar_i2c_err", SENSOR_DEVICE_TYPE},
 
 	{ALAILABLE_SENSOR_LIST_ID, "available_sensor_list", SENSOR_DEBUG_DEVICE_TYPE},
 
