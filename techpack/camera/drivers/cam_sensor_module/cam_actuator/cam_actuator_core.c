@@ -909,8 +909,12 @@ int32_t cam_actuator_driver_cmd(struct cam_actuator_ctrl_t *a_ctrl,
 		a_ctrl->bridge_intf.device_hdl = actuator_acq_dev.device_handle;
 		a_ctrl->bridge_intf.session_hdl =
 			actuator_acq_dev.session_handle;
+
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 		CAM_INFO(CAM_ACTUATOR, "CAM_ACQUIRE_DEV Device Handle: %d",
+ 			actuator_acq_dev.device_handle);
+#else
+		CAM_DBG(CAM_ACTUATOR, "Device Handle: %d",
 			actuator_acq_dev.device_handle);
 #endif
 		if (copy_to_user(u64_to_user_ptr(cmd->handle),

@@ -13,12 +13,10 @@
 #include "cam_debug_util.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
-#include "cam_packet_util.h"
 #include "oplus_cam_eeprom_core.h"
 
+#define MAX_READ_SIZE  0x7FFFF
 
-#define MAX_READ_SIZE	0x7FFFF
-#define USER_MAT		0
 #ifdef OPLUS_FEATURE_CAMERA_COMMON
 extern uint64_t total_size;
 extern bool chip_version_old;

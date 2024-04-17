@@ -25,6 +25,9 @@
 #include "adsp_err.h"
 #include <dsp/voice_mhi.h>
 #include <soc/qcom/secure_buffer.h>
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include "dsp/oplus_lvve_err_fb.h"
+#endif
 
 #define TIMEOUT_MS 1000
 
@@ -5314,6 +5317,13 @@ static int voice_destroy_vocproc(struct voice_data *v)
 		pr_err("%s: apr_mvm or apr_cvp is NULL.\n", __func__);
 		return -EINVAL;
 	}
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	if (v->voc_state == VOC_RUN) {
+		oplus_voice_get_lvve_err_fb(apr_cvp, v);
+	}
+#endif
+
 	mvm_handle = voice_get_mvm_handle(v);
 	cvp_handle = voice_get_cvp_handle(v);
 
@@ -8538,11 +8548,27 @@ static int32_t qdsp_cvp_callback(struct apr_client_data *data, void *priv)
 		voice_cvpparam_tmp_buf[1] = ptr[6];
 		voice_cvpparam_tmp_buf[2] = ptr[7];
 		voice_cvpparam_tmp_buf[3] = ptr[8];
-		wake_up(&v->cvp_wait);
 #else /* OPLUS_FEATURE_AUDIODETECT */
 		rtac_make_voice_callback(RTAC_CVP, data->payload,
 			data->payload_size);
 #endif /* OPLUS_FEATURE_AUDIODETECT */
+
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+		if ((LVVEFQ_RX_MODULE_ID == ptr[1]) && (INSTANCE_ID_0 == ptr[2]) && (VOICE_PARAM_LVVEFQ_GET_ERR == ptr[3])) {
+			 /* ptr[4] is return payload bytes, ptr[5] is the start of payload data */
+			if ((ptr[4] > 0) && (data->payload_size > (5 * sizeof(uint32_t)))) {
+				oplus_copy_voice_err_result(MSM_AFE_PORT_TYPE_RX, (void *)(ptr + 5), data->payload_size - (5 * sizeof(uint32_t)));
+			}
+		} else if ((LVVEFQ_TX_MODULE_ID == ptr[1]) && (0x8000 == ptr[2]) && (VOICE_PARAM_LVVEFQ_GET_ERR == ptr[3])) {
+			if ((ptr[4] > 0) && (data->payload_size > (5 * sizeof(uint32_t)))) {
+				oplus_copy_voice_err_result(MSM_AFE_PORT_TYPE_TX, (void *)(ptr + 5), data->payload_size - (5 * sizeof(uint32_t)));
+			}
+		}
+#endif
+
+#if defined OPLUS_FEATURE_AUDIODETECT || defined CONFIG_OPLUS_FEATURE_MM_FEEDBACK
+		wake_up(&v->cvp_wait);
+#endif
 	} else if (data->opcode == VSS_IVPCM_EVT_NOTIFY_V2) {
 		if ((data->payload != NULL) && data->payload_size ==
 		    sizeof(struct vss_ivpcm_evt_notify_v2_t) &&
@@ -10124,172 +10150,6 @@ int voc_get_source_tracking(struct source_tracking_param *sourceTrackingData)
 }
 EXPORT_SYMBOL(voc_get_source_tracking);
 
-#ifdef OPLUS_FEATURE_AUDIODETECT
-int voice_set_cvp_auddet_param(u8 bEnable)
-{
-	struct param_hdr_v3 param_hdr;
-
-	int ret = 0;
-	int i, j;
-	uint32_t auddet_ena = bEnable;
-
-	struct voice_data	*v = NULL;
-	memset(&param_hdr, 0, sizeof(param_hdr));
-
-	param_hdr.module_id = MUTE_DETECT_MODULE_ID;
-	param_hdr.instance_id = INSTANCE_ID_0;
-	param_hdr.param_size = sizeof(auddet_ena);
-
-	param_hdr.param_id = MUTE_DETECT_ENABLE_PARAM_ID;
-
-	mutex_lock(&common.common_lock);
-	for (i = 0; i < MAX_VOC_SESSIONS; i++) {
-		v = &common.voice[i];
-		if (is_voc_state_active(v->voc_state)) {
-			for (j = 0; j < 2; j++) {
-				pr_info("%s: active voice session = %d\n", __func__, v->session_id);
-
-				if (j == 0) {
-					param_hdr.instance_id = INSTANCE_ID_0;
-				} else {
-					param_hdr.instance_id = 0x8000;
-				}
-
-				ret = voice_pack_and_set_cvp_param(v, param_hdr,
-								   (u8 *) &auddet_ena);
-			}
-		}
-	}
-
-	mutex_unlock(&common.common_lock);
-	return ret;
-}
-EXPORT_SYMBOL(voice_set_cvp_auddet_param);
-
-int voice_get_cvp_param(void)
-{
-	struct vss_icommon_cmd_get_param *get_param = NULL;
-	uint32_t pkt_size = sizeof(struct vss_icommon_cmd_get_param);
-	void *apr_cvp;
-
-	int ret = 0;
-	int i, j;
-
-	struct voice_data	*v = NULL;
-	//u32 total_size = 0;
-	//struct param_hdr_v3 param_hdr;
-	//uint32_t param_size = (1) * sizeof(uint32_t) + sizeof(struct param_hdr_v3);
-
-	//memset(&param_hdr, 0, sizeof(param_hdr));
-	//param_hdr.module_id = MUTE_DETECT_MODULE_ID;
-	//param_hdr.instance_id = INSTANCE_ID_0;
-	//param_hdr.param_size = param_size;
-	//param_hdr.param_id = MUTE_DETECT_RESULT_PARAM_ID;
-	//total_size = sizeof(union param_hdrs) + param_hdr.param_size;
-
-	mutex_lock(&common.common_lock);
-	for (i = 0; i < MAX_VOC_SESSIONS; i++) {
-		v = &common.voice[i];
-		if (is_voc_state_active(v->voc_state)) {
-		for (j = 0; j < 2; j++) {
-			apr_cvp = common.apr_q6_cvp;
-			if (!apr_cvp) {
-				pr_err("%s: apr_cvp is NULL\n", __func__);
-				return -EINVAL;
-			}
-			pr_info("%s: active voice session = %d\n", __func__, v->session_id);
-
-			pkt_size = sizeof(struct vss_icommon_cmd_get_param);
-
-			get_param = kzalloc(pkt_size, GFP_KERNEL);
-			if (!get_param)
-				return -ENOMEM;
-
-			pr_info("%s: pkt_size = %d\n", __func__, pkt_size);
-
-			get_param->apr_hdr.hdr_field =
-				APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD, APR_HDR_LEN(APR_HDR_SIZE),
-					      APR_PKT_VER);
-			get_param->apr_hdr.pkt_size =
-				APR_PKT_SIZE(APR_HDR_SIZE, pkt_size - APR_HDR_SIZE);
-
-			get_param->apr_hdr.src_svc = 0;
-			get_param->apr_hdr.src_domain = APR_DOMAIN_APPS;
-			get_param->apr_hdr.src_port = voice_get_idx_for_session(v->session_id);
-			get_param->apr_hdr.dest_svc = 0;
-			get_param->apr_hdr.dest_domain = APR_DOMAIN_ADSP;
-			get_param->apr_hdr.dest_port = voice_get_cvp_handle(v);
-			get_param->apr_hdr.token = VOC_SET_MEDIA_FORMAT_PARAM_TOKEN;
-			get_param->apr_hdr.opcode = q6common_is_instance_id_supported() ?
-							    VSS_ICOMMON_CMD_GET_PARAM_V3 :
-							    VSS_ICOMMON_CMD_GET_PARAM_V2;
-
-			get_param->payload_size = (4) * sizeof(uint32_t) + sizeof(struct param_hdr_v3);
-
-			get_param->module_id = MUTE_DETECT_MODULE_ID;
-			if (j == 0) {
-				get_param->instance_id = INSTANCE_ID_0;
-			} else {
-				get_param->instance_id = 0x8000;
-			}
-			get_param->param_id = MUTE_DETECT_RESULT_PARAM_ID;
-
-			v->cvp_state = CMD_STATUS_FAIL;
-			v->async_err = 0;
-			ret = apr_send_pkt(apr_cvp, (u32 *) get_param);
-			if (ret < 0) {
-				pr_err("%s: Failed to send apr packet, error %d\n", __func__,
-				       ret);
-				kfree(get_param);
-				goto done;
-			}
-
-			ret = wait_event_timeout(v->cvp_wait,
-						 v->cvp_state == CMD_STATUS_SUCCESS,
-						 msecs_to_jiffies(TIMEOUT_MS));
-
-			pr_info("%s: send wait done\n", __func__);
-
-			if (!ret) {
-				pr_err("%s: wait_event timeout\n", __func__);
-				ret = -ETIMEDOUT;
-				kfree(get_param);
-				goto done;
-			}
-
-			if (v->async_err > 0) {
-				pr_err("%s: DSP returned error[%s]\n", __func__,
-				       adsp_err_get_err_str(v->async_err));
-				ret = adsp_err_get_lnx_err_code(v->async_err);
-				kfree(get_param);
-				goto done;
-			}
-
-			if (j == 0) {
-				pr_info("%s: get voice rx param\n", __func__);
-				voice_rx_muted_cnt = voice_cvpparam_tmp_buf[0];
-				voice_rx_zd_cnt =  voice_cvpparam_tmp_buf[1];
-				voice_rx_pop_cnt =  voice_cvpparam_tmp_buf[2];
-				voice_rx_clip_cnt =  voice_cvpparam_tmp_buf[3];
-			} else {
-				pr_info("%s: get voice tx param\n", __func__);
-				voice_tx_muted_cnt = voice_cvpparam_tmp_buf[0];
-				voice_tx_zd_cnt =  voice_cvpparam_tmp_buf[1];
-				voice_tx_pop_cnt =  voice_cvpparam_tmp_buf[2];
-				voice_tx_clip_cnt =  voice_cvpparam_tmp_buf[3];
-			}
-			kfree(get_param);
-			ret = 0;
-		}
-		}
-	}
-done:
-	mutex_unlock(&common.common_lock);
-	return ret;
-}
-EXPORT_SYMBOL(voice_get_cvp_param);
-#endif /* OPLUS_FEATURE_AUDIODETECT */
-
 static int voice_send_get_fnn_source_track_cmd(struct voice_data *v,
 			struct fluence_nn_source_tracking_param *FnnSourceTrackingData)
 {
@@ -10441,6 +10301,177 @@ int voc_get_fnn_source_tracking(struct fluence_nn_source_tracking_param *FnnSour
 	return ret;
 }
 EXPORT_SYMBOL(voc_get_fnn_source_tracking);
+
+#ifdef OPLUS_FEATURE_AUDIODETECT
+int voice_set_cvp_auddet_param(u8 bEnable)
+{
+	struct param_hdr_v3 param_hdr;
+
+	int ret = 0;
+	int i, j;
+	uint32_t auddet_ena = bEnable;
+
+	struct voice_data	*v = NULL;
+	memset(&param_hdr, 0, sizeof(param_hdr));
+
+	param_hdr.module_id = MUTE_DETECT_MODULE_ID;
+	param_hdr.instance_id = INSTANCE_ID_0;
+	param_hdr.param_size = sizeof(auddet_ena);
+
+	param_hdr.param_id = MUTE_DETECT_ENABLE_PARAM_ID;
+
+	mutex_lock(&common.common_lock);
+	for (i = 0; i < MAX_VOC_SESSIONS; i++) {
+		v = &common.voice[i];
+		if (is_voc_state_active(v->voc_state)) {
+			for (j = 0; j < 2; j++) {
+				pr_info("%s: active voice session = %d\n", __func__, v->session_id);
+
+				if (j == 0) {
+					param_hdr.instance_id = INSTANCE_ID_0;
+				} else {
+					param_hdr.instance_id = 0x8000;
+				}
+
+				ret = voice_pack_and_set_cvp_param(v, param_hdr,
+								   (u8 *) &auddet_ena);
+			}
+		}
+	}
+
+	mutex_unlock(&common.common_lock);
+	return ret;
+}
+EXPORT_SYMBOL(voice_set_cvp_auddet_param);
+
+int voice_get_cvp_param(void)
+{
+	struct vss_icommon_cmd_get_param *get_param = NULL;
+	uint32_t pkt_size = sizeof(struct vss_icommon_cmd_get_param);
+	void *apr_cvp;
+
+	int ret = 0;
+	int i, j;
+
+	struct voice_data	*v = NULL;
+	//u32 total_size = 0;
+	//struct param_hdr_v3 param_hdr;
+	//uint32_t param_size = (1) * sizeof(uint32_t) + sizeof(struct param_hdr_v3);
+
+	//memset(&param_hdr, 0, sizeof(param_hdr));
+	//param_hdr.module_id = MUTE_DETECT_MODULE_ID;
+	//param_hdr.instance_id = INSTANCE_ID_0;
+	//param_hdr.param_size = param_size;
+	//param_hdr.param_id = MUTE_DETECT_RESULT_PARAM_ID;
+	//total_size = sizeof(union param_hdrs) + param_hdr.param_size;
+
+	mutex_lock(&common.common_lock);
+	for (i = 0; i < MAX_VOC_SESSIONS; i++) {
+		v = &common.voice[i];
+		if (is_voc_state_active(v->voc_state)) {
+		for (j = 0; j < 2; j++) {
+			apr_cvp = common.apr_q6_cvp;
+			if (!apr_cvp) {
+				pr_err("%s: apr_cvp is NULL\n", __func__);
+				/* release common_lock when return. */
+				ret = -EINVAL;
+				goto done;
+			}
+			pr_info("%s: active voice session = %d\n", __func__, v->session_id);
+
+			pkt_size = sizeof(struct vss_icommon_cmd_get_param);
+
+			get_param = kzalloc(pkt_size, GFP_KERNEL);
+			if (!get_param) {
+				/* release common_lock when return. */
+				ret = -ENOMEM;
+				goto done;
+			}
+
+			pr_info("%s: pkt_size = %d\n", __func__, pkt_size);
+
+			get_param->apr_hdr.hdr_field =
+				APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD, APR_HDR_LEN(APR_HDR_SIZE),
+					      APR_PKT_VER);
+			get_param->apr_hdr.pkt_size =
+				APR_PKT_SIZE(APR_HDR_SIZE, pkt_size - APR_HDR_SIZE);
+
+			get_param->apr_hdr.src_svc = 0;
+			get_param->apr_hdr.src_domain = APR_DOMAIN_APPS;
+			get_param->apr_hdr.src_port = voice_get_idx_for_session(v->session_id);
+			get_param->apr_hdr.dest_svc = 0;
+			get_param->apr_hdr.dest_domain = APR_DOMAIN_ADSP;
+			get_param->apr_hdr.dest_port = voice_get_cvp_handle(v);
+			get_param->apr_hdr.token = VOC_SET_MEDIA_FORMAT_PARAM_TOKEN;
+			get_param->apr_hdr.opcode = q6common_is_instance_id_supported() ?
+							    VSS_ICOMMON_CMD_GET_PARAM_V3 :
+							    VSS_ICOMMON_CMD_GET_PARAM_V2;
+
+			get_param->payload_size = (4) * sizeof(uint32_t) + sizeof(struct param_hdr_v3);
+
+			get_param->module_id = MUTE_DETECT_MODULE_ID;
+			if (j == 0) {
+				get_param->instance_id = INSTANCE_ID_0;
+			} else {
+				get_param->instance_id = 0x8000;
+			}
+			get_param->param_id = MUTE_DETECT_RESULT_PARAM_ID;
+
+			v->cvp_state = CMD_STATUS_FAIL;
+			v->async_err = 0;
+			ret = apr_send_pkt(apr_cvp, (u32 *) get_param);
+			if (ret < 0) {
+				pr_err("%s: Failed to send apr packet, error %d\n", __func__,
+				       ret);
+				kfree(get_param);
+				goto done;
+			}
+
+			ret = wait_event_timeout(v->cvp_wait,
+						 v->cvp_state == CMD_STATUS_SUCCESS,
+						 msecs_to_jiffies(TIMEOUT_MS));
+
+			pr_info("%s: send wait done\n", __func__);
+
+			if (!ret) {
+				pr_err("%s: wait_event timeout\n", __func__);
+				ret = -ETIMEDOUT;
+				kfree(get_param);
+				goto done;
+			}
+
+			if (v->async_err > 0) {
+				pr_err("%s: DSP returned error[%s]\n", __func__,
+				       adsp_err_get_err_str(v->async_err));
+				ret = adsp_err_get_lnx_err_code(v->async_err);
+				kfree(get_param);
+				goto done;
+			}
+
+			if (j == 0) {
+				pr_info("%s: get voice rx param\n", __func__);
+				voice_rx_muted_cnt = voice_cvpparam_tmp_buf[0];
+				voice_rx_zd_cnt =  voice_cvpparam_tmp_buf[1];
+				voice_rx_pop_cnt =  voice_cvpparam_tmp_buf[2];
+				voice_rx_clip_cnt =  voice_cvpparam_tmp_buf[3];
+			} else {
+				pr_info("%s: get voice tx param\n", __func__);
+				voice_tx_muted_cnt = voice_cvpparam_tmp_buf[0];
+				voice_tx_zd_cnt =  voice_cvpparam_tmp_buf[1];
+				voice_tx_pop_cnt =  voice_cvpparam_tmp_buf[2];
+				voice_tx_clip_cnt =  voice_cvpparam_tmp_buf[3];
+			}
+			kfree(get_param);
+			ret = 0;
+		}
+		}
+	}
+done:
+	mutex_unlock(&common.common_lock);
+	return ret;
+}
+EXPORT_SYMBOL(voice_get_cvp_param);
+#endif /* OPLUS_FEATURE_AUDIODETECT */
 
 static int voice_set_cvp_param(struct voice_data *v,
 			       struct vss_icommon_mem_mapping_hdr *mem_hdr,

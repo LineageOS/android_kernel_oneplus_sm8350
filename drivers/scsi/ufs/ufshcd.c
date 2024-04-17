@@ -2120,6 +2120,11 @@ void ufshcd_send_command(struct ufs_hba *hba, unsigned int task_tag)
 	ufshcd_add_command_trace(hba, task_tag, "send");
 	ufshcd_clk_scaling_start_busy(hba);
 	__set_bit(task_tag, &hba->outstanding_reqs);
+	if (hba->uic_link_state == UIC_LINK_HIBERN8_STATE) {
+	    dev_err(hba->dev, "ufshcd_send_command error when UIC_LINK_HIBERN8_STATE\n");
+	    dump_stack();
+	}
+
 	ufshcd_writel(hba, 1 << task_tag, REG_UTP_TRANSFER_REQ_DOOR_BELL);
 	/* Make sure that doorbell is committed immediately */
 	wmb();
@@ -4646,7 +4651,11 @@ EXPORT_SYMBOL_GPL(ufshcd_make_hba_operational);
  * @hba: per adapter instance
  * @can_sleep: perform sleep or just spin
  */
+#if defined(CONFIG_SCSI_UFSHCD_QTI)
+void ufshcd_hba_stop(struct ufs_hba *hba, bool can_sleep)
+#else
 static inline void ufshcd_hba_stop(struct ufs_hba *hba, bool can_sleep)
+#endif
 {
 	int err;
 
@@ -5341,6 +5350,7 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 				     cmd->cmnd[0], index, hba->outstanding_reqs);
 #endif
 #endif /* OPLUS_FEATURE_UFSPLUS */
+			trace_android_vh_ufs_compl_command(hba, lrbp);
 			ufshcd_add_command_trace(hba, index, "complete");
 			result = ufshcd_transfer_rsp_status(hba, lrbp);
 			scsi_dma_unmap(cmd);
@@ -5368,6 +5378,7 @@ static void __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 			lrbp->command_type == UTP_CMD_TYPE_UFS_STORAGE) {
 			lrbp->compl_time_stamp = ktime_get();
 			if (hba->dev_cmd.complete) {
+				trace_android_vh_ufs_compl_command(hba, lrbp);
 				ufshcd_add_command_trace(hba, index,
 						"dev_complete");
 				complete(hba->dev_cmd.complete);
@@ -7411,7 +7422,7 @@ static int ufshcd_set_low_vcc_level(struct ufs_hba *hba)
 
 	/* Put the device in sleep before lowering VCC level */
 	ret = ufshcd_set_dev_pwr_mode(hba, UFS_SLEEP_PWR_MODE);
-
+	usleep_range(7000, 7100);
 	/* Switch off VCC before switching it ON at 2.5v */
 	ret = ufshcd_disable_vreg(hba->dev, vreg);
 	/* add ~2ms delay before renabling VCC at lower voltage */
@@ -9174,7 +9185,7 @@ static void ufshcd_vreg_set_lpm(struct ufs_hba *hba)
 #else
 		ufshcd_toggle_vreg(hba->dev, hba->vreg_info.vcc, false);
 		vcc_off = true;
-		if (!ufshcd_is_link_active(hba)) {
+		if (ufshcd_is_link_hibern8(hba) || ufshcd_is_link_off(hba)) {
 			ufshcd_config_vreg_lpm(hba, hba->vreg_info.vccq);
 			ufshcd_config_vreg_lpm(hba, hba->vreg_info.vccq2);
 		}
@@ -9197,7 +9208,7 @@ static int ufshcd_vreg_set_hpm(struct ufs_hba *hba)
 	    !hba->dev_info.is_lu_power_on_wp) {
 		ret = ufshcd_setup_vreg(hba, true);
 	} else if (!ufshcd_is_ufs_dev_active(hba)) {
-		if (!ret && !ufshcd_is_link_active(hba)) {
+		if (!ufshcd_is_link_active(hba)) {
 			ret = ufshcd_config_vreg_hpm(hba, hba->vreg_info.vccq);
 			if (ret)
 				goto vcc_disable;
@@ -9635,6 +9646,8 @@ int ufshcd_system_suspend(struct ufs_hba *hba)
 
 	if (!hba || !hba->is_powered)
 		return 0;
+
+	cancel_delayed_work_sync(&hba->rpm_dev_flush_recheck_work);
 
 	if (pm_runtime_suspended(hba->dev) &&
 	    (ufs_get_pm_lvl_to_dev_pwr_mode(hba->spm_lvl) ==
@@ -10155,6 +10168,5 @@ EXPORT_SYMBOL_GPL(ufshcd_init);
 MODULE_AUTHOR("Santosh Yaragnavi <santosh.sy@samsung.com>");
 MODULE_AUTHOR("Vinayak Holikatti <h.vinayak@samsung.com>");
 MODULE_DESCRIPTION("Generic UFS host controller driver Core");
-MODULE_SOFTDEP("pre: governor_simpleondemand");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(UFSHCD_DRIVER_VERSION);

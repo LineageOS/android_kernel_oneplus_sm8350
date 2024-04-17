@@ -190,6 +190,7 @@ int dsi_display_hbm_off(struct dsi_display *display)
 	}
 
 	mutex_lock(&display->display_lock);
+	mutex_lock(&display->panel->panel_lock);
 
 	/* enable the clk vote for CMD mode panels */
 	if (display->config.panel_mode == DSI_OP_CMD_MODE) {
@@ -221,6 +222,7 @@ int dsi_display_hbm_off(struct dsi_display *display)
 					  DSI_CORE_CLK, DSI_CLK_OFF);
 	}
 
+	mutex_unlock(&display->panel->panel_lock);
 	mutex_unlock(&display->display_lock);
 	return rc;
 }
@@ -270,13 +272,13 @@ int oplus_display_panel_set_hbm(void *buf)
 		(!strcmp(display->panel->oplus_priv.vendor_name, "AMB670YF01"))) {
 		if((hbm_mode > 1) &&(hbm_mode <= 10)) {
 			ret = dsi_display_normal_hbm_on(get_main_display());
-		} else if(hbm_mode == 1) {
+		} else if (hbm_mode == 1) {
 			ret = dsi_display_normal_hbm_on(get_main_display());
-		} else if(hbm_mode == 0) {
+		} else if (hbm_mode == 0) {
 			ret = dsi_display_hbm_off(get_main_display());
 		} else if (hbm_mode == 4095) {
 			ret = oplus_display_panel_hbm_lightspot_check();
-        }
+		}
 	} else {
 		if ((hbm_mode > 1) && (hbm_mode <= 10)) {
 			ret = dsi_display_normal_hbm_on(get_main_display());

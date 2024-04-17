@@ -444,6 +444,10 @@ out:
 	return err;
 }
 
+/*feature-memorymonitor-v001-1-begin*/
+#define UFS_IOCTL_MONITOR       0x5392  /* For monitor access */
+/*feature-memorymonitor-v001-1-end*/
+
 #ifndef OPLUS_FEATURE_UFSPLUS
 /*
  *  IOCTL opcode for ufs queries has the following opcode after

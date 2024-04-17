@@ -44,8 +44,6 @@
 #include <linux/reboot.h>
 #include <linux/timer.h>
 
-#include <mt-plat/charger_type.h>
-#include <mt-plat/mtk_battery.h>
 #include <mt-plat/mtk_boot.h>
 #include <pmic.h>
 #include <mtk_gauge_time_service.h>
@@ -158,6 +156,7 @@ int oplus_get_typec_cc_orientation(void);
 
 
 /*====================================================================*/
+#define DEFAULT_BATTERY_TMP_WHEN_ERROR	-400
 #ifdef OPLUS_FEATURE_CHG_BASIC
 #define USB_TEMP_HIGH		0x01/*bit0*/
 #define USB_WATER_DETECT	0x02/*bit1*/
@@ -167,11 +166,46 @@ int oplus_get_typec_cc_orientation(void);
 #define USB_DONOT_USE		0x80000000/*bit31*/
 static int usb_status = 0;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+bool oplus_otgctl_by_buckboost(void)
+{
+	if (!g_oplus_chip)
+		return false;
+
+	return false;
+}
+
+void oplus_otg_enable_by_buckboost(void)
+{
+	if (!g_oplus_chip || !(g_oplus_chip->chg_ops->charging_disable) || !(g_oplus_chip->chg_ops->charging_disable))
+		return;
+
+	g_oplus_chip->chg_ops->charging_disable();
+	g_oplus_chip->chg_ops->otg_enable();
+}
+
+void oplus_otg_disable_by_buckboost(void)
+{
+	if (!g_oplus_chip || !(g_oplus_chip->chg_ops->otg_disable))
+		return;
+
+	g_oplus_chip->chg_ops->otg_disable();
+}
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 extern int acm_shortcut(void);
+#else
+extern int meta_dt_get_mboot_params(void);
+#endif
 static bool oplus_is_meta_mode(void)
 {
 	int config = 0;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
 	config = acm_shortcut();
+#else
+	config = meta_dt_get_mboot_params();
+#endif
 	if ((config == 1) || (config == 2)) {
 		return true;
 	} else {
@@ -986,11 +1020,16 @@ void mtk_charger_int_handler(void)
 		schedule_delayed_work(&pinfo->step_charging_work, msecs_to_jiffies(5000));
 #endif
 	} else {
+		g_oplus_chip->charger_current_pre = -1;
 		pr_err("%s, Charger Plug Out\n", __func__);
 		if (g_oplus_chip)
 			g_oplus_chip->usbtemp_check = oplus_usbtemp_condition();
 		charger_dev_set_input_current(g_oplus_chip->chgic_mtk.oplus_info->chg1_dev, 500000);
 		charger_manager_notifier(pinfo, CHARGER_NOTIFY_STOP_CHARGING);
+		if (oplus_chg_get_voocphy_support()) {
+			oplus_chg_set_charger_type_unknown();
+			oplus_vooc_reset_fastchg_after_usbout();
+		}
 #ifndef CONFIG_OPLUS_CHARGER_MTK6781
 		cancel_delayed_work(&pinfo->step_charging_work);
 #endif
@@ -1436,36 +1475,35 @@ int oplus_mt6370_charging_current_write_fast(int chg_curr)
 
 #ifdef CONFIG_OPLUS_CHARGER_MTK6781
 	if (pinfo->data.dual_charger_support) {
-	if (g_oplus_chip->tbatt_status == BATTERY_STATUS__NORMAL) {
-		if (chg_curr > pinfo->step_chg_current)
-			chg_curr = pinfo->step_chg_current;
-	}
-
-	if (g_oplus_chip->dual_charger_support &&
-			g_oplus_chip->slave_charger_enable) {
-		main_cur = (chg_curr * (100 - g_oplus_chip->slave_pct))/100;
-		main_cur -= main_cur % 100;
-		slave_cur = chg_curr - main_cur;
-		chg_err("set fast charge current:%d main_cur:%d slave_cur:%d\n", chg_curr, main_cur, slave_cur);
-		rc = charger_dev_set_charging_current(chg, main_cur * 1000);
-		if (rc < 0) {
-			chg_debug("set fast charge current:%d fail\n", main_cur);
-		}
-		rc = bq25601d_charging_current_write_fast(slave_cur);
-		if (rc < 0) {
-			chg_debug("set sub fast charge current:%d fail\n", slave_cur);
-		}
-	} else {
-		if (chg_curr >= 2300) {
-			chg_curr = 2300;
+		if (g_oplus_chip->tbatt_status == BATTERY_STATUS__NORMAL) {
+			if (chg_curr > pinfo->step_chg_current)
+				chg_curr = pinfo->step_chg_current;
 		}
 
-		chg_err("set fast charge current:%d main_cur:%d\n", chg_curr, chg_curr);
-		rc = charger_dev_set_charging_current(chg, chg_curr * 1000);
-		if (rc < 0) {
-			chg_debug("set fast charge current:%d fail\n", chg_curr);
+		if (g_oplus_chip->dual_charger_support && g_oplus_chip->slave_charger_enable && (pdqc_flag == true)) {
+			main_cur = (chg_curr * (100 - g_oplus_chip->slave_pct))/100;
+			main_cur -= main_cur % 100;
+			slave_cur = chg_curr - main_cur;
+			chg_err("set fast charge current:%d main_cur:%d slave_cur:%d\n", chg_curr, main_cur, slave_cur);
+			rc = charger_dev_set_charging_current(chg, main_cur * 1000);
+			if (rc < 0) {
+				chg_debug("set fast charge current:%d fail\n", main_cur);
+			}
+			rc = bq25601d_charging_current_write_fast(slave_cur);
+			if (rc < 0) {
+				chg_debug("set sub fast charge current:%d fail\n", slave_cur);
+			}
+		} else {
+			if (chg_curr >= 2300) {
+				chg_curr = 2300;
+			}
+
+			chg_err("set fast charge current:%d main_cur:%d\n", chg_curr, chg_curr);
+			rc = charger_dev_set_charging_current(chg, chg_curr * 1000);
+			if (rc < 0) {
+				chg_debug("set fast charge current:%d fail\n", chg_curr);
+			}
 		}
-	}
 	} else {
 		rc = charger_dev_set_charging_current(chg, chg_curr * 1000);
 		if (rc < 0) {
@@ -1522,6 +1560,7 @@ static int oplus_mt6370_input_current_limit_write(int value)
 	int vbus_mv = 0;
 	int ibus_ma = 0;
 	struct charger_device *chg = NULL;
+	static int charger_current_set_pre = 0;
 
 	if (!g_oplus_chip) {
 		printk(KERN_ERR "[OPLUS_CHG][%s]: oplus_chip not ready!\n", __func__);
@@ -1531,7 +1570,6 @@ static int oplus_mt6370_input_current_limit_write(int value)
 
 	chg = g_oplus_chip->chgic_mtk.oplus_info->chg1_dev;
 
-#ifdef CONFIG_OPLUS_CHARGER_MTK6781
 	if (pinfo->data.dual_charger_support) {
 		if (g_oplus_chip->dual_charger_support &&
 				!g_oplus_chip->slave_charger_enable) {
@@ -1546,7 +1584,6 @@ static int oplus_mt6370_input_current_limit_write(int value)
 			}
 		}
 	}
-#endif
 
 	if (g_oplus_chip->chg_ops->oplus_chg_get_pd_type) {
 		if (g_oplus_chip->chg_ops->oplus_chg_get_pd_type() == true) {
@@ -1558,7 +1595,9 @@ static int oplus_mt6370_input_current_limit_write(int value)
 		}
 	}
 
-#ifdef CONFIG_OPLUS_CHARGER_MTK6781
+	if (g_oplus_chip->charger_current_pre == value)
+		goto current_set_pre;
+
 	if (pinfo->data.dual_charger_support) {
 		chg_vol = battery_meter_get_charger_voltage();
 		if (chg_vol > 7600) {
@@ -1575,12 +1614,6 @@ static int oplus_mt6370_input_current_limit_write(int value)
 		else
 			aicl_point = 4400;
 	}
-#else
-	if (g_oplus_chip->batt_volt > 4100)
-		aicl_point = 4550;
-	else
-		aicl_point = 4500;
-#endif
 
 	if (value < 500) {
 		i = 0;
@@ -1692,12 +1725,34 @@ static int oplus_mt6370_input_current_limit_write(int value)
 	} else if (value >= 3000)
 		goto aicl_end;
 
+current_set_pre:
+	chg_err("usb input max current limit aicl sw_aicl_point:%d current_set_pre\n",  charger_current_set_pre);
+	if (pinfo->data.dual_charger_support) {
+		if (g_oplus_chip->dual_charger_support && g_oplus_chip->slave_charger_enable && (pdqc_flag == true)) {
+			rc = bq25601d_enable_charging();
+			if (rc < 0) {
+				chg_debug("disable sub charging fail\n");
+			}
+
+			rc = bq25601d_unsuspend_charger();
+			if (rc < 0) {
+				chg_debug("disable sub charging fail\n");
+			}
+			msleep(500);
+			chg_debug("usb input max current limit aicl: master and salve input current: %d, %d\n",
+					charger_current_set_pre * 1000 * (100-g_oplus_chip->slave_pct) / 100, charger_current_set_pre * 1000 * g_oplus_chip->slave_pct / 100);
+			bq25601d_input_current_limit_write(charger_current_set_pre * 1000 * g_oplus_chip->slave_pct / 100);
+			rc = charger_dev_set_input_current(chg, charger_current_set_pre * 1000 * (100-g_oplus_chip->slave_pct) / 100);
+		} else
+			rc = charger_dev_set_input_current(chg, charger_current_set_pre * 1000);
+	} else {
+		rc = charger_dev_set_input_current(chg, charger_current_set_pre * 1000);
+	}
+	goto aicl_rerun;
 aicl_pre_step:
 	chg_err("usb input max current limit aicl chg_vol=%d i[%d]=%d sw_aicl_point:%d aicl_pre_step\n", chg_vol, i, usb_icl[i], aicl_point);
-#ifdef CONFIG_OPLUS_CHARGER_MTK6781
 	if (pinfo->data.dual_charger_support) {
-		if (g_oplus_chip->dual_charger_support &&
-				g_oplus_chip->slave_charger_enable) {
+		if (g_oplus_chip->dual_charger_support && g_oplus_chip->slave_charger_enable && (pdqc_flag == true)) {
 			rc = bq25601d_enable_charging();
 			if (rc < 0) {
 				chg_debug("disable sub charging fail\n");
@@ -1717,16 +1772,12 @@ aicl_pre_step:
 	} else {
 		rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000);
 	}
-#else
-	rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000);
-#endif
+	charger_current_set_pre = usb_icl[i];
 	goto aicl_rerun;
 aicl_end:
 	chg_debug("usb input max current limit aicl chg_vol=%d i[%d]=%d sw_aicl_point:%d aicl_end\n", chg_vol, i, usb_icl[i], aicl_point);
-#ifdef CONFIG_OPLUS_CHARGER_MTK6781
 	if (pinfo->data.dual_charger_support) {
-		if (g_oplus_chip->dual_charger_support &&
-				g_oplus_chip->slave_charger_enable) {
+		if (g_oplus_chip->dual_charger_support && g_oplus_chip->slave_charger_enable && (pdqc_flag == true)) {
 			rc = bq25601d_enable_charging();
 			if (rc < 0) {
 				chg_debug("disable sub charging fail\n");
@@ -1740,23 +1791,20 @@ aicl_end:
 			chg_debug("usb input max current limit aicl: master and salve input current: %d, %d\n",
 					usb_icl[i] * 1000 * (100-g_oplus_chip->slave_pct) / 100, usb_icl[i] * 1000 * g_oplus_chip->slave_pct / 100);
 			bq25601d_input_current_limit_write(usb_icl[i] * 1000 * g_oplus_chip->slave_pct / 100);
-#if defined(OPLUS_FEATURE_CHG_BASIC) && defined(CONFIG_OPLUS_CHARGER_MTK6781)
-			rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000);
-#else
 			rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000 * (100-g_oplus_chip->slave_pct) / 100);
-#endif
 		} else {
 			rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000);
 		}
 	} else {
 		rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000);
 	}
-#else
-	rc = charger_dev_set_input_current(chg, usb_icl[i] * 1000);
-#endif
+	charger_current_set_pre = usb_icl[i];
 	goto aicl_rerun;
 aicl_rerun:
 	mt6370_aicl_enable(true);
+
+	g_oplus_chip->charger_current_pre = value;
+
 	return rc;
 }
 
@@ -1863,6 +1911,8 @@ static int oplus_mt6370_disable_charging(void)
 		printk(KERN_ERR "[OPLUS_CHG][%s]: oplus_chip not ready!\n", __func__);
 		return 0;
 	}
+
+	g_oplus_chip->charger_current_pre = -1;
 
 	chg = g_oplus_chip->chgic_mtk.oplus_info->chg1_dev;
 
@@ -2080,26 +2130,8 @@ int set_rtc_spare_oplus_fg_value(int soc)
 
 static void oplus_mt_power_off(void)
 {
-	struct tcpc_device *tcpc_dev = NULL;
-
-	if (!g_oplus_chip) {
-		printk(KERN_ERR "[OPLUS_CHG][%s]: oplus_chip not ready!\n", __func__);
-		return;
-	}
-
-	if (g_oplus_chip->ac_online != true) {
-		if (tcpc_dev == NULL) {
-			tcpc_dev = tcpc_dev_get_by_name("type_c_port0");
-		}
-		if (tcpc_dev) {
-			if (!(tcpc_dev->pd_wait_hard_reset_complete) &&
-				!(bool (*)(void))pmic_chrdet_status) {
-				kernel_power_off();
-			}
-		}
-	} else {
-		printk(KERN_ERR "[OPLUS_CHG][%s]: ac_online is true, return!\n", __func__);
-	}
+	chg_err("kernel_power_off!\n");
+	kernel_power_off();
 }
 
 #ifdef CONFIG_OPLUS_SHORT_C_BATT_CHECK
@@ -2248,11 +2280,18 @@ static void set_usbswitch_to_dpdm(struct oplus_chg_chip *chip)
 
 static bool is_support_chargerid_check(void)
 {
-#if defined(CONFIG_OPLUS_CHECK_CHARGERID_VOLT) || defined(CONFIG_OPLUS_CHARGER_MTK6781)
-	return true;
-#else
-	return false;
-#endif
+	struct oplus_chg_chip *chip = g_oplus_chip;
+
+	if (!chip) {
+		chg_err("oplus_chg_chip not ready!\n");
+		return false;
+	}
+
+	if (gpio_is_valid(chip->normalchg_gpio.chargerid_switch_gpio)) {
+		return true;
+	} else {
+		return false;
+	}
 }
 
 int mt_get_chargerid_volt(void)
@@ -2944,7 +2983,12 @@ static void oplus_get_usbtemp_volt(struct oplus_chg_chip *chip)
 		goto usbtemp_next;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+/*******kernel-4.19\drivers\iio\adc\mt6577_auxadc.c   --->mt6577_auxadc_read_raw ---->*val = *val * 1500 / 4096; *******/
+	chip->usbtemp_volt_l = usbtemp_volt;
+#else
 	chip->usbtemp_volt_l = usbtemp_volt * 1500 / 4096;
+#endif
 	usbtemp_volt_l_pre = chip->usbtemp_volt_l;
 usbtemp_next:
 	usbtemp_volt = 0;
@@ -2961,7 +3005,12 @@ usbtemp_next:
 		return;
 	}
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+/*******kernel-4.19\drivers\iio\adc\mt6577_auxadc.c   --->mt6577_auxadc_read_raw ---->*val = *val * 1500 / 4096; *******/
+	chip->usbtemp_volt_r = usbtemp_volt;
+#else
 	chip->usbtemp_volt_r = usbtemp_volt * 1500 / 4096;
+#endif
 	usbtemp_volt_r_pre = chip->usbtemp_volt_r;
 
 	return;
@@ -3103,16 +3152,12 @@ static int mt_ac_get_property(struct power_supply *psy,
 		if ((charger_type == STANDARD_HOST) ||
 			(charger_type == CHARGING_HOST))
 			val->intval = 0;
-
-		if (val->intval == 0) {
-			oplus_vooc_reset_fastchg_after_usbout();
-			oplus_chg_set_chargerid_switch_val(0);
-			oplus_chg_clear_chargerid_info();
-			oplus_chg_set_charger_type_unknown();
-		}
 		break;
 	default:
 		rc = oplus_ac_get_property(psy, psp, val);
+		if (rc < 0) {
+			val->intval = 0;
+		}
 	}
 	return rc;
 }
@@ -3148,6 +3193,9 @@ static int mt_usb_get_property(struct power_supply *psy,
 		break;
 	default:
 		rc = oplus_usb_get_property(psy, psp, val);
+		if (rc < 0) {
+			val->intval = 0;
+		}
 	}
 	return rc;
 }
@@ -3175,7 +3223,20 @@ static int battery_prop_is_writeable(struct power_supply *psy,
 static int battery_set_property(struct power_supply *psy,
 	enum power_supply_property psp, const union power_supply_propval *val)
 {
-	return oplus_battery_set_property(psy, psp, val);
+	int rc = 0;
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_ONLINE:
+		if (g_oplus_chip && g_oplus_chip->usb_psy)
+			power_supply_changed(g_oplus_chip->usb_psy);
+		if (g_oplus_chip && g_oplus_chip->ac_psy)
+			power_supply_changed(g_oplus_chip->ac_psy);
+		break;
+	default:
+		rc = oplus_battery_set_property(psy, psp, val);
+		break;
+	}
+	return rc;
 }
 
 static int battery_get_property(struct power_supply *psy,
@@ -3196,13 +3257,17 @@ static int battery_get_property(struct power_supply *psy,
 			val->intval = g_oplus_chip->batt_fcc * 1000;
 		}
 		break;
-	case POWER_SUPPLY_PROP_TIME_TO_FULL_NOW:
-		val->intval = 0;
-		break;
 	default:
 		rc = oplus_battery_get_property(psy, psp, val);
+		if (rc < 0) {
+			if (psp == POWER_SUPPLY_PROP_TEMP)
+				val->intval = DEFAULT_BATTERY_TMP_WHEN_ERROR;
+			else
+				val->intval = 0;
+		}
 		break;
 	}
+
 	return 0;
 }
 
@@ -3217,6 +3282,7 @@ static enum power_supply_property mt_usb_properties[] = {
 };
 
 static enum power_supply_property battery_properties[] = {
+	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_STATUS,
 	POWER_SUPPLY_PROP_HEALTH,
 	POWER_SUPPLY_PROP_PRESENT,
@@ -3324,7 +3390,11 @@ void oplus_set_otg_switch_status(bool value)
 			}
 		}
 		printk(KERN_ERR "[OPLUS_CHG][%s]: otg switch[%d]\n", __func__, value);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))
+		tcpm_typec_change_role_postpone(pinfo->tcpc, value ? TYPEC_ROLE_DRP : TYPEC_ROLE_SNK, true);
+#else
 		tcpm_typec_change_role(pinfo->tcpc, value ? TYPEC_ROLE_DRP : TYPEC_ROLE_SNK);
+#endif
 	}
 }
 EXPORT_SYMBOL(oplus_set_otg_switch_status);
@@ -3360,6 +3430,9 @@ EXPORT_SYMBOL(oplus_chg_get_mmi_status);
 static int oplus_mt6370_get_pd_type(void)
 {
 	if (pinfo != NULL) {
+		if (oplus_chg_check_pd_disable())
+			return PD_INACTIVE;
+
 		if (pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK ||
 			pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
 			pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO)
@@ -3456,8 +3529,12 @@ int oplus_chg_get_charger_subtype(void)
 
 	if (pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK ||
 		pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_PD30 ||
-		pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO)
-		return CHARGER_SUBTYPE_PD;
+		pinfo->pd_type == MTK_PD_CONNECT_PE_READY_SNK_APDO) {
+			if (oplus_chg_check_pd_disable())
+				return CHARGER_SUBTYPE_DEFAULT;
+			else
+				return CHARGER_SUBTYPE_PD;
+		}
 
 	if (mt6370_get_hvdcp_type() == POWER_SUPPLY_TYPE_USB_HVDCP)
 		return CHARGER_SUBTYPE_QC;
@@ -3961,6 +4038,8 @@ static int mtk_charger_probe(struct platform_device *pdev)
 	}
 #endif
 
+	g_oplus_chip->charger_current_pre = -1;
+
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	pinfo->charger_id_chan = iio_channel_get(oplus_chip->dev, "auxadc3-charger_id");
         if (IS_ERR(pinfo->charger_id_chan)) {
@@ -4081,7 +4160,7 @@ static void mtk_charger_shutdown(struct platform_device *dev)
 }
 
 static const struct of_device_id mtk_charger_of_match[] = {
-	{.compatible = "mediatek,charger",},
+	{ .compatible = "mediatek,charger", },
 	{},
 };
 
@@ -4115,6 +4194,5 @@ static void __exit mtk_charger_exit(void)
 module_exit(mtk_charger_exit);
 
 
-MODULE_AUTHOR("LiYue");
 MODULE_DESCRIPTION("OPLUS Charger Driver");
 MODULE_LICENSE("GPL");

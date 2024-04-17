@@ -72,6 +72,7 @@
 #define BC_PD_SOFT_RESET				0x58
 #define BC_CHG_STATUS_GET				0x59
 #define BC_CHG_STATUS_SET				0x60
+#define BC_ABNORMAL_PD_SVOOC_ADAPTER			0x67
 #endif
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
@@ -90,6 +91,8 @@
 #define WLS_FW_WAIT_TIME_MS		500
 #define WLS_FW_BUF_SIZE			128
 #define DEFAULT_RESTRICT_FCC_UA		1000000
+
+#define BATTMNGR_EFAILED		512 /*Error: i2c Operation Failed*/
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
 struct oem_read_buffer_req_msg {
@@ -178,6 +181,9 @@ enum battery_property_id {
 	BATT_UPDATE_SOC_SMOOTH_PARAM,
 	BATT_BATTERY_HMAC,
 	BATT_SET_BCC_CURRENT,
+	BATT_ZY0603_CHECK_RC_SFR,
+	BATT_ZY0603_SOFT_RESET,
+	BATT_AFI_UPDATE_DONE,
 	BATT_PROP_MAX,
 };
 
@@ -352,6 +358,7 @@ struct psy_state {
 struct oplus_custom_gpio_pinctrl {
 	int vchg_trig_gpio;
 	int ccdetect_gpio;
+	int mcu_en_gpio;
 	struct mutex pinctrl_mutex;
 	struct pinctrl *vchg_trig_pinctrl;
 	struct pinctrl_state *vchg_trig_default;
@@ -362,6 +369,9 @@ struct oplus_custom_gpio_pinctrl {
 	struct pinctrl_state	*usbtemp_l_gpio_default;
 	struct pinctrl			*usbtemp_r_gpio_pinctrl;
 	struct pinctrl_state	*usbtemp_r_gpio_default;
+	struct pinctrl			*mcu_en_pinctrl;
+	struct pinctrl_state *mcu_en_active;
+	struct pinctrl_state *mcu_en_sleep;
 };
 #endif
 
@@ -371,6 +381,7 @@ struct oplus_chg_iio {
 	struct iio_channel	*usbtemp_sup_v_chan;
 	struct iio_channel	*battcon_btb_chan;
 	struct iio_channel	*usbcon_btb_chan;
+	struct iio_channel	*subboard_temp_v_chan;
 };
 #endif
 
@@ -411,6 +422,8 @@ struct battery_chg_dev {
 	struct delayed_work	check_charger_type_work;
 	struct delayed_work	unsuspend_usb_work;
 	struct delayed_work	reset_turn_on_chg_work;
+	struct delayed_work	get_real_chg_type_work;
+	struct delayed_work	plugin_irq_work;
 	u32			oem_misc_ctl_data;
 	bool			oem_usb_online;
 	struct delayed_work	adsp_voocphy_err_work;
@@ -434,6 +447,7 @@ struct battery_chg_dev {
 #endif
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	int vchg_trig_irq;
+	struct delayed_work mcu_en_init_work;
 	struct delayed_work vchg_trig_work;
 	struct delayed_work wait_wired_charge_on;
 	struct delayed_work wait_wired_charge_off;
@@ -510,4 +524,43 @@ struct qcom_pmic {
 	/* copy form msm8976_pmic end */
 };
 
+enum {
+	ADAPTER_ID_20W_0X13 = 0x13,
+	ADAPTER_ID_20W_0X34 = 0x34,
+	ADAPTER_ID_20W_0X45 = 0x45,
+	ADAPTER_ID_30W_0X19 = 0x19,
+	ADAPTER_ID_30W_0X29 = 0x29,
+	ADAPTER_ID_30W_0X41 = 0x41,
+	ADAPTER_ID_30W_0X42 = 0x42,
+	ADAPTER_ID_30W_0X43 = 0x43,
+	ADAPTER_ID_30W_0X44 = 0x44,
+	ADAPTER_ID_30W_0X46 = 0x46,
+	ADAPTER_ID_33W_0X49 = 0x49,
+	ADAPTER_ID_33W_0X4A = 0x4A,
+	ADAPTER_ID_33W_0X61 = 0x61,
+	ADAPTER_ID_50W_0X11 = 0x11,
+	ADAPTER_ID_50W_0X12 = 0x12,
+	ADAPTER_ID_50W_0X21 = 0x21,
+	ADAPTER_ID_50W_0X31 = 0x31,
+	ADAPTER_ID_50W_0X33 = 0x33,
+	ADAPTER_ID_50W_0X62 = 0x62,
+	ADAPTER_ID_65W_0X14 = 0x14,
+	ADAPTER_ID_65W_0X35 = 0x35,
+	ADAPTER_ID_65W_0X63 = 0x63,
+	ADAPTER_ID_65W_0X66 = 0x66,
+	ADAPTER_ID_65W_0X6E = 0x6E,
+	ADAPTER_ID_66W_0X36 = 0x36,
+	ADAPTER_ID_66W_0X64 = 0x64,
+	ADAPTER_ID_67W_0X6C = 0x6C,
+	ADAPTER_ID_67W_0X6D = 0x6D,
+	ADAPTER_ID_80W_0X4B = 0x4B,
+	ADAPTER_ID_80W_0X4C = 0x4C,
+	ADAPTER_ID_80W_0X4D = 0x4D,
+	ADAPTER_ID_80W_0X4E = 0x4E,
+	ADAPTER_ID_80W_0X65 = 0x65,
+	ADAPTER_ID_100W_0X69 = 0x69,
+	ADAPTER_ID_100W_0X6A = 0x6A,
+	ADAPTER_ID_120W_0X32 = 0x32,
+	ADAPTER_ID_120W_0X6B = 0x6B,
+};
 #endif /*__SM8350_CHARGER_H*/

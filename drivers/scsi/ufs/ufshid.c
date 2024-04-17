@@ -474,6 +474,32 @@ void ufshid_remove(struct ufsf_feature *ufsf)
 	INFO_MSG("end HID release");
 }
 
+void ufshid_suspend(struct ufsf_feature *ufsf)
+{
+	struct ufshid_dev *hid = ufsf->hid_dev;
+
+	if (!hid)
+		return;
+
+	if (unlikely(hid->hid_trigger))
+		ERR_MSG("hid_trigger was set to block the suspend. so weird");
+	ufshid_set_state(ufsf, HID_SUSPEND);
+
+	cancel_delayed_work_sync(&hid->hid_trigger_work);
+}
+
+void ufshid_resume(struct ufsf_feature *ufsf)
+{
+	struct ufshid_dev *hid = ufsf->hid_dev;
+
+	if (!hid)
+		return;
+
+	if (unlikely(hid->hid_trigger))
+		ERR_MSG("hid_trigger need to off");
+	ufshid_set_state(ufsf, HID_PRESENT);
+}
+
 /*
  * this function is called in irq context.
  * so cancel_delayed_work_sync() do not use due to waiting.

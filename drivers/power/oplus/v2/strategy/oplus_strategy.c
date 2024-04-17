@@ -72,6 +72,37 @@ oplus_chg_strategy_alloc(const char *name, unsigned char *buf, size_t size)
 	return strategy;
 }
 
+struct oplus_chg_strategy *
+oplus_chg_strategy_alloc_by_node(const char *name, struct device_node *node)
+{
+	struct oplus_chg_strategy *strategy;
+	struct oplus_chg_strategy_desc *desc;
+
+	if (name == NULL) {
+		chg_err("name is NULL\n");
+		return NULL;
+	}
+	if (node == NULL) {
+		chg_err("node is NULL\n");
+		return NULL;
+	}
+
+	desc = strategy_desc_find_by_name(name);
+	if (desc == NULL) {
+		chg_err("No strategy with name %s was found\n", name);
+		return NULL;
+	}
+
+	strategy = desc->strategy_alloc_by_node(node);
+	if (IS_ERR_OR_NULL(strategy)) {
+		chg_err("%s strategy alloc error, rc=%ld\n", name, PTR_ERR(strategy));
+		return NULL;
+	}
+	strategy->desc = desc;
+
+	return strategy;
+}
+
 int oplus_chg_strategy_release(struct oplus_chg_strategy *strategy)
 {
 	if (strategy == NULL) {
@@ -80,7 +111,6 @@ int oplus_chg_strategy_release(struct oplus_chg_strategy *strategy)
 	}
 
 	strategy->desc->strategy_release(strategy);
-	kfree(strategy);
 
 	return 0;
 }
@@ -108,7 +138,7 @@ int oplus_chg_strategy_init(struct oplus_chg_strategy *strategy)
 	return 0;
 }
 
-int oplus_chg_strategy_get_data(struct oplus_chg_strategy *strategy, int *ret)
+int oplus_chg_strategy_get_data(struct oplus_chg_strategy *strategy, void *ret)
 {
 	if (strategy == NULL) {
 		chg_err("strategy is NULL\n");
@@ -191,10 +221,12 @@ int oplus_chg_strategy_read_data(struct device *dev,
 }
 
 extern int cgcl_strategy_register(void);
+extern int puc_strategy_register(void);
 
 static __init int oplus_chg_strategy_module_init(void)
 {
 	cgcl_strategy_register();
+	puc_strategy_register();
 
 	return 0;
 }

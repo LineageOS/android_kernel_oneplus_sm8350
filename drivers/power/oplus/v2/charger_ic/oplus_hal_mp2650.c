@@ -11,7 +11,7 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/slab.h>
-
+#include <linux/ctype.h>
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 #include <linux/irq.h>
 #include <linux/miscdevice.h>
@@ -53,10 +53,12 @@ extern void mt_power_off(void);
 #endif
 
 #include "oplus_hal_mp2650.h"
-
+#include <oplus_chg_vooc.h>
+#include <oplus_mms.h>
 #include <oplus_chg_module.h>
 #include <oplus_chg_ic.h>
-
+#include <oplus_mms_wired.h>
+#include <oplus_battery_log.h>
 
 /* TODO */
 #define WPC_TERMINATION_CURRENT		100
@@ -70,12 +72,14 @@ extern void mt_power_off(void);
 
 #define DEBUG_BY_FILE_OPS
 
-#define HW_AICL_POINT_HIGH 4520
-#define HW_AICL_POINT_LOW 4440
-#define SW_AICL_POINT_HIGH 4335
-#define SW_AICL_POINT_LOW 4300
-#define SWITCH_AICL_POINT_VBAT_HIGH 4140
-#define SWITCH_AICL_POINT_VBAT_LOW 4000
+#define HW_AICL_POINT_HIGH		4520
+#define HW_AICL_POINT_LOW		4440
+#define SW_AICL_POINT_HIGH		4535
+#define SW_AICL_POINT_LOW		4500
+#define SWITCH_AICL_POINT_VBAT_HIGH	4140
+#define SWITCH_AICL_POINT_VBAT_LOW	4000
+#define AICL_POINT_SWITCH_THRE		7500
+#define AICL_POINT_VOL_9V		8500
 
 struct chip_mp2650 *charger_ic = NULL;
 int reg_access_allow = 0;
@@ -85,8 +89,25 @@ void mp2650_wireless_set_mps_otg_en_val(int value);
 int mp2650_get_vbus_voltage(void);
 static int mp2650_set_charger_vsys_threshold(struct chip_mp2650 *chip, int val);
 static int mp2650_burst_mode_enable(bool enable);
+static int mp2650_reg_dump_internal(void);
+
+#define BATTERY_LOG_REG_MAX_SIZE 100
+char buck_ic_reg_info[BATTERY_LOG_REG_MAX_SIZE] = {0};
 
 static DEFINE_MUTEX(mp2650_i2c_access);
+
+#define RESUME_TIMEDOUT_MS	1000
+static int mp2650_wait_resume(struct chip_mp2650 *chip)
+{
+	int rc;
+
+	rc = wait_for_completion_timeout(&chip->resume_ack, msecs_to_jiffies(RESUME_TIMEDOUT_MS));
+	if (!rc) {
+		chg_err("wait resume timedout\n");
+		return -ETIMEDOUT;
+	}
+	return 0;
+}
 
 static int __tongfeng_test_mp2650_write_reg(int reg, int val)
 {
@@ -186,11 +207,12 @@ static ssize_t mp2650_regs_show(struct device *dev,
 	int i = 0;
 	int reg_val = 0;
 
-	for (i = MP2650_FIRST_REG; i <= 0x15; i++) {
+	for (i = MP2650_FIRST_REG; i <= 0x48; i++) {
 		mp2650_read_reg(i, &reg_val);
 		len += snprintf(buf + len, PAGE_SIZE - len,
 				"reg:0x%02x=0x%02x \n", i, reg_val);
 	}
+
 	return len;
 }
 static ssize_t mp2650_regs_store(struct device *dev,
@@ -545,14 +567,34 @@ int mp2650_get_pre_icl_index(void)
 	return icl_index;
 }
 
+static int oplus_vooc_get_fastchg_started(void)
+{
+	int fastchg_started_status = 0;
+	struct oplus_mms *vooc_topic;
+	union mms_msg_data data = { 0 };
+	int rc;
+
+	vooc_topic = oplus_mms_get_by_name("vooc");
+	if (!vooc_topic)
+		return 0;
+
+	rc = oplus_mms_get_item_data(vooc_topic, VOOC_ITEM_VOOC_STARTED, &data, true);
+	if (!rc)
+		fastchg_started_status = data.intval;
+
+	chg_info("get fastchg started status = %d\n", fastchg_started_status);
+	return fastchg_started_status;
+}
+
 static int mp2650_input_current_limit_write(struct chip_mp2650 *chip,
 					    int current_ma)
 {
 	int i = 0, rc = 0;
 	int chg_vol = 0;
+	int chg_type = 0;
 	int pre_icl_index = 0;
 	int sw_aicl_point = 0;
-
+	int hw_aicl_point = 0;
 	if (atomic_read(&chip->charger_suspended) == 1) {
 		return 0;
 	}
@@ -682,7 +724,17 @@ static int mp2650_input_current_limit_write(struct chip_mp2650 *chip,
 		}
 	}
 
-	sw_aicl_point = chip->sw_aicl_point;
+	chg_vol = mp2650_get_charger_vol(chip);
+	chg_type = oplus_wired_get_chg_type();
+	if (chg_vol > AICL_POINT_SWITCH_THRE &&
+	    (0 == oplus_vooc_get_fastchg_started()) &&
+	    (chg_type == OPLUS_CHG_USB_TYPE_PD || chg_type == OPLUS_CHG_USB_TYPE_QC2)) {
+		hw_aicl_point = AICL_POINT_VOL_9V;
+		sw_aicl_point = AICL_POINT_VOL_9V;
+	} else {
+		hw_aicl_point = chip->hw_aicl_point;
+		sw_aicl_point = chip->sw_aicl_point;
+	}
 
 	i = INPUT_CURRENT_LIMIT_INDEX_0; /* 500 */
 	rc = mp2650_config_interface(REG00_MP2650_ADDRESS,
@@ -983,7 +1035,7 @@ aicl_rerun:
 		break;
 	}
 
-	mp2650_set_vindpm_vol(chip->hw_aicl_point);
+	mp2650_set_vindpm_vol(hw_aicl_point);
 	return rc;
 }
 
@@ -1022,23 +1074,44 @@ int mp2650_chg_get_dyna_aicl_result(void)
 
 int mp2650_set_aicl_point(struct oplus_chg_ic_dev *ic_dev, int vbatt)
 {
-	struct chip_mp2650 *chip;
+	struct chip_mp2650 *chip = NULL;
+	int chg_type = oplus_wired_get_chg_type();
+	int chg_vol = 0;
 
-	if (ic_dev == NULL) {
+	if (!ic_dev) {
 		chg_err("oplus_chg_ic_dev is NULL");
 		return -ENODEV;
 	}
-	chip = oplus_chg_ic_get_drvdata(ic_dev);
 
-	if (chip->hw_aicl_point == HW_AICL_POINT_LOW && vbatt > SWITCH_AICL_POINT_VBAT_HIGH) {
+	chip = oplus_chg_ic_get_drvdata(ic_dev);
+	if (!chip) {
+		chg_err("chip is NULL");
+		return -ENODEV;
+	}
+
+	if (oplus_vooc_get_fastchg_started())
+		return 0;
+
+	chg_vol = mp2650_get_charger_vol(chip);
+	if (chg_vol > AICL_POINT_SWITCH_THRE &&
+	    (chg_type == OPLUS_CHG_USB_TYPE_PD || chg_type == OPLUS_CHG_USB_TYPE_QC2)) {
+		chip->hw_aicl_point = AICL_POINT_VOL_9V;
+		mp2650_set_vindpm_vol(chip->hw_aicl_point);
+	} else if (chip->hw_aicl_point == HW_AICL_POINT_LOW &&
+		   vbatt > SWITCH_AICL_POINT_VBAT_HIGH) {
 		chip->hw_aicl_point = HW_AICL_POINT_HIGH;
 		chip->sw_aicl_point = SW_AICL_POINT_HIGH;
 		mp2650_set_vindpm_vol(chip->hw_aicl_point);
-	} else if (chip->hw_aicl_point == HW_AICL_POINT_HIGH && vbatt < SWITCH_AICL_POINT_VBAT_LOW) {
+	} else if (chip->hw_aicl_point == HW_AICL_POINT_HIGH &&
+		   vbatt < SWITCH_AICL_POINT_VBAT_LOW) {
 		chip->hw_aicl_point = HW_AICL_POINT_LOW;
 		chip->sw_aicl_point = SW_AICL_POINT_LOW;
 		mp2650_set_vindpm_vol(chip->hw_aicl_point);
 	}
+
+	chg_debug("hw_aicl=%d, sw_aicl=%d, chg_vol=%d chg_type=%s\n",
+		  chip->hw_aicl_point, chip->sw_aicl_point, chg_vol,
+		  oplus_wired_get_chg_type_str(chg_type));
 
 	return 0;
 }
@@ -1276,8 +1349,10 @@ int mp2650_otg_disable(void)
 	int rc;
 	struct chip_mp2650 *chip = charger_ic;
 
-	if (atomic_read(&chip->charger_suspended) == 1) {
-		return 0;
+	rc = mp2650_wait_resume(chip);
+	if (rc < 0) {
+		chg_err("wait resume error, can't disable otg\n");
+		return rc;
 	}
 
 	mp2650_wireless_set_mps_otg_en_val(0); /* set disable output 5V vbus */
@@ -1387,28 +1462,44 @@ int mp2650_get_vbus_voltage(void)
 	int vol_high = 0;
 	int vol_low = 0;
 	int vbus_vol = 0;
-	int rc = 0;
+	int retry = 3;
+	struct chip_mp2650 *chip = charger_ic;
 
-	if(oplus_is_rf_ftm_mode()) {
+	if (!chip)
+		return 0;
+
+	if (oplus_is_rf_ftm_mode()) {
 		mp2650_enable_adc_detect(true);
 		msleep(1);
 	}
 
-	rc = mp2650_read_reg(REG1C1D_MP2650_ADDRESS, &vol_low);
-	if (rc) {
-		chg_err("Couldn't read REG1C1D_MP2650_ADDRESS rc = %d\n", rc);
+	mutex_lock(&mp2650_i2c_access);
+	vbus_vol = i2c_smbus_read_word_data(chip->client, REG1C1D_MP2650_ADDRESS);
+	if (vbus_vol < 0) {
+		while (retry > 0) {
+			usleep_range(5000, 5000);
+			vbus_vol = i2c_smbus_read_word_data(chip->client, REG1C1D_MP2650_ADDRESS);
+			if (vbus_vol < 0)
+				retry--;
+			else
+				break;
+		}
+	}
+	mutex_unlock(&mp2650_i2c_access);
+
+	if (vbus_vol < 0) {
+		chg_err("get vbus_voltage failed: can't read from %02x, vbus_vol = %d\n",
+			 REG1C1D_MP2650_ADDRESS, vbus_vol);
 		return 0;
 	}
 
-	rc = mp2650_read_reg((REG1C1D_MP2650_ADDRESS + 1), &vol_high);
-	if (rc) {
-		chg_err("Couldn't read REG1C1D_MP2650_ADDRESS rc = %d\n", rc);
-		return 0;
-	}
-
+	vol_low = vbus_vol & REG01_MP2650_VINDPM_THRESHOLD_MASK;
+	vol_high = (vbus_vol >> 8) & REG01_MP2650_VINDPM_THRESHOLD_MASK;
 	vbus_vol = (vol_high * 100) + ((vol_low >> 6) * 25);
 
-	if(oplus_is_rf_ftm_mode())
+	chg_debug("vbus_vol = %d \n", vbus_vol);
+
+	if (oplus_is_rf_ftm_mode())
 		mp2650_enable_adc_detect(false);
 
 	return vbus_vol;
@@ -1598,24 +1689,48 @@ int mp2650_otg_ilim_set(int ilim)
 	return rc;
 }
 
+static int mp2650_push_buck_err(struct oplus_chg_ic_dev *ic_dev,
+				int reg_value, bool i2c_err, int retry)
+{
+	oplus_chg_ic_creat_err_msg(ic_dev,
+			OPLUS_IC_ERR_BUCK_BOOST, 0,
+			"REG3F[%x],i2c_err[%d],retry[%d]",
+			 reg_value, i2c_err, retry);
+	oplus_chg_ic_virq_trigger(ic_dev, OPLUS_IC_VIRQ_ERR);
+	return 0;
+}
+
+#define MP2650_MAX_SEND_COUNT   10
+#define MP2650_OTG_MAX_RETRY	3
 int mp2650_otg_enable(void)
 {
 	int rc;
 	struct chip_mp2650 *chip = charger_ic;
+	int retry = 0;
+	int reg_value = 0;
+	bool i2c_err = false;
+	static int send_count = 0;
 
 	if (!chip) {
 		chg_err("chip is NULL\n");
 		return 0;
 	}
-	if (atomic_read(&chip->charger_suspended) == 1) {
-		return 0;
+	rc = mp2650_wait_resume(chip);
+	if (rc < 0) {
+		chg_err("wait resume error, can't enable otg\n");
+		return rc;
 	}
 
+	chg_info("otg enable\n");
 	rc = mp2650_burst_mode_enable(true);
 
 	mp2650_set_wdt_timer(REG09_MP2650_WTD_TIMER_DISABLE);
-	rc = mp2650_config_interface(REG53_MP2650_ADDRESS, 0x95, 0xff);
-	rc = mp2650_config_interface(REG3F_MP2650_ADDRESS, 0x20, 0xff);
+
+	mutex_lock(&mp2650_i2c_access);
+	rc = mp2650_config_interface_without_lock(REG53_MP2650_ADDRESS, 0x95, 0xff);
+	rc = mp2650_config_interface_without_lock(REG3F_MP2650_ADDRESS, 0x20, 0xff);
+	rc = mp2650_config_interface_without_lock(REG53_MP2650_ADDRESS, 0x00, 0xff);
+	mutex_unlock(&mp2650_i2c_access);
 
 	mp2650_wireless_set_mps_otg_en_val(1); /* set output 5V vbus */
 
@@ -1631,8 +1746,46 @@ int mp2650_otg_enable(void)
 	}
 
 	msleep(10);
-	rc = mp2650_config_interface(REG3F_MP2650_ADDRESS, 0x00, 0xff);
-	rc = mp2650_config_interface(REG53_MP2650_ADDRESS, 0x00, 0xff);
+
+	/* Note: need to clear the 3F bit5, otherwise the charger maybe charging less than 1ms */
+	mutex_lock(&mp2650_i2c_access);
+	while (retry++ < MP2650_OTG_MAX_RETRY) {
+		rc = mp2650_config_interface_without_lock(REG53_MP2650_ADDRESS, 0x95, 0xff);
+		if (rc < 0) {
+			chg_err("Couldn't set the REG53, rc = %d\n", rc);
+			i2c_err = true;
+			continue;
+		}
+
+		rc = mp2650_config_interface_without_lock(REG3F_MP2650_ADDRESS, 0x00, 0xff);
+		if (rc < 0) {
+			chg_err("Couldn't clear the REG3F, rc = %d\n", rc);
+			i2c_err = true;
+			continue;
+		} else {
+			rc = __mp2650_read_reg(REG3F_MP2650_ADDRESS, &reg_value);
+
+			/* read back value of REG3F shall be 0x00 */
+			if (rc >= 0 && reg_value == 0) {
+				chg_info(" after %d times, clear the REG3F success!\n", retry);
+				break;
+			} else {
+				chg_err("read back reg_value = 0x%x, rc = %d, clear failed\n", reg_value, rc);
+				if (rc < 0)
+					i2c_err = true;
+				continue;
+			}
+		}
+	}
+	rc = mp2650_config_interface_without_lock(REG53_MP2650_ADDRESS, 0x00, 0xff);
+	mutex_unlock(&mp2650_i2c_access);
+
+	if (reg_value != 0 || retry > 1) {
+		chg_err("read back reg_value = 0x%x, i2c_err = %d, retry = %d, send_count = %d\n",
+			 reg_value, i2c_err, retry, send_count);
+		if (send_count++ <= MP2650_MAX_SEND_COUNT)
+			mp2650_push_buck_err(chip->ic_dev, reg_value, i2c_err, retry);
+	}
 
 	return rc;
 }
@@ -2160,9 +2313,12 @@ void mp2650_dump_registers(void)
 		       val_buf[28], val_buf[29], val_buf[30], val_buf[31],
 		       val_buf[32], val_buf[33], val_buf[34], val_buf[35],
 		       val_buf[36], val_buf[37], val_buf[38]);
+	} else {
+		mp2650_reg_dump_internal();
 	}
 	dump_count++;
 }
+
 bool mp2650_need_to_check_ibatt(void)
 {
 	return false;
@@ -2623,13 +2779,13 @@ static ssize_t mp2650_data_log_write(struct file *filp, const char __user *buff,
 {
 	char write_data[32] = { 0 };
 	int critical_log = 0;
+	char *e;
 	int rc;
 
-	if (len >= sizeof(write_data)) {
+	if ((len >= sizeof(write_data)) || (len < 1))
 		return -EINVAL;
-	}
 
-	if (copy_from_user(&write_data, buff, len)) {
+	if (copy_from_user(write_data, buff, len)) {
 		chg_err("mp2650_data_log_write error.\n");
 		return -EFAULT;
 	}
@@ -2639,18 +2795,27 @@ static ssize_t mp2650_data_log_write(struct file *filp, const char __user *buff,
 		write_data[len - 1] = '\0';
 	}
 
-	critical_log = (int)simple_strtoul(write_data, NULL, 0);
-	if (critical_log > 256) {
-		critical_log = 256;
+	if (!strncmp(write_data, "0x", 2)) {
+		critical_log = (int)simple_strtoul(write_data, &e, 16);
+	} else if (isdigit(*write_data)) {
+		critical_log = (int)simple_strtoul(write_data, &e, 10);
+	} else {
+		chg_err("input data format error");
+		return -EINVAL;
 	}
+	if (write_data == e || *e != '\0') {
+		chg_err("input data format error, conversion not complete");
+		return -EINVAL;
+	}
+	if (critical_log > 256)
+		critical_log = 256;
 
-	chg_err("%s: input data = %s,  write_mp2650_data = 0x%02X\n", __func__,
-	       write_data, critical_log);
+	chg_err("input data = %s,  write_mp2650_data = 0x%02X\n",
+		write_data, critical_log);
 
 	rc = mp2650_config_interface(mp2650_add, critical_log, 0xff);
-	if (rc) {
+	if (rc < 0)
 		chg_err("Couldn't write 0x%02X rc = %d\n", mp2650_add, rc);
-	}
 
 	return len;
 }
@@ -2685,14 +2850,14 @@ static ssize_t mp2650_reg_store(struct file *filp, const char __user *buff,
 {
 	char write_data[32] = { 0 };
 	int critical_log = 0;
+	char *e;
 	int rc;
 	int val_buf;
 
-	if ((len >= sizeof(write_data)) || (len <= 0)) {
+	if ((len >= sizeof(write_data)) || (len < 1))
 		return -EINVAL;
-	}
 
-	if (copy_from_user(&write_data, buff, len)) {
+	if (copy_from_user(write_data, buff, len)) {
 		chg_err("mp2650_data_log_read error.\n");
 		return -EFAULT;
 	}
@@ -2702,22 +2867,31 @@ static ssize_t mp2650_reg_store(struct file *filp, const char __user *buff,
 		write_data[len - 1] = '\0';
 	}
 
-	critical_log = (int)simple_strtoul(write_data, NULL, 0);
-	if (critical_log > 256) {
-		critical_log = 256;
+	if (!strncmp(write_data, "0x", 2)) {
+		critical_log = (int)simple_strtoul(write_data, &e, 16);
+	} else if (isdigit(*write_data)) {
+		critical_log = (int)simple_strtoul(write_data, &e, 10);
+	} else {
+		chg_err("input data format error");
+		return -EINVAL;
 	}
+	if (write_data == e || *e != '\0') {
+		chg_err("input data format error, conversion not complete");
+		return -EINVAL;
+	}
+	if (critical_log > 256)
+		critical_log = 256;
 
 	mp2650_add = critical_log;
 
-	chg_err("%s: input data = %s,  mp2650_addr = 0x%02X\n", __func__,
-	       write_data, mp2650_add);
+	chg_err("input data = %s,  mp2650_addr = 0x%02X\n",
+		write_data, mp2650_add);
 
 	rc = mp2650_read_reg(mp2650_add, &val_buf);
-	if (rc) {
+	if (rc)
 		chg_err("Couldn't read 0x%02X rc = %d\n", mp2650_add, rc);
-	} else {
-		chg_err("mp2650_read 0x%02X = 0x%02X\n", mp2650_add, val_buf);
-	}
+	else
+		chg_info("mp2650_read 0x%02X = 0x%02X\n", mp2650_add, val_buf);
 
 	return len;
 }
@@ -2792,10 +2966,86 @@ static int mp2650_exit(struct oplus_chg_ic_dev *ic_dev)
 	return 0;
 }
 
-static int mp2650_reg_dump(struct oplus_chg_ic_dev *ic_dev)
+#define MP2650_DUMP_REG_COUNT   0x15
+static int mp2650_reg_dump_internal(void)
 {
+	int rc = 0;
+	int addr;
+	struct chip_mp2650 *chip = charger_ic;
+	int val_buf[MP2650_DUMP_REG_COUNT + 2] = { 0x0 };
+
+	if (!chip)
+		return 0;
+
+	if (atomic_read(&chip->charger_suspended) == 1)
+		return 0;
+
+	for (addr = MP2650_FIRST_REG; addr < MP2650_DUMP_REG_COUNT; addr++) {
+		rc = mp2650_read_reg(addr, &val_buf[addr]);
+		if (rc)
+			chg_err("Couldn't read 0x%02x rc = %d\n", addr, rc);
+	}
+	rc = mp2650_read_reg(0x48, &val_buf[MP2650_DUMP_REG_COUNT]);
+	if (rc)
+		chg_err("Couldn't read 0x48 rc = %d\n", rc);
+
+	printk(KERN_INFO "mp2650_dump_reg: [%02x, %02x, %02x, %02x], [%02x, %02x, %02x, %02x], "
+			"[%02x, %02x, %02x, %02x], [%02x, %02x, %02x, %02x], "
+			"[%02x, %02x, %02x, %02x], reg[0x14]=%02x,reg[0x48]=%02x \n",
+			val_buf[0], val_buf[1], val_buf[2], val_buf[3],
+			val_buf[4], val_buf[5], val_buf[6], val_buf[7],
+			val_buf[8], val_buf[9], val_buf[10], val_buf[11],
+			val_buf[12], val_buf[13], val_buf[14], val_buf[15],
+			val_buf[16], val_buf[17], val_buf[18], val_buf[19],
+			val_buf[20], val_buf[21]);
+
+	memset(buck_ic_reg_info, 0, BATTERY_LOG_REG_MAX_SIZE);
+	snprintf(buck_ic_reg_info, BATTERY_LOG_REG_MAX_SIZE,
+		",0x%02x,0x%02x,0x%02x,0x%02x,0x%02x,"
+		"0x%02x,0x%02x,0x%02x,0x%02x",
+		val_buf[0], val_buf[1], val_buf[2], val_buf[4], val_buf[8],
+		val_buf[9], val_buf[19], val_buf[20], val_buf[21]);
+
 	return 0;
 }
+
+static int mp2650_reg_dump(struct oplus_chg_ic_dev *ic_dev)
+{
+	int rc = mp2650_reg_dump_internal();
+	return rc;
+}
+
+static int buck_ic_dump_log_data(char *buffer, int size, void *dev_data)
+{
+	struct chip_mp2650 *chip = dev_data;
+
+	if (!buffer || !chip)
+		return -ENOMEM;
+
+	strncpy(buffer, buck_ic_reg_info, sizeof(buck_ic_reg_info));
+
+	return 0;
+}
+
+static int buck_ic_get_log_head(char *buffer, int size, void *dev_data)
+{
+	struct chip_mp2650 *chip = dev_data;
+
+	if (!buffer || !chip)
+		return -ENOMEM;
+
+	snprintf(buffer, size,
+		",in_curr[0x00],in_volt[0x01],chg_curr[0x02],chg_full[0x04],chg&otg_enable[0x08],"
+		"chg_terminal_enable[0x09],status_reg[0x13],fault_reg[0x14],Hiz_enable[0x48]");
+
+	return 0;
+}
+
+static struct battery_log_ops battlog_buck_ic_ops = {
+	.dev_name = "buck_ic",
+	.dump_log_head = buck_ic_get_log_head,
+	.dump_log_content = buck_ic_dump_log_data,
+};
 
 static int mp2650_smt_test(struct oplus_chg_ic_dev *ic_dev, char buf[], int len)
 {
@@ -2841,6 +3091,7 @@ static int mp2650_input_suspend(struct oplus_chg_ic_dev *ic_dev, bool suspend)
 		return -ENODEV;
 	}
 
+	chg_info("input suspend = %d\n", suspend);
 	chg_ic = oplus_chg_ic_get_drvdata(ic_dev);
 
 	if (atomic_read(&chg_ic->charger_suspended) == 1) {
@@ -2853,8 +3104,6 @@ static int mp2650_input_suspend(struct oplus_chg_ic_dev *ic_dev, bool suspend)
 				     REG08_MP2650_LEARN_EN_MASK);
 	if (rc < 0)
 		chg_err("can't suspend charger, rc = %d\n", rc);
-	else
-		chg_info("suspend charger\n");
 
 	return rc;
 }
@@ -2895,6 +3144,7 @@ static int mp2650_input_is_suspend(struct oplus_chg_ic_dev *ic_dev,
 static int mp2650_output_suspend(struct oplus_chg_ic_dev *ic_dev, bool suspend)
 {
 	int rc = 0;
+
 	rc = suspend ? mp2650_disable_charging() : mp2650_enable_charging();
 
 	return rc;
@@ -3248,6 +3498,8 @@ static int mp2650_driver_probe(struct i2c_client *client,
 	chg_ic->dev = &client->dev;
 	i2c_set_clientdata(client, chg_ic);
 
+	init_completion(&chg_ic->resume_ack);
+	complete_all(&chg_ic->resume_ack);
 	INIT_DELAYED_WORK(&chg_ic->plugin_work, mp2650_plugin_work);
 
 	charger_ic = chg_ic;
@@ -3281,14 +3533,17 @@ static int mp2650_driver_probe(struct i2c_client *client,
 		chg_err("can't get ic index, rc=%d\n", ret);
 		goto reg_ic_err;
 	}
+	battlog_buck_ic_ops.dev_data = (void *)chg_ic;
+	battery_log_ops_register(&battlog_buck_ic_ops);
 	ic_cfg.name = node->name;
 	ic_cfg.index = ic_index;
-	sprintf(ic_cfg.manu_name, "buck/boost-mp2762");
-	sprintf(ic_cfg.fw_id, "0x00");
+	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "buck-mp2762");
+	snprintf(ic_cfg.fw_id, OPLUS_CHG_IC_FW_ID_MAX - 1, "0x00");
 	ic_cfg.type = ic_type;
 	ic_cfg.get_func = oplus_chg_get_func;
 	ic_cfg.virq_data = mp2650_virq_table;
 	ic_cfg.virq_num = ARRAY_SIZE(mp2650_virq_table);
+	ic_cfg.of_node = node;
 	chg_ic->ic_dev = devm_oplus_chg_ic_register(chg_ic->dev, &ic_cfg);
 	if (!chg_ic->ic_dev) {
 		ret = -ENODEV;
@@ -3327,6 +3582,7 @@ static int mp2650_pm_resume(struct device *dev)
 	}
 
 	atomic_set(&chip->charger_suspended, 0);
+	complete_all(&chip->resume_ack);
 	return 0;
 }
 
@@ -3340,6 +3596,7 @@ static int mp2650_pm_suspend(struct device *dev)
 		return 0;
 	}
 
+	reinit_completion(&chip->resume_ack);
 	atomic_set(&chip->charger_suspended, 1);
 	return 0;
 }
@@ -3359,6 +3616,7 @@ static int mp2650_resume(struct i2c_client *client)
 	}
 
 	atomic_set(&chip->charger_suspended, 0);
+	complete_all(&chip->resume_ack);
 	return 0;
 }
 
@@ -3371,14 +3629,30 @@ static int mp2650_suspend(struct i2c_client *client, pm_message_t mesg)
 		return 0;
 	}
 
+	reinit_completion(&chip->resume_ack);
 	atomic_set(&chip->charger_suspended, 1);
 	return 0;
 }
 #endif
 
-static void mp2650_reset(struct i2c_client *client)
+#define VBUS_VOLT_VALID_THRESHOLD	2000
+static void mp2650_shutdown(struct i2c_client *client)
 {
 	mp2650_otg_disable();
+
+	/* suspend the charge to cause the fastchg adapter is reseted */
+	if (mp2650_get_vbus_voltage() > VBUS_VOLT_VALID_THRESHOLD) {
+		mp2650_config_interface(REG08_MP2650_ADDRESS,
+					REG08_MP2650_LEARN_EN_ENABLE,
+					REG08_MP2650_LEARN_EN_MASK);
+		msleep(1000);
+		mp2650_config_interface(REG08_MP2650_ADDRESS,
+					REG08_MP2650_LEARN_EN_DISABLE,
+					REG08_MP2650_LEARN_EN_MASK);
+		chg_info("suspend charger and unsuspend charger to reset the adapter!\n");
+	}
+
+	chg_info("shutdown\n");
 }
 
 static const struct of_device_id mp2650_match[] = {
@@ -3407,7 +3681,7 @@ static struct i2c_driver mp2650_i2c_driver = {
 	.resume		= mp2650_resume,
 	.suspend	= mp2650_suspend,
 #endif
-	.shutdown	= mp2650_reset,
+	.shutdown	= mp2650_shutdown,
 	.id_table	= mp2650_id,
 };
 

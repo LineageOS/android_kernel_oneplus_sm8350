@@ -53,7 +53,7 @@ bool oplus_mms_item_is_str(struct oplus_mms *mms, u32 id)
 		return false;
 	}
 	item = oplus_mms_get_item(mms, id);
-	if (mms == NULL) {
+	if (item == NULL) {
 		chg_err("%s item(=%d) not found\n", mms->desc->name, id);
 		return false;
 	}
@@ -97,6 +97,7 @@ bool oplus_mms_item_update(struct oplus_mms *mms, u32 item_id, bool check_update
 {
 	struct mms_item *item;
 	union mms_msg_data data = { 0 };
+	bool update;
 
 	if (mms == NULL || mms->desc == NULL ||
 	    !mms->desc->item_table) {
@@ -112,8 +113,9 @@ bool oplus_mms_item_update(struct oplus_mms *mms, u32 item_id, bool check_update
 	if (item->desc.update == NULL) {
 		return false;
 	}
-
+	mutex_lock(&item->update_lock);
 	item->desc.update(mms, &data);
+	mutex_unlock(&item->update_lock);
 	write_lock(&item->lock);
 	memcpy(&item->data, &data, sizeof(union mms_msg_data));
 	if (!check_update) {
@@ -164,8 +166,10 @@ bool oplus_mms_item_update(struct oplus_mms *mms, u32 item_id, bool check_update
 	}
 
 out:
+	update = item->updated;
 	write_unlock(&item->lock);
-	return item->updated;
+
+	return update;
 }
 
 static int oplus_mms_item_update_by_msg(struct oplus_mms *mms, u32 item_id,
@@ -413,7 +417,7 @@ int oplus_mms_publish_msg_sync(struct oplus_mms *mms, struct mms_msg *msg)
 		return rc;
 
 	wait_for_completion(&msg->ack);
-	/* 
+	/*
 	 * sync need to be released by the sender.
 	 * we need to ensure that msg is not released before
 	 * calling wait_for_completion.
@@ -431,8 +435,8 @@ int oplus_mms_publish_ic_err_msg(struct oplus_mms *topic, u32 item_id,
 
 	topic_msg =
 		oplus_mms_alloc_str_msg(MSG_TYPE_ITEM, MSG_PRIO_HIGH, item_id,
-					"[%s]-[%s]:%s", err_msg->ic->name,
-					oplus_chg_ic_err_text(err_msg->type),
+					"[%s]-[%d]-[%d]:%s", err_msg->ic->name,
+					err_msg->type, err_msg->sub_type,
 					err_msg->msg);
 	if (topic_msg == NULL) {
 		chg_err("alloc topic msg error\n");
@@ -446,6 +450,103 @@ int oplus_mms_publish_ic_err_msg(struct oplus_mms *topic, u32 item_id,
 	}
 
 	return rc;
+}
+
+int oplus_mms_analysis_ic_err_msg(char *buf, size_t buf_size, int *name_index,
+				  int *type, int *sub_type, int *msg_index)
+{
+	char *str;
+	int index = 0;
+	int type_index, sub_type_index;
+
+	if (buf == NULL) {
+		chg_err("buf is NULL\n");
+		return -EINVAL;
+	}
+	if (type == NULL) {
+		chg_err("type is NULL\n");
+		return -EINVAL;
+	}
+	if (sub_type == NULL) {
+		chg_err("sub_type is NULL\n");
+		return -EINVAL;
+	}
+	if (msg_index == NULL) {
+		chg_err("msg_index is NULL\n");
+		return -EINVAL;
+	}
+
+	str = buf;
+
+	/* name index */
+	if (*str != '[') {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	index++;
+	str = buf + index;
+	*name_index = index;
+
+	/* type */
+	while (*str != 0 && index < buf_size) {
+		if (strncmp("]-[", str, 3) == 0) {
+			index = index + 3;
+			type_index = index;
+			break;
+		}
+		index++;
+		str++;
+	}
+	if (*str == 0 || index >= buf_size) {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	*str = 0;
+	str = buf + index;
+
+	/* sub type */
+	while (*str != 0 && index < buf_size) {
+		if (strncmp("]-[", str, 3) == 0) {
+			index = index + 3;
+			sub_type_index = index;
+			break;
+		}
+		index++;
+		str++;
+	}
+	if (*str == 0 || index >= buf_size) {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	*str = 0;
+	str = buf + index;
+
+	/* msg index */
+	while (*str != 0 && index < buf_size) {
+		if (strncmp("]:", str, 2) == 0) {
+			index = index + 2;
+			*msg_index = index;
+			break;
+		}
+		index++;
+		str++;
+	}
+	if (*str == 0 || index >= buf_size) {
+		chg_err("buf data is error\n");
+		return -EINVAL;
+	}
+	*str = 0;
+
+	if(sscanf(buf + type_index, "%d", type) != 1) {
+		chg_err("get ic err type error\n");
+		return -EINVAL;
+	}
+	if(sscanf(buf + sub_type_index, "%d", sub_type) != 1) {
+		chg_err("get ic sub err type error\n");
+		return -EINVAL;
+	}
+
+	return 0;
 }
 
 int oplus_mms_wait_topic(const char *name, mms_callback_t call, void *data)
@@ -527,7 +628,7 @@ struct mms_subscribe *oplus_mms_subscribe(
 	}
 	spin_unlock(&mms->subscribe_lock);
 
-	subs = kzalloc(sizeof(struct oplus_mms), GFP_KERNEL);
+	subs = kzalloc(sizeof(struct mms_subscribe), GFP_KERNEL);
 	if (subs == NULL) {
 		chg_err("alloc subs memory error\n");
 		return ERR_PTR(-ENOMEM);
@@ -661,10 +762,6 @@ static ssize_t subscribe_show(struct device *dev, struct device_attribute *attr,
 	list_for_each_entry_rcu(subs, &mms->subscribe_list, list)
 		len += sprintf(buf + len, "%s\n", subs->name);
 	rcu_read_unlock();
-	if (len > 0) {
-		len--;
-		buf[len] = 0;
-	}
 
 	return len;
 }
@@ -890,8 +987,10 @@ __oplus_mms_register(struct device *parent, const struct oplus_mms_desc *desc,
 	spin_lock_init(&mms->subscribe_lock);
 	mutex_init(&mms->msg_lock);
 	spin_lock_init(&mms->changed_lock);
-	for (i = 0; i < desc->item_num; i++)
+	for (i = 0; i < desc->item_num; i++) {
 		rwlock_init(&desc->item_table[i].lock);
+		mutex_init(&desc->item_table[i].update_lock);
+	}
 	INIT_DELAYED_WORK(&mms->update_work, oplus_mms_update_work);
 	INIT_DELAYED_WORK(&mms->msg_work, oplus_mms_msg_work);
 	INIT_LIST_HEAD(&mms->subscribe_list);

@@ -254,6 +254,33 @@ struct mt6895_chip {
 };
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
+typedef enum {
+	NTC_BATTERY,
+	NTC_CHARGER_IC,
+	NTC_SUB_BOARD,
+	NTC_BATTERY_BTB,
+	NTC_SUB_BATTERY_BTB,
+	NTC_USB_BTB,
+} NTC_TYPE;
+
+struct temp_param {
+	int bts_temp;
+	int temperature_r;
+};
+
+struct ntc_temp{
+	NTC_TYPE e_ntc_type;
+	int i_tap_over_critical_low;
+	int i_rap_pull_up_r;
+	int i_rap_pull_up_voltage;
+	int i_tap_min;
+	int i_tap_max;
+	unsigned int i_25c_volt;
+	unsigned int ui_dwvolt;
+	struct temp_param *pst_temp_table;
+	int i_table_size;
+};
+
 struct oplus_custom_gpio_pinctrl {
 	int vchg_trig_gpio;
 	int ccdetect_gpio;
@@ -289,8 +316,10 @@ struct oplus_custom_gpio_pinctrl {
 struct mtk_charger {
 #ifdef OPLUS_FEATURE_CHG_BASIC
 	struct oplus_chg_ic_dev *ic_dev;
+	struct oplus_chg_ic_dev *gauge_ic_dev;
 	bool wls_boost_soft_start;
 	int wls_set_boost_vol;
+	struct oplus_mms *gauge_topic;
 #endif
 
 	struct platform_device *pdev;
@@ -431,10 +460,19 @@ struct mtk_charger {
 	bool is_charging;
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
+	struct iio_channel	*subboard_temp_chan;
 	struct iio_channel      *chargeric_temp_chan;
 	struct iio_channel      *charger_id_chan;
 	struct iio_channel      *usb_temp_v_l_chan;
 	struct iio_channel      *usb_temp_v_r_chan;
+	struct iio_channel	*batt_btb_temp_chan;
+	struct iio_channel	*sub_batt_btb_temp_chan;
+	struct iio_channel	*usb_btb_temp_chan;
+
+#ifdef CONFIG_THERMAL
+	struct thermal_zone_device *cp_temp_tzd;
+	struct thermal_zone_device *sub_batt_temp_tzd;
+#endif
 
 	int ccdetect_gpio;
 	int ccdetect_irq;
@@ -445,7 +483,10 @@ struct mtk_charger {
 
 	int chargeric_temp_volt;
 	int chargeric_temp;
+	int i_sub_board_temp;
 	bool support_ntc_01c_precision;
+	bool ntc_temp_volt_1840mv;
+	bool support_subboard_ntc;
 	bool pd_svooc;
 
 	struct tcpc_device *tcpc;
@@ -453,9 +494,13 @@ struct mtk_charger {
 
 	bool chrdet_state;
 	bool wd0_detect;
+	int typec_state;
 	struct delayed_work status_keep_clean_work;
+	struct delayed_work hvdcp_detect_work;
+	struct delayed_work detach_clean_work;
 	struct wakeup_source *status_wake_lock;
 	bool status_wake_lock_on;
+	bool hvdcp_disable;
 #endif
 };
 
@@ -515,7 +560,6 @@ extern int oplus_chg_set_dischg_enable(bool en);
 extern int battery_meter_get_charger_voltage(void);
 extern void mt_usb_connect(void);
 extern void mt_usb_disconnect(void);
-int oplus_get_chargeric_temp(void);
 extern bool is_meta_mode(void);
 #endif
 #endif /* __MTK_CHARGER_H */

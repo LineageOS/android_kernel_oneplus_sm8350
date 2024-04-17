@@ -24674,6 +24674,17 @@ static const struct snd_kcontrol_new mmul2_mixer_controls[] = {
 	MSM_FRONTEND_DAI_MULTIMEDIA2, 1, 0, msm_routing_get_audio_mixer,
 	msm_routing_put_audio_mixer),
 #endif
+#ifdef OPLUS_ARCH_EXTENDS
+	/* MULTIMEDIA.AUDIODRIVER.MACHINE, 2023/01/31 add for support call record in ocar mode */
+	SOC_DOUBLE_EXT("VOC_REC_DL", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_INCALL_RECORD_RX,
+	MSM_FRONTEND_DAI_MULTIMEDIA2, 1, 0, msm_routing_get_audio_mixer,
+	msm_routing_put_audio_mixer),
+	SOC_DOUBLE_EXT("VOC_REC_UL", SND_SOC_NOPM,
+	MSM_BACKEND_DAI_INCALL_RECORD_TX,
+	MSM_FRONTEND_DAI_MULTIMEDIA2, 1, 0, msm_routing_get_audio_mixer,
+	msm_routing_put_audio_mixer),
+#endif /* OPLUS_ARCH_EXTENDS */
 };
 
 static const struct snd_kcontrol_new mmul3_mixer_controls[] = {
@@ -36356,6 +36367,12 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"MultiMedia4 Mixer", "VOC_REC_DL", "INCALL_RECORD_RX"},
 	{"MultiMedia8 Mixer", "VOC_REC_DL", "INCALL_RECORD_RX"},
 	{"MultiMedia9 Mixer", "VOC_REC_DL", "INCALL_RECORD_RX"},
+	#ifdef OPLUS_ARCH_EXTENDS
+	/* MULTIMEDIA.AUDIODRIVER.MACHINE, 2023/01/31 add for support call record in ocar mode */
+	{"MultiMedia2 Mixer", "VOC_REC_UL", "INCALL_RECORD_TX"},
+	{"MultiMedia2 Mixer", "VOC_REC_DL", "INCALL_RECORD_RX"},
+	#endif /* OPLUS_ARCH_EXTENDS */
+
 	{"MultiMedia1 Mixer", "SLIM_4_TX", "SLIMBUS_4_TX"},
 	{"MultiMedia1 Mixer", "SLIM_6_TX", "SLIMBUS_6_TX"},
 	{"MultiMedia1 Mixer", "SLIM_7_TX", "SLIMBUS_7_TX"},
@@ -36393,6 +36410,11 @@ static const struct snd_soc_dapm_route intercon[] = {
 	{"MultiMedia10 Mixer", "SLIM_1_TX", "SLIMBUS_1_TX"},
 	{"MultiMedia16 Mixer", "SLIM_0_TX", "SLIMBUS_0_TX"},
 	{"MultiMedia16 Mixer", "SLIM_1_TX", "SLIMBUS_1_TX"},
+#ifdef OPLUS_ARCH_EXTENDS
+	/* MULTIMEDIA.AUDIODRIVER.MACHINE, 2021/07/02, add for mmap-record bt-sco and mmap-record capture-fm */
+	{"MultiMedia16 Mixer", "SLIM_7_TX", "SLIMBUS_7_TX"},
+	{"MultiMedia16 Mixer", "SEC_MI2S_TX", "SEC_MI2S_TX"},
+#endif /* OPLUS_ARCH_EXTENDS */
 	{"MultiMedia5 Mixer", "SLIM_7_TX", "SLIMBUS_7_TX"},
 	{"MultiMedia5 Mixer", "SLIM_8_TX", "SLIMBUS_8_TX"},
 	{"MultiMedia5 Mixer", "SLIM_9_TX", "SLIMBUS_9_TX"},

@@ -228,6 +228,8 @@ struct dsi_panel_oplus_privite {
 	u32 pre_bl_delay_ms;
 	bool dp_support;
 	bool cabc_enabled;
+	bool lp_config_flag;
+	bool seed_read_back_flag;
 	u32 cabc_status;
 	bool dre_enabled;
 	// Add for apollo support
@@ -249,6 +251,12 @@ struct dsi_panel_oplus_privite {
 	bit(7):ultra low power aod
 ********************************************/
 	u32 fp_type;
+};
+
+struct dsi_panel_oplus_serial_number {
+	bool is_switch_page;
+	u32 *serial_number_multi_regs;
+	int serial_number_index;
 };
 #endif /* OPLUS_BUG_STABILITY */
 
@@ -311,7 +319,6 @@ struct dsi_panel {
 	struct drm_panel_esd_config esd_config;
 
 	struct dsi_parser_utils utils;
-
 	bool lp11_init;
 	bool ulps_feature_enabled;
 	bool ulps_suspend_enabled;
@@ -324,6 +331,7 @@ struct dsi_panel {
 	bool panel_initialized;
 	bool te_using_watchdog_timer;
 	struct dsi_qsync_capabilities qsync_caps;
+	bool switch_vsync_delay;
 
 	char dce_pps_cmd[DSI_CMD_PPS_SIZE];
 	enum dsi_dms_mode dms_mode;
@@ -340,6 +348,7 @@ struct dsi_panel {
 	int ba_count;
 	int dc_ba_count;
 	struct dsi_panel_oplus_privite oplus_priv;
+	struct dsi_panel_oplus_serial_number oplus_ser;
 	int panel_id2;
 	atomic_t esd_pending;
 #endif
@@ -491,7 +500,7 @@ int dsi_panel_get_io_resources(struct dsi_panel *panel,
 void dsi_panel_calc_dsi_transfer_time(struct dsi_host_common_cfg *config,
 		struct dsi_display_mode *mode, u32 frame_threshold_us);
 
-int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt);
+		int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt);
 
 int dsi_panel_alloc_cmd_packets(struct dsi_panel_cmd_set *cmd,
 		u32 packet_count);
