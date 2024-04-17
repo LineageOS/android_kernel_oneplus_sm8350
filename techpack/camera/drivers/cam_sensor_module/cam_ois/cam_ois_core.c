@@ -180,7 +180,11 @@ static int cam_ois_get_dev_handle(struct cam_ois_ctrl_t *o_ctrl,
 	return 0;
 }
 
+#ifdef OPLUS_FEATURE_CAMERA_COMMON
 int cam_ois_power_up(struct cam_ois_ctrl_t *o_ctrl)
+#else
+static int cam_ois_power_up(struct cam_ois_ctrl_t *o_ctrl)
+#endif
 {
 	int                             rc = 0;
 	struct cam_hw_soc_info          *soc_info =
@@ -247,15 +251,6 @@ int cam_ois_power_up(struct cam_ois_ctrl_t *o_ctrl)
 		goto cci_failure;
 	}
 
-        InitOIS(o_ctrl);
-	if(strstr(o_ctrl->ois_name,"124")) {
-		ois_write_fwstate(OIS_FW_DOWNLOAD_INTIAL);
-	}
-	else
-	{
-		ois_write_fwstate(OIS_FW_DOWNLOAD_COMPLETED);
-	}
-
 	return rc;
 cci_failure:
 	if (cam_sensor_util_power_down(power_info, soc_info))
@@ -295,8 +290,6 @@ static int cam_ois_power_down(struct cam_ois_ctrl_t *o_ctrl)
 		CAM_ERR(CAM_OIS, "failed: power_info %pK", power_info);
 		return -EINVAL;
 	}
-
-	DeinitOIS(o_ctrl);
 
 	rc = cam_sensor_util_power_down(power_info, soc_info);
 	if (rc) {
@@ -374,7 +367,6 @@ static int cam_ois_apply_settings(struct cam_ois_ctrl_t *o_ctrl,
 		if (i2c_list->op_code ==  CAM_SENSOR_I2C_WRITE_RANDOM) {
 			rc = camera_io_dev_write(&(o_ctrl->io_master_info),
 				&(i2c_list->i2c_settings));
-                        CAM_ERR(CAM_OIS,"type=%d write ois register addr=0x%x data=0x%x ",o_ctrl->ois_type,i2c_list->i2c_settings.reg_setting->reg_addr,i2c_list->i2c_settings.reg_setting->reg_data);
 			if (rc < 0) {
 				CAM_ERR(CAM_OIS,
 					"Failed in Applying i2c wrt settings");
@@ -609,8 +601,6 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 	struct cam_ois_soc_private     *soc_private =
 		(struct cam_ois_soc_private *)o_ctrl->soc_info.soc_private;
 	struct cam_sensor_power_ctrl_t  *power_info = &soc_private->power_info;
-        int count=0;
-        int enable=0;
 
 	ioctl_ctrl = (struct cam_control *)arg;
 	if (copy_from_user(&dev_config,
@@ -906,16 +896,6 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			cam_mem_put_cpu_buf(dev_config.packet_handle);
 			return rc;
 		}
-
-		if (!IsOISReady(o_ctrl)) {
-			CAM_ERR(CAM_OIS, "OIS is not ready, apply setting may fail");
-                        for(count=0;count<o_ctrl->soc_info.num_rgltr;count++){
-                            enable=regulator_is_enabled(regulator_get(o_ctrl->soc_info.dev,o_ctrl->soc_info.rgltr_name[count]));
-                            CAM_ERR(CAM_OIS, "regulator enable=%d,name[%d]=%s",enable,count,o_ctrl->soc_info.rgltr_name[count]);
-                        }
-		}
-		o_ctrl->ois_poll_thread_control_cmd = CAM_OIS_START_POLL_THREAD;
-		OISControl(o_ctrl);
 
 		rc = cam_ois_apply_settings(o_ctrl, i2c_reg_settings);
 		if (rc < 0) {

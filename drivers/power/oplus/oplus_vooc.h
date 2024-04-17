@@ -19,13 +19,13 @@
 #endif
 #include <linux/firmware.h>
 
-#define OPLUS_VOOC_MCU_HWID_UNKNOW   -1
+#define OPLUS_VOOC_MCU_HWID_UNKNOW	-1
 #define OPLUS_VOOC_MCU_HWID_STM8S	0
-#define OPLUS_VOOC_MCU_HWID_N76E		1
+#define OPLUS_VOOC_MCU_HWID_N76E	1
 #define OPLUS_VOOC_ASIC_HWID_RK826	2
 #define OPLUS_VOOC_ASIC_HWID_OP10	3
-#define OPLUS_VOOC_ASIC_HWID_RT5125   4
-#define OPLUS_VOOC_ASIC_HWID_NON_EXIST 5
+#define OPLUS_VOOC_ASIC_HWID_RT5125	4
+#define OPLUS_VOOC_ASIC_HWID_NON_EXIST	5
 
 typedef enum {
 	VOOC_VERSION_DEFAULT = 0,
@@ -34,7 +34,7 @@ typedef enum {
 	VOOC_VERSION_3_0,
 	VOOC_VERSION_4_0,
 	VOOC_VERSION_5_0, /*optimize into fastchging time*/
-}VOOC_PROTOCOL_VERSION;
+} VOOC_PROTOCOL_VERSION;
 
 enum {
 	VOOC_CHARGER_MODE,
@@ -63,7 +63,7 @@ enum {
 	PORTABLE_20W_3 = 0x36,
 };
 
-enum e_fastchg_power{
+enum e_fastchg_power {
 	FASTCHG_POWER_UNKOWN,
 	FASTCHG_POWER_5V4A_5V6A_VOOC,
 	FASTCHG_POWER_11V3A_FLASHCHARGER,
@@ -77,16 +77,26 @@ enum e_fastchg_power{
 	FASTCHG_POWER_OTHER,
 };
 
-enum e_fastchg_version{
+enum e_fastchg_version {
 	FASTCHG_VERSION_UNKOWN,
-	FASTCHG_VERSION_5V4A_5V6A_VOOC,
-	FASTCHG_VERSION_10V5A_TWO_BAT_SVOOC,
-	FASTCHG_VERSION_10V6P5A_TWO_BAT_SVOOC,
-	FASTCHG_VERSION_10V5A_SINGLE_BAT_SVOOC,
-	FASTCHG_VERSION_11V3A_FLASHCHARGER,
-	FASTCHG_VERSION_10V6A_DUAL_CP_SVOOC,
-	FASTCHG_VERSION_10V8A_TWO_BAT_SVOOC,
-	FASTCHG_VERSION_10V10A_TWO_BAT_SVOOC,
+	FASTCHG_VERSION_5V4A_5V6A_VOOC = 1,
+	FASTCHG_VERSION_10V5A_TWO_BAT_SVOOC = 2,
+	FASTCHG_VERSION_10V6P5A_TWO_BAT_SVOOC = 3,
+	FASTCHG_VERSION_10V5A_SINGLE_BAT_SVOOC = 4,
+	FASTCHG_VERSION_11V3A_FLASHCHARGER = 5,
+	FASTCHG_VERSION_10V6A_DUAL_CP_SVOOC = 6,
+	FASTCHG_VERSION_10V8A_TWO_BAT_SVOOC = 7,
+	FASTCHG_VERSION_10V10A_TWO_BAT_SVOOC = 8,
+	FASTCHG_VERSION_20V7P5A_TWO_BAT_SVOOC = 9,
+	FASTCHG_VERSION_10V6P6A_SINGLE_BAT_SVOOC = 12,
+	FASTCHG_VERSION_11V6P1A_SINGLE_BAT_SVOOC = 13,
+	FASTCHG_VERSION_20VP6A_TWO_BAT_SVOOC = 14,
+	FASTCHG_VERSION_11VP4A_SINGLE_BAT_SVOOC = 15,
+	FASTCHG_VERSION_20V12A_TWO_BAT_SVOOC = 16,
+	FASTCHG_VERSION_200W_SVOOC = 17,
+	FASTCHG_VERSION_88W_SVOOC = 18,
+	FASTCHG_VERSION_55W_SVOOC = 19,
+	FASTCHG_VERSION_125W_SVOOC = 20,
 	FASTCHG_VERSION_OTHER,
 };
 
@@ -113,13 +123,13 @@ enum {
 
 enum {
 	FASTCHG_TEMP_RANGE_INIT = 0,
-	FASTCHG_TEMP_RANGE_LITTLE_COLD,/*0 ~ 5*/
+	FASTCHG_TEMP_RANGE_LITTLE_COLD, /*0 ~ 5*/
 	FASTCHG_TEMP_RANGE_COOL, /*5 ~ 12*/
 	FASTCHG_TEMP_RANGE_LITTLE_COOL, /*12~16*/
 	FASTCHG_TEMP_RANGE_NORMAL_LOW, /*16~25*/
 	FASTCHG_TEMP_RANGE_NORMAL_HIGH, /*25~43*/
 	FASTCHG_TEMP_RANGE_WARM, /*43-52*/
-	FASTCHG_TEMP_RANGE_NORMAL,         
+	FASTCHG_TEMP_RANGE_NORMAL,
 };
 
 enum {
@@ -147,9 +157,9 @@ struct batt_bcc_curve {
 	bool exit;
 };
 
-#define BATT_BCC_ROW_MAX        13
-#define BATT_BCC_COL_MAX        7
-#define BATT_BCC_MAX            6
+#define BATT_BCC_ROW_MAX 13
+#define BATT_BCC_COL_MAX 7
+#define BATT_BCC_MAX 6
 
 struct batt_bcc_curves {
 	struct batt_bcc_curve batt_bcc_curve[BATT_BCC_ROW_MAX];
@@ -165,11 +175,9 @@ struct vooc_gpio_control {
 	int clock_gpio;
 	int data_gpio;
 	int mcu_ctrl_cp_gpio;
-	//int pps_vbus_det_ctr1_gpio;
 	int vooc_mcu_id_gpio;
 	int vooc_asic_id_gpio;
 	int data_irq;
-	int mcu_ctrl_cp_irq;
 	struct pinctrl *pinctrl;
 
 	struct pinctrl_state *gpio_switch1_act_switch2_act;
@@ -201,7 +209,6 @@ struct oplus_vooc_chip {
 	struct delayed_work fw_update_work_fix;
 	struct delayed_work fastchg_work;
 	struct delayed_work delay_reset_mcu_work;
-	struct delayed_work mcu_ctrl_cp_work;
 	struct delayed_work check_charger_out_work;
 	struct delayed_work bcc_get_max_min_curr;
 	struct work_struct vooc_watchdog_work;
@@ -239,7 +246,7 @@ struct oplus_vooc_chip {
 	int adapter_update_report;
 	int dpdm_switch_mode;
 	bool support_vooc_by_normal_charger_path;
-/* Add for vooc batt 4.40*/
+	/* Add for vooc batt 4.40*/
 	bool batt_type_4400mv;
 	bool vooc_fw_check;
 	bool support_single_batt_svooc;
@@ -281,8 +288,8 @@ struct oplus_vooc_chip {
 	int vooc_warm_bat_suspend_volt;
 	int vooc_chg_current_now;
 	int fast_chg_type;
-	bool disable_adapter_output;// 0--vooc adapter output normal,  1--disable vooc adapter output
-	int set_vooc_current_limit;///0--no limit;  1--max current limit 2A
+	bool disable_adapter_output; /* 0--vooc adapter output normal,  1--disable vooc adapter output */
+	int set_vooc_current_limit; /* 0--no limit;  1--max current limit 2A */
 	bool vooc_multistep_adjust_current_support;
 	int vooc_reply_mcu_bits;
 	int vooc_low_temp_smart_charge;
@@ -382,6 +389,7 @@ struct oplus_vooc_chip {
 	int bcc_soc_range;
 	int bcc_temp_range;
 	int bcc_curr_count;
+	bool fw_update_on_chargering_reboot;
 };
 
 struct oplus_vooc_cp {
@@ -398,18 +406,15 @@ struct oplus_vooc_cp {
 	int (*cp_hardware_init_pdqc)(void);
 };
 
-#define MAX_FW_NAME_LENGTH	60
+#define MAX_FW_NAME_LENGTH 60
 #define MAX_DEVICE_VERSION_LENGTH 16
-#define MAX_DEVICE_MANU_LENGTH    60
+#define MAX_DEVICE_MANU_LENGTH 60
 struct oplus_vooc_operations {
 	int (*fw_update)(struct oplus_vooc_chip *chip);
 	int (*fw_check_then_recover)(struct oplus_vooc_chip *chip);
 	int (*fw_check_then_recover_fix)(struct oplus_vooc_chip *chip);
 	void (*eint_regist)(struct oplus_vooc_chip *chip);
 	void (*eint_unregist)(struct oplus_vooc_chip *chip);
-	void (*pps_eint_regist)(struct oplus_vooc_chip *chip);
-	void (*pps_eint_unregist)(struct oplus_vooc_chip *chip);
-	int (*pps_get_value)(struct oplus_vooc_chip *chip);
 	void (*set_data_active)(struct oplus_vooc_chip *chip);
 	void (*set_data_sleep)(struct oplus_vooc_chip *chip);
 	void (*set_clock_active)(struct oplus_vooc_chip *chip);
@@ -417,14 +422,16 @@ struct oplus_vooc_operations {
 	void (*set_switch_mode)(struct oplus_vooc_chip *chip, int mode);
 	int (*get_gpio_ap_data)(struct oplus_vooc_chip *chip);
 	int (*read_ap_data)(struct oplus_vooc_chip *chip);
-	void (*reply_mcu_data)(struct oplus_vooc_chip *chip, int ret_info, int device_type);
-	void (*reply_mcu_data_4bits)(struct oplus_vooc_chip *chip,
-		int ret_info, int device_type);
+	void (*reply_mcu_data)(struct oplus_vooc_chip *chip, int ret_info,
+			       int device_type);
+	void (*reply_mcu_data_4bits)(struct oplus_vooc_chip *chip, int ret_info,
+				     int device_type);
 	void (*reset_fastchg_after_usbout)(struct oplus_vooc_chip *chip);
 	void (*switch_fast_chg)(struct oplus_vooc_chip *chip);
 	void (*reset_mcu)(struct oplus_vooc_chip *chip);
 	void (*set_mcu_sleep)(struct oplus_vooc_chip *chip);
-	void (*set_vooc_chargerid_switch_val)(struct oplus_vooc_chip *chip, int value);
+	void (*set_vooc_chargerid_switch_val)(struct oplus_vooc_chip *chip,
+					      int value);
 	bool (*is_power_off_charging)(struct oplus_vooc_chip *chip);
 	int (*get_reset_gpio_val)(struct oplus_vooc_chip *chip);
 	int (*get_switch_gpio_val)(struct oplus_vooc_chip *chip);
@@ -439,7 +446,6 @@ struct oplus_vooc_operations {
 void oplus_vooc_init(struct oplus_vooc_chip *chip);
 void oplus_vooc_init_cp(struct oplus_vooc_cp *cp);
 void oplus_vooc_shedule_fastchg_work(void);
-void oplus_vooc_bypass_work(void);
 void oplus_vooc_read_fw_version_init(struct oplus_vooc_chip *chip);
 void oplus_vooc_fw_update_work_init(struct oplus_vooc_chip *chip);
 bool oplus_vooc_wake_fastchg_work(struct oplus_vooc_chip *chip);
@@ -465,6 +471,7 @@ void oplus_vooc_set_fastchg_dummy_started_false(void);
 int oplus_vooc_get_adapter_update_status(void);
 int oplus_vooc_get_adapter_update_real_status(void);
 bool oplus_vooc_get_btb_temp_over(void);
+void oplus_vooc_set_btb_temp_over(bool btb_temp_status);
 void oplus_vooc_reset_fastchg_after_usbout(void);
 void oplus_vooc_switch_fast_chg(void);
 void oplus_vooc_reset_mcu(void);
@@ -488,8 +495,6 @@ int oplus_vooc_get_uart_rx(void);
 void oplus_vooc_uart_init(void);
 void oplus_vooc_uart_reset(void);
 void oplus_vooc_mcu_reset(void);
-void oplus_start_pps_reset(void);
-void oplus_start_svooc_reset(void);
 void oplus_vooc_set_adapter_update_real_status(int real);
 void oplus_vooc_set_adapter_update_report_status(int report);
 int oplus_vooc_get_fast_chg_type(void);
@@ -508,11 +513,11 @@ void oplus_vooc_reset_temp_range(struct oplus_vooc_chip *chip);
 bool oplus_vooc_get_fw_update_status(void);
 void oplus_vooc_check_set_mcu_sleep(void);
 bool oplus_vooc_get_reset_adapter_st(void);
+void oplus_vooc_set_reset_adapter_false(void);
 int oplus_vooc_get_reset_active_status(void);
 void oplus_vooc_fw_update_work_plug_in(void);
 int oplus_vooc_check_asic_fw_status(void);
 int oplus_vooc_get_abnormal_adapter_current_cnt(void);
-int oplus_pps_get_value(void);
 int oplus_vooc_check_bcc_max_curr(void);
 int oplus_vooc_check_bcc_min_curr(void);
 int oplus_vooc_check_bcc_exit_curr(void);
@@ -521,4 +526,7 @@ bool oplus_vooc_get_bcc_support(void);
 extern int oplus_chg_bcc_get_stop_curr(struct oplus_vooc_chip *chip);
 int oplus_vooc_get_bcc_exit_curr(void);
 bool oplus_vooc_bcc_get_temp_range(void);
+bool oplus_vooc_get_vooc_by_normal_path(void);
+int oplus_vooc_get_batt_curve_current(void);
+bool oplus_vooc_chip_is_null(void);
 #endif /* _OPLUS_VOOC_H */

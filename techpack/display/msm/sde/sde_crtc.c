@@ -2632,7 +2632,7 @@ extern u32 oplus_onscreenfp_vblank_count;
 extern ktime_t oplus_onscreenfp_pressed_time;
 #endif /* OPLUS_BUG_STABILITY */
 void sde_crtc_complete_commit(struct drm_crtc *crtc,
-		struct drm_crtc_state *old_state)
+		struct drm_crtc_state *old_state, bool update_perf)
 {
 	struct sde_crtc *sde_crtc;
 
@@ -2643,6 +2643,9 @@ void sde_crtc_complete_commit(struct drm_crtc *crtc,
 
 	sde_crtc = to_sde_crtc(crtc);
 	SDE_EVT32_VERBOSE(DRMID(crtc));
+
+	if (!update_perf)
+		return;
 
 	sde_core_perf_crtc_update(crtc, 0, false);
 #ifdef OPLUS_BUG_STABILITY
@@ -3492,6 +3495,11 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 
 	if (crtc->state->mode_changed || sde_kms->perf.catalog->uidle_cfg.dirty)
 		sde_core_perf_crtc_update_uidle(crtc, true);
+	else if (!test_bit(SDE_CRTC_DIRTY_UIDLE, &sde_crtc->revalidate_mask) &&
+			!sde_kms->perf.uidle_enabled)
+		sde_core_uidle_setup_ctl(crtc, false);
+
+	test_and_clear_bit(SDE_CRTC_DIRTY_UIDLE, &sde_crtc->revalidate_mask);
 
 	/*
 	 * Since CP properties use AXI buffer to program the
@@ -3943,7 +3951,7 @@ void sde_crtc_commit_kickoff(struct drm_crtc *crtc,
 		 */
 		params.affected_displays = _sde_crtc_get_displays_affected(crtc,
 				crtc->state);
-		if (sde_encoder_prepare_for_kickoff(encoder, &params))
+		if (sde_encoder_prepare_for_kickoff(encoder, &params, old_state))
 			sde_crtc->needs_hw_reset = true;
 
 		if (idle_pc_state != IDLE_PC_NONE)
@@ -4177,6 +4185,7 @@ void sde_crtc_reset_sw_state(struct drm_crtc *crtc)
 
 	/* mark other properties which need to be dirty for next update */
 	set_bit(SDE_CRTC_DIRTY_DIM_LAYERS, &sde_crtc->revalidate_mask);
+	set_bit(SDE_CRTC_DIRTY_UIDLE, &sde_crtc->revalidate_mask);
 	if (cstate->num_ds_enabled)
 		set_bit(SDE_CRTC_DIRTY_DEST_SCALER, cstate->dirty);
 }

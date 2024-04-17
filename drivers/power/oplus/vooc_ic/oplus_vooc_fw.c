@@ -57,8 +57,6 @@
 #include "oplus_vooc_fw.h"
 
 int g_hw_version = 0;
-int mcu_ctrl_cp_status = -1;
-struct oplus_vooc_chip *pps_chip;
 static const char * const strategy_soc[] = {
 	[BCC_BATT_SOC_0_TO_50]	= "strategy_soc_0_to_50",
 	[BCC_BATT_SOC_50_TO_75]	= "strategy_soc_50_to_75",
@@ -95,6 +93,10 @@ void init_hw_version(void)
 {
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0))
+bool __attribute__((weak)) qpnp_is_charger_reboot(void);
+bool __attribute__((weak)) qpnp_is_power_off_charging(void);
+#else
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 0))
 /* only for GKI compile */
 bool __attribute__((weak)) qpnp_is_charger_reboot(void)
@@ -106,6 +108,7 @@ bool __attribute__((weak)) qpnp_is_power_off_charging(void)
 {
 	return false;
 }
+#endif
 #endif
 
 extern	int oplus_vooc_mcu_hwid_check(struct oplus_vooc_chip *chip);
@@ -952,6 +955,7 @@ void oplus_vooc_fw_type_dt(struct oplus_vooc_chip *chip)
 
 	chip->parse_fw_from_dt = of_property_read_bool(node, "qcom,parse_fw_from_dt");
 	chg_debug("qcom,parse_fw_from_dt is %d\n", chip->parse_fw_from_dt);
+	chip->fw_update_on_chargering_reboot = of_property_read_bool(node, "qcom,fw_update_on_chargering_reboot");
 
 	chip->abnormal_adapter_current_cnt = of_property_count_elems_of_size(node,
 				"qcom,abnormal_adapter_current", sizeof(*chip->abnormal_adapter_current));
@@ -1303,8 +1307,6 @@ int oplus_vooc_gpio_dt_init(struct oplus_vooc_chip *chip)
 			chip->vooc_gpio.reset_gpio, chip->vooc_gpio.clock_gpio,
 			chip->vooc_gpio.data_gpio, chip->vooc_gpio.data_irq);
 
-	pps_chip = chip;
-
 	return rc;
 }
 
@@ -1352,9 +1354,9 @@ void opchg_set_data_sleep(struct oplus_vooc_chip *chip)
 
 void opchg_set_reset_sleep(struct oplus_vooc_chip *chip)
 {
-	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE || chip->btb_temp_over || chip->mcu_update_ing) {
-		chg_debug(" adapter_fw_need_update:%d,btb_temp_over:%d,mcu_update_ing:%d,return\n",
-			chip->adapter_update_real, chip->btb_temp_over, chip->mcu_update_ing);
+	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE || chip->mcu_update_ing) {
+		chg_debug(" adapter_fw_need_update:%d,mcu_update_ing:%d,return\n",
+			chip->adapter_update_real, chip->mcu_update_ing);
 		return;
 	}
 	mutex_lock(&chip->pinctrl_mutex);
@@ -1377,9 +1379,9 @@ void opchg_set_reset_sleep(struct oplus_vooc_chip *chip)
 void opchg_set_reset_active(struct oplus_vooc_chip *chip)
 {
 	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE
-			|| chip->btb_temp_over || chip->mcu_update_ing) {
-		chg_debug(" adapter_fw_need_update:%d,btb_temp_over:%d,mcu_update_ing:%d,return\n",
-			chip->adapter_update_real, chip->btb_temp_over, chip->mcu_update_ing);
+			|| chip->mcu_update_ing) {
+		chg_debug(" adapter_fw_need_update:%d,mcu_update_ing:%d,return\n",
+			chip->adapter_update_real, chip->mcu_update_ing);
 		return;
 	}
 
@@ -1455,6 +1457,10 @@ bool oplus_is_charger_reboot(struct oplus_vooc_chip *chip)
 #ifdef CONFIG_OPLUS_CHARGER_MTK
 	int charger_type;
 
+	if (chip->fw_update_on_chargering_reboot) {
+		chg_debug("need check fw_update\n");
+		return false;
+	}
 	charger_type = oplus_chg_get_chg_type();
 	if (charger_type == 5) {
 		chg_debug("dont need check fw_update\n");
@@ -1476,25 +1482,9 @@ static void delay_reset_mcu_work_func(struct work_struct *work)
 	oplus_vooc_reset_mcu();
 }
 
-static void mcu_ctrl_cp_func(struct work_struct *work)
-{
-	struct delayed_work *dwork = to_delayed_work(work);
-	struct oplus_vooc_chip *chip = container_of(dwork,
-		struct oplus_vooc_chip, mcu_ctrl_cp_work);
-	int level;
-	level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-
-	if(level == 1){
-		printk("mcu_ctrl_cp_func level:%d\n",level);
-	}else {
-		printk("mcu_ctrl_cp_func level:%d\n",level);
-	}
-}
-
 void oplus_vooc_delay_reset_mcu_init(struct oplus_vooc_chip *chip)
 {
 	INIT_DELAYED_WORK(&chip->delay_reset_mcu_work, delay_reset_mcu_work_func);
-	INIT_DELAYED_WORK(&chip->mcu_ctrl_cp_work,mcu_ctrl_cp_func);
 }
 
 static void oplus_vooc_delay_reset_mcu(struct oplus_vooc_chip *chip)
@@ -1611,6 +1601,11 @@ bool is_allow_fast_chg_real(struct oplus_vooc_chip *chip)
 
 	if(chip->disable_real_fast_chg)
 		return false;
+
+	if (oplus_vooc_get_btb_temp_over() == true) {
+		chg_debug("btb temp over, should return false!\n");
+		return false;
+	}
 
 	return true;
 }
@@ -1886,9 +1881,8 @@ void opchg_set_switch_mode(struct oplus_vooc_chip *chip, int mode)
 	int retry = 10;
 	int mcu_hwid_type = OPLUS_VOOC_MCU_HWID_UNKNOW;
 
-	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE || chip->btb_temp_over) {
-		chg_err("adapter_fw_need_update: %d, btb_temp_over: %d\n",
-			chip->adapter_update_real, chip->btb_temp_over);
+	if (chip->adapter_update_real == ADAPTER_FW_NEED_UPDATE) {
+		chg_err("adapter_fw_need_update: %d\n", chip->adapter_update_real);
 		return;
 	}
 	if (mode == VOOC_CHARGER_MODE && chip->mcu_update_ing) {
@@ -1951,6 +1945,7 @@ void reset_fastchg_after_usbout(struct oplus_vooc_chip *chip)
 	oplus_vooc_set_fastchg_to_warm_full_false();
 	oplus_vooc_set_fastchg_low_temp_full_false();
 	oplus_vooc_set_fastchg_dummy_started_false();
+	oplus_vooc_set_btb_temp_over(false);
 }
 
 static irqreturn_t irq_rx_handler(int irq, void *dev_id)
@@ -1959,11 +1954,6 @@ static irqreturn_t irq_rx_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t irq_mcu_ctrl_cp_handler(int irq, void *dev_id)
-{
-	oplus_vooc_bypass_work();
-	return IRQ_HANDLED;
-}
 void oplus_vooc_data_irq_init(struct oplus_vooc_chip *chip)
 {
 #ifdef CONFIG_OPLUS_CHARGER_MTK
@@ -2045,53 +2035,25 @@ void oplus_vooc_eint_unregister(struct oplus_vooc_chip *chip)
 #endif
 }
 
-void oplus_pps_eint_register(struct oplus_vooc_chip *chip)
+void oplus_vooc_set_mcu_pps_mode(struct oplus_vooc_chip *chip, bool mode)
 {
-	int retval = 0;
-	int level = 0;
-	pinctrl_select_state(chip->vooc_gpio.pinctrl,chip->vooc_gpio.gpio_mcu_ctrl_cp_active);
-	retval = gpio_direction_input(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	printk("oplus_pps_eint_register retval:%d,level:%d\n",retval,level);
-
-	if(mcu_ctrl_cp_status != 0){
-		printk("oplus_pps_eint_register 222\n");
-	chip->vooc_gpio.mcu_ctrl_cp_irq = gpio_to_irq(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	retval = request_irq(chip->vooc_gpio.mcu_ctrl_cp_irq, irq_mcu_ctrl_cp_handler, IRQF_TRIGGER_FALLING
-			| IRQF_TRIGGER_RISING | IRQF_ONESHOT, "mcu_ctrl_cp", chip);
-	if (retval < 0) {
-		chg_err("request mcu_ctrl_cp irq failed.\n");
+	int retval = 0, level = 0;
+	mutex_lock(&chip->pinctrl_mutex);
+	if (mode) {
+		pinctrl_select_state(chip->vooc_gpio.pinctrl, chip->vooc_gpio.gpio_mcu_ctrl_cp_sleep);
+		/*retval = gpio_direction_input(chip->vooc_gpio.mcu_ctrl_cp_gpio);*/
+		retval = gpio_direction_output(chip->vooc_gpio.mcu_ctrl_cp_gpio, 1);
+		level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
+	} else {
+		pinctrl_select_state(chip->vooc_gpio.pinctrl, chip->vooc_gpio.gpio_mcu_ctrl_cp_active);
+		retval = gpio_direction_output(chip->vooc_gpio.mcu_ctrl_cp_gpio, 0);
+		level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
 	}
-	mcu_ctrl_cp_status = 0;
-	}
+	mutex_unlock(&chip->pinctrl_mutex);
+	chg_err(" mode = %d, level = %d, retval = %d\r\n", mode, level, retval);
 }
 
-void oplus_pps_eint_unregister(struct oplus_vooc_chip *chip)
-{
-	int retval = 0;
-	int level = 0;
-	printk("oplus_pps_eint_unregister\n");
-	if(mcu_ctrl_cp_status != 1){
-		printk("oplus_pps_eint_unregister222 \n");
-		free_irq(chip->vooc_gpio.mcu_ctrl_cp_irq, chip);
-		mcu_ctrl_cp_status = 1;
-	}
-
-set_gpio_fail:
-	usleep_range(1000, 1000);
-
-	pinctrl_select_state(chip->vooc_gpio.pinctrl,chip->vooc_gpio.gpio_mcu_ctrl_cp_sleep);
-	retval = gpio_direction_output(chip->vooc_gpio.mcu_ctrl_cp_gpio, 1);
-	printk("oplus_pps_eint_unregister mcu_ctrl_cp_gpio = 0x%x retval:%d\n",chip->vooc_gpio.mcu_ctrl_cp_gpio,retval);
-
-	level = gpio_get_value(chip->vooc_gpio.mcu_ctrl_cp_gpio);
-	printk("oplus_pps_eint_unregister level:%d\n",level);
-	if (level != 1) {
-		goto set_gpio_fail;
-	}
-}
-
-int oplus_pps_get_gpio_value(struct oplus_vooc_chip *chip)
+int oplus_vooc_get_mcu_pps_mode(struct oplus_vooc_chip *chip)
 {
 	int level = 0;
 

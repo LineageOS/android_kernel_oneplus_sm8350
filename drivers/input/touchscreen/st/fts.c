@@ -6417,9 +6417,7 @@ static struct i2c_driver fts_i2c_driver = {
 
 static int __init fts_driver_init(void)
 {
-    printk("fts_driver_initwangkun++++++++++++++++++111111111111111\n");
 	return i2c_add_driver(&fts_i2c_driver);
-    printk("fts_driver_initwangkun++++++++++++++++++2222222222222\n");
 }
 
 static void __exit fts_driver_exit(void)

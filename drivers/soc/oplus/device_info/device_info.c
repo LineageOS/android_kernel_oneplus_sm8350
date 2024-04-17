@@ -28,21 +28,49 @@
 #include <linux/list.h>
 #include <linux/iio/consumer.h>
 #include <linux/of_fdt.h>
-
+#include <linux/mm.h>
+#include <linux/version.h>
+#include <linux/libfdt.h>
 #define DEVINFO_NAME "devinfo"
-
+#define MAX_CMDLINE_PARAM_LEN 1024
 #define dev_msg(msg, arg...) pr_err("devinfo:" msg, ##arg);
-
+#define MAX_CMD_LENGTH 32
 #define BOARD_GPIO_SUPPORT 4
 #define MAIN_BOARD_SUPPORT 256
+
+#define SZ_1G_PAGES (SZ_1G >> PAGE_SHIFT)
+
+#define TOTALRAM_2GB (2*SZ_1G_PAGES)
+#define TOTALRAM_3GB (3*SZ_1G_PAGES)
+#define TOTALRAM_4GB (4*SZ_1G_PAGES)
+#define TOTALRAM_6GB (6*SZ_1G_PAGES)
+#define TOTALRAM_8GB (8*SZ_1G_PAGES)
+#define TOTALRAM_12GB (12*SZ_1G_PAGES)
+#define TOTALRAM_16GB (16*SZ_1G_PAGES)
+
+#ifdef CONFIG_MTK_PLATFORM
+struct mr_info_t {
+	unsigned int mr_index;
+	unsigned int mr_value;
+};
+#endif
 
 static struct proc_dir_entry *g_parent = NULL;
 struct device_info {
 	struct device *dev;
 	struct pinctrl *p_ctrl;
 	struct pinctrl_state *active[BOARD_GPIO_SUPPORT], *sleep[BOARD_GPIO_SUPPORT];
+	struct pinctrl_state *idle[BOARD_GPIO_SUPPORT];
 	struct list_head dev_list;
 };
+
+#if IS_MODULE(CONFIG_OPLUS_DEVICE_IFNO)
+static char ddr_vendor_size[MAX_CMDLINE_PARAM_LEN];
+module_param_string(ddr_info, ddr_vendor_size, MAX_CMDLINE_PARAM_LEN,
+  0600);
+MODULE_PARM_DESC(ddr_info,
+  "device_info.ddr_info=<ddrvendorsize>");
+#endif
 
 static struct device_info *g_dev_info = NULL;
 static int reinit_aboard_id(struct device *dev,
@@ -283,6 +311,7 @@ static int parse_gpio_dts(struct device *dev, struct device_info *dev_info)
         if (!IS_ERR_OR_NULL(dev_info->p_ctrl)) {
 		dev_info->active[0] = pinctrl_lookup_state(dev_info->p_ctrl, "active");
 		dev_info->sleep[0] = pinctrl_lookup_state(dev_info->p_ctrl, "sleep");
+		dev_info->idle[0] = pinctrl_lookup_state(dev_info->p_ctrl, "idle");
 	}
 #endif
 	return 0;
@@ -306,6 +335,17 @@ static void set_gpios_sleep(struct device_info *dev_info)
 	for (i = 0; i < BOARD_GPIO_SUPPORT; i++) {
 		if (!IS_ERR_OR_NULL(dev_info->p_ctrl) && !IS_ERR_OR_NULL(dev_info->sleep[i])) {
 			pinctrl_select_state(dev_info->p_ctrl, dev_info->sleep[i]);
+		}
+	}
+}
+
+static void set_gpios_idle(struct device_info *dev_info)
+{
+	int i = 0;
+
+	for (i = 0; i < BOARD_GPIO_SUPPORT; i++) {
+		if (!IS_ERR_OR_NULL(dev_info->p_ctrl) && !IS_ERR_OR_NULL(dev_info->idle[i])) {
+			pinctrl_select_state(dev_info->p_ctrl, dev_info->idle[i]);
 		}
 	}
 }
@@ -460,7 +500,7 @@ pmic_get_submask(struct device_node *np, struct device *dev)
 	adc_value /= 1000;
 	dev_msg("adc value finally is %d\n", adc_value);
 
-	if (adc_value > 1750) {
+	if (adc_value > 1900) {
 		ret = -100;
 		kfree(adc_ranges);
 		return ret;
@@ -538,6 +578,7 @@ reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 	int i = 0, ret = 0;
 	int id_size = 0, ignore_size = 0;
 	uint32_t *main_val = NULL, *sub_val = NULL, *rf_val = NULL, *ignore_list = NULL;
+        int active_val = 0, sleep_val = 0;
 	struct device_info *dev_info = g_dev_info;
 	bool match = false;
 
@@ -620,6 +661,24 @@ reinit_aboard_id(struct device *dev, struct manufacture_info *info)
 			ret = -EINVAL;
 			goto read_failed;
 		}
+	}
+        else if (of_property_read_bool(np, "use_tristate_gpio")) {
+		set_gpios_active(dev_info);
+		active_val = gpio_get_submask(np);
+		set_gpios_sleep(dev_info);
+		sleep_val  = gpio_get_submask(np);
+		set_gpios_idle(dev_info);
+		if (active_val == 1 && sleep_val == 0) {		/*high-resistance*/
+			hw_mask = 0;
+		} else if (active_val == 1 && sleep_val == 1) {		/*external pull-up*/
+			hw_mask = 2;
+		} else if (active_val == 0 && sleep_val == 0) {		/*external pull-down*/
+			hw_mask = 1;
+		} else {
+			/* (active_val == 0 && sleep_val == 1) */
+			dev_msg("never enter here...\n");
+		}
+		dev_msg("board[%d]:active_val[%d] sleep_val[%d] hw_mask[%d]\n", i, active_val, sleep_val, hw_mask);
 	} else {
 		set_gpios_active(dev_info);
 		hw_mask = gpio_get_submask(np);
@@ -685,6 +744,202 @@ seccess:
 	return ret;
 }
 
+#ifdef CONFIG_MTK_PLATFORM
+#define DRAMC_MAX_RK 2
+#define DRAMC_MR_CNT 4
+#define DRAMC_SIZE_UNIT 128/1024
+#define LEN_MAX 64
+static int __attribute__((__unused__)) init_ddr_vendor_size(struct device_info *dev_info)
+{
+	uint32_t ddr_type = DRAMC_TOP_TYPE_LPDDR5;
+	unsigned int rk_size[DRAMC_MAX_RK];
+	char ddr_manufacture[LEN_MAX];
+	struct manufacture_info *info = NULL;
+	int ret = 0;
+	int i;
+	struct mr_info_t *mr_info = NULL;
+	uint32_t ddr_vendor;
+	struct device_node *mem_node;
+
+	info = (struct manufacture_info *) kzalloc(sizeof(*info), GFP_KERNEL);
+	if (!info) {
+		return -ENOMEM;
+	}
+
+	mem_node = of_find_node_by_path("/dramc@10230000");
+	if (!mem_node) {
+		pr_err("/dramc@10230000 node not found \n");
+		mem_node = of_find_node_by_path("/soc/dramc@10230000");
+		if (!mem_node) {
+			pr_err("/soc/dramc@10230000 node not found \n");
+			return -ENOENT;
+		}
+	}
+
+	mr_info = (struct mr_info_t *)kzalloc(sizeof(struct mr_info_t) * DRAMC_MR_CNT, GFP_KERNEL);
+	ret = of_property_read_u32_array(mem_node, "mr", (unsigned int *)mr_info, (sizeof(struct mr_info_t) * DRAMC_MR_CNT) >> 2);
+	if (ret < 0) {
+		pr_err("mr read error \n");
+		return -ENOENT;
+	}
+
+	for (i=0; i < DRAMC_MR_CNT; i++) {
+		pr_err("mr_info:idx= %d, value, %x \n", mr_info[i].mr_index, mr_info[i].mr_value);
+		if(mr_info[i].mr_index == 5) {
+			ddr_vendor = mr_info[i].mr_value;
+		}
+	}
+
+	ret = of_property_read_u32_array(mem_node, "rk_size", rk_size, 2);
+	if (ret < 0) {
+		pr_err("rk_size read error \n");
+		return -ENOENT;
+	}
+
+	ret = of_property_read_u32(mem_node, "dram_type", &ddr_type);
+	if (ret < 0) {
+		pr_err("dram_type read error \n");
+		return -ENOENT;
+	}
+
+	if (ddr_type == DRAMC_TOP_TYPE_LPDDR5 || ddr_type == DRAMC_TOP_TYPE_LPDDR5X) {
+		info->version = "DDR5";
+	} else if (ddr_type == DRAMC_TOP_TYPE_LPDDR4 || ddr_type == DRAMC_TOP_TYPE_LPDDR4X) {
+		info->version = "DDR4";
+	} else {
+		info->version = "unknown";
+	}
+
+	sprintf(ddr_manufacture, "%d", ddr_vendor);
+	if (strcmp(ddr_manufacture, "1") == 0) {
+		memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+		strcpy(ddr_manufacture, "Samsung");
+	} else if (strcmp(ddr_manufacture, "6") == 0) {
+		memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+		strcpy(ddr_manufacture, "Hynix");
+	} else if (strcmp(ddr_manufacture, "19") == 0) {
+		memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+		strcpy(ddr_manufacture, "Cxmt");
+	} else if (strcmp(ddr_manufacture, "255") == 0) {
+		memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+		strcpy(ddr_manufacture, "Micron");
+	} else {
+		memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+		strcpy(ddr_manufacture, "Unknown|");
+	}
+
+	info->manufacture = (char *) kzalloc(32, GFP_KERNEL);
+	if (!info->manufacture) {
+		kfree(info->version);
+		kfree(info);
+		return -ENOMEM;
+	}
+
+	sprintf(ddr_manufacture, "%s|%dG", ddr_manufacture, (rk_size[0] +  rk_size[1]) * DRAMC_SIZE_UNIT);
+	memcpy(info->manufacture, ddr_manufacture, strlen(ddr_manufacture) > 31?31:strlen(ddr_manufacture));
+	pr_err("device_info.vendor_size= %s\n", ddr_manufacture);
+	return register_devinfo("ddr", info);
+}
+#endif
+
+#ifndef CONFIG_MTK_PLATFORM
+#define LEN_MAX 64
+static int __attribute__((__unused__)) init_ddr_vendor_size(struct device_info *dev_info)
+{
+	uint32_t ddr_type = DDR_TYPE_LPDDR5;
+	struct manufacture_info *info = NULL;
+	char ddr_manufacture[LEN_MAX] = {0};
+	char ddr_size[LEN_MAX] = {0};
+
+#if IS_MODULE(CONFIG_OPLUS_DEVICE_IFNO)
+	int i, j;
+	char tmp_manufacture[LEN_MAX] = {0};
+#else
+	char *tmp_manufacture;
+	size_t total_size;
+#endif
+
+	info = (struct manufacture_info *) kzalloc(sizeof(*info), GFP_KERNEL);
+	if (!info) {
+		return -ENOMEM;
+	}
+
+	ddr_type = of_fdt_get_ddrtype();
+
+	if (ddr_type == DDR_TYPE_LPDDR5 || ddr_type == DDR_TYPE_LPDDR5X) {
+		info->version = "DDR5";
+	} else if (ddr_type == DDR_TYPE_LPDDR4 || ddr_type == DDR_TYPE_LPDDR4X) {
+		info->version = "DDR4";
+	} else {
+		info->version = "unknown";
+	}
+
+#if IS_MODULE(CONFIG_OPLUS_DEVICE_IFNO)
+	if (strlen(ddr_vendor_size) != 0) {
+		for (i=0; ddr_vendor_size[i] != '|' && i < LEN_MAX; i++) {
+			tmp_manufacture[i] = ddr_vendor_size[i];
+		}
+
+		i++;
+		for(j=0; ddr_vendor_size[i] != '\0'; j++) {
+			ddr_size[j] = ddr_vendor_size[i];
+			i++;
+		}
+#else
+	tmp_manufacture = strstr(saved_command_line, "device_info.ddr_info=");
+	if (tmp_manufacture) {
+		tmp_manufacture += strlen("device_info.ddr_info=");
+
+		total_size = totalram_pages();
+		if (total_size <= TOTALRAM_2GB)
+			strcpy(ddr_size, "2");
+		else if (total_size <= TOTALRAM_3GB)
+			strcpy(ddr_size, "3");
+		else if (total_size <= TOTALRAM_4GB)
+			strcpy(ddr_size, "4");
+		else if (total_size <= TOTALRAM_6GB)
+			strcpy(ddr_size, "6");
+		else if (total_size <= TOTALRAM_8GB)
+			strcpy(ddr_size, "8");
+		else if (total_size <= TOTALRAM_12GB)
+			strcpy(ddr_size, "12");
+		else
+			strcpy(ddr_size, "16");
+#endif
+		if (strncmp(tmp_manufacture, "1", 1) == 0) {
+			memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+			strcpy(ddr_manufacture, "Samsung");
+		} else if (strncmp(tmp_manufacture, "6", 1) == 0) {
+			memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+			strcpy(ddr_manufacture, "Hynix");
+		} else if (strncmp(tmp_manufacture, "19", 2) == 0) {
+			memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+			strcpy(ddr_manufacture, "Cxmt");
+		} else if (strncmp(tmp_manufacture, "255", 3) == 0) {
+			memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+			strcpy(ddr_manufacture, "Micron");
+		} else {
+			memset(ddr_manufacture, 0, sizeof(ddr_manufacture));
+			strcpy(ddr_manufacture, "Unknown|");
+		}
+
+		info->manufacture = (char *) kzalloc(32, GFP_KERNEL);
+		if (!info->manufacture) {
+			kfree(info->version);
+			kfree(info);
+			return -ENOMEM;
+		}
+
+		sprintf(ddr_manufacture, "%s|%sG", ddr_manufacture, ddr_size);
+		memcpy(info->manufacture, ddr_manufacture, strlen(ddr_manufacture) > 31?31:strlen(ddr_manufacture));
+		pr_err("device_info.vendor_size= %s\n", ddr_manufacture);
+	}
+
+	return register_devinfo("ddr", info);
+}
+#endif
+
+#ifndef CONFIG_MTK_PLATFORM
 static int __attribute__((__unused__)) init_ddr_type(struct device_info *dev_info)
 {
 	uint32_t ddr_type = DDR_TYPE_LPDDR5;
@@ -707,6 +962,7 @@ static int __attribute__((__unused__)) init_ddr_type(struct device_info *dev_inf
 
 	return register_devinfo("ddr_type", info);
 }
+#endif
 
 static int
 devinfo_probe(struct platform_device *pdev)
@@ -735,9 +991,14 @@ devinfo_probe(struct platform_device *pdev)
 	set_gpios_active(dev_info);
 	init_other_hw_ids(pdev);
 	set_gpios_sleep(dev_info);
+#ifdef CONFIG_MTK_PLATFORM
+	/*register oplus special node*/
+	init_ddr_vendor_size(dev_info);
+#endif
 #ifndef CONFIG_MTK_PLATFORM
 	/*register oplus special node*/
 	init_ddr_type(dev_info);
+	init_ddr_vendor_size(dev_info);
 #endif
 
 	return 0;

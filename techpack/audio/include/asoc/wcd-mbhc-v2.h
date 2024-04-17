@@ -9,6 +9,9 @@
 #include <linux/power_supply.h>
 #include "wcdcal-hwdep.h"
 #include <sound/jack.h>
+#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+#include <linux/pm_wakeup.h>
+#endif
 
 #define TOMBAK_MBHC_NC	0
 #define TOMBAK_MBHC_NO	1
@@ -664,6 +667,10 @@ struct wcd_mbhc {
 	#ifdef OPLUS_ARCH_EXTENDS
 	unsigned int headset_detect_mode;
 	#endif /* OPLUS_ARCH_EXTENDS */
+	#if IS_ENABLED(CONFIG_OPLUS_FEATURE_MM_FEEDBACK)
+	struct delayed_work hp_irq_chk_work;
+	struct wakeup_source *hp_wake_lock;
+	#endif /* OPLUS_FEATURE_MM_FEEDBACK */
 };
 
 void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,

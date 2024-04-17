@@ -483,6 +483,10 @@ struct oplus_chg_limits {
 	int ffc1_normal_vfloat_over_sw_limit;		//4.5V
 	int ffc2_normal_vfloat_over_sw_limit;		//4.5V
 	int ffc2_warm_vfloat_over_sw_limit;
+	int default_ffc1_normal_vfloat_sw_limit;
+	int default_ffc1_warm_vfloat_sw_limit;
+	int default_ffc2_normal_vfloat_sw_limit;
+	int default_ffc2_warm_vfloat_sw_limit;
 	int default_iterm_ma;						/*16~45 default value*/
 	int default_temp_normal_fastchg_current_ma;
 	int default_normal_vfloat_sw_limit;
@@ -661,6 +665,25 @@ int oplus_chg_get_chg_strategy_data_len(struct oplus_chg_strategy_data data[],
 					int max_len);
 #endif
 
+typedef enum {
+	AGING_FFC_NOT_SUPPORT,
+	AGING_FFC_V1,
+	AGING_FFC_VERSION_MAX
+} AGING_FFC_VERSION;
+
+#define AGING1_STAGE_CYCLE	500
+#define AGING2_STAGE_CYCLE	1000
+
+#define AGING1_FFC1_SINGLE_OFFSET_MV	10
+#define AGING1_FFC2_SINGLE_OFFSET_MV	10
+#define AGING2_FFC1_SINGLE_OFFSET_MV	15
+#define AGING2_FFC2_SINGLE_OFFSET_MV	15
+
+#define AGING1_FFC1_DOUBLE_OFFSET_MV	15
+#define AGING1_FFC2_DOUBLE_OFFSET_MV	10
+#define AGING2_FFC1_DOUBLE_OFFSET_MV	30
+#define AGING2_FFC2_DOUBLE_OFFSET_MV	20
+
 struct oplus_chg_chip {
 	struct i2c_client *client;
 	struct device *dev;
@@ -819,6 +842,8 @@ struct oplus_chg_chip {
 	bool otg_switch;
 	bool ui_otg_switch;
 	int mmi_chg;
+	int debug_batt_cc;
+	int aging_ffc_version;
 #ifdef OPLUS_CHG_OP_DEF
 	bool charging_suspend;
 	bool start_pd_check;
@@ -1132,5 +1157,7 @@ void oplus_chg_set_camera_status(bool val);
 void oplus_chg_update_float_voltage_by_fastchg(bool fastchg_en);
 void oplus_check_ovp_status(struct oplus_chg_chip *chg);
 #endif
+
+void oplus_chg_get_aging_ffc_offset(struct oplus_chg_chip *chip, int *ffc1_offset, int *ffc2_offset);
 
 #endif /*_OPLUS_CHARGER_H_*/

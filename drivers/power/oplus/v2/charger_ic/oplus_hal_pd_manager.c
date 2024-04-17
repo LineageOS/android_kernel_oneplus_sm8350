@@ -1411,7 +1411,7 @@ static int pd_manager_bc12_completed(struct oplus_chg_ic_dev *ic_dev)
 		oplus_mms_get_item_data(chip->wired_topic, WIRED_ITEM_CHG_TYPE,
 					&data, true);
 		chip->chg_type = data.intval;
-		chg_info("chg_type=%d\n", chip->chg_type);
+		chg_info("chg_type=%s\n", oplus_wired_get_chg_type_str(chip->chg_type));
 		if (chip->chg_type == OPLUS_CHG_USB_TYPE_SDP ||
 		    chip->chg_type == OPLUS_CHG_USB_TYPE_CDP ||
 		    chip->chg_type == OPLUS_CHG_USB_TYPE_PD_SDP)
@@ -1557,6 +1557,11 @@ static void *oplus_chg_get_func(struct oplus_chg_ic_dev *ic_dev,
 		func = OPLUS_CHG_IC_FUNC_CHECK(
 			OPLUS_IC_FUNC_GET_DATA_ROLE,
 			pd_manager_get_data_role);
+		break;
+	case OPLUS_IC_FUNC_GET_TYPEC_ROLE:
+		func = OPLUS_CHG_IC_FUNC_CHECK(
+			OPLUS_IC_FUNC_GET_TYPEC_ROLE,
+			pd_manager_get_typec_mode);
 		break;
 	default:
 		chg_err("this func(=%d) is not supported\n", func_id);
@@ -1714,12 +1719,13 @@ static int oplus_pd_manager_probe(struct platform_device *pdev)
 
 	ic_cfg.name = node->name;
 	ic_cfg.index = ic_index;
-	sprintf(ic_cfg.manu_name, "PD_MANAGER");
-	sprintf(ic_cfg.fw_id, "0x00");
+	snprintf(ic_cfg.manu_name, OPLUS_CHG_IC_MANU_NAME_MAX - 1, "buck-PD_MANAGER");
+	snprintf(ic_cfg.fw_id, OPLUS_CHG_IC_FW_ID_MAX - 1, "0x00");
 	ic_cfg.type = ic_type;
 	ic_cfg.get_func = oplus_chg_get_func;
 	ic_cfg.virq_data = pd_manager_virq_table;
 	ic_cfg.virq_num = ARRAY_SIZE(pd_manager_virq_table);
+	ic_cfg.of_node = node;
 	chip->ic_dev = devm_oplus_chg_ic_register(chip->dev, &ic_cfg);
 	if (!chip->ic_dev) {
 		ret = -ENODEV;

@@ -367,11 +367,7 @@
 
 	pil_cdsp_mem: pil_cdsp_region@89700000 {
 		no-map;
-		//#ifndef OPLUS_FEATURE_SENSOR_DRIVER
-		//reg = <0x0 0x89700000 0x0 0x1e00000>;
-		//#else
-		reg = <0x0 0x89700000 0x0 0x1400000>;
-		//#endif
+		reg = <0x0 0x89700000 0x0 0x1e00000>;
 	};
 
 	pil_ipa_fw_mem: pil_ipa_fw_region@8b500000 {
@@ -509,7 +505,7 @@
 		alloc-ranges = <0x0 0x00000000 0x0 0xdfffffff>;
 		reusable;
 		alignment = <0x0 0x400000>;
-		size = <0x0 0x2000000>;
+		size = <0x0 0x6000000>;
 		linux,cma-default;
 	};
 
@@ -5419,7 +5415,7 @@
 		qcom,tcs_offset_int_pow_amp_vreg = <0x4D0>;
 		use-pm-domain;
 		cnss-enable-self-recovery;
-		qcom,same-dt-multi-dev;
+                qcom,same-dt-multi-dev;
 
 		vdd-wlan-aon-supply = <&S2E>;
 		qcom,vdd-wlan-aon-config = <950000 952000 0 0 1>;
