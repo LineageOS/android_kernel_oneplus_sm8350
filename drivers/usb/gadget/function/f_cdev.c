@@ -566,8 +566,13 @@ static void usb_cser_resume(struct usb_function *f)
 	 * In that case resume is done by Function Resume request (write).
 	 */
 	if ((cdev->gadget->speed >= USB_SPEED_SUPER) &&
-			port->func_is_suspended)
+			port->func_is_suspended) {
+		if (port->func_wakeup_pending) {
+			ret = usb_func_wakeup(f);
+			port->func_wakeup_pending = (ret == -EAGAIN) ? true : false;
+		}
 		return;
+	}
 
 	pr_debug("%s\n", __func__);
 	port->is_suspended = false;
@@ -1462,9 +1467,10 @@ ssize_t f_cdev_write(struct file *file,
 		spin_unlock_irqrestore(&port->port_lock, flags);
 
 		if (gadget->speed >= USB_SPEED_SUPER
-		    && port->func_is_suspended)
+		    && port->func_is_suspended) {
 			ret = usb_func_wakeup(func);
-		else
+			port->func_wakeup_pending = (ret == -EAGAIN) ? true : false;
+		} else
 			ret = usb_gadget_wakeup(gadget);
 
 		if (ret < 0 && ret != -EACCES && ret != -EAGAIN) {
