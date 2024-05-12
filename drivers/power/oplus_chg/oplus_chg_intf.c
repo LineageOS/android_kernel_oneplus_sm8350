@@ -1606,7 +1606,12 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		pval->intval = -ENODATA; //BSP,temp fix xts
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL_DESIGN:
-		pval->intval = chip->batt_fcc * 1000;
+		// FCC != design capacity, fix this
+		rc = oplus_gauge_get_design_capacity();
+		if (rc < 0)
+			pval->intval = 4500000;
+		else
+			pval->intval = rc * 1000 * chip->vbatt_num;
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL:
 		pval->intval = chip->batt_fcc * 1000;
