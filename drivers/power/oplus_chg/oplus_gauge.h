@@ -35,6 +35,7 @@ struct oplus_gauge_operations {
 	int (*get_battery_pc)(void);
 	int (*get_battery_qs)(void);
 	int (*get_battery_temperature)(void);
+	int (*get_batt_design_capacity)(void);
 	int (*get_batt_remaining_capacity)(void);
 	int (*get_battery_soc)(void);
 	int (*get_average_current)(void);
@@ -92,6 +93,7 @@ int oplus_gauge_get_batt_mvolts_2cell_min(void);
 int oplus_gauge_get_batt_temperature(void);
 int oplus_gauge_get_batt_soc(void);
 int oplus_gauge_get_batt_current(void);
+int oplus_gauge_get_design_capacity(void);
 int oplus_gauge_get_remaining_capacity(void);
 int oplus_gauge_get_device_type(void);
 int oplus_gauge_get_device_type_for_warp(void);
