@@ -1329,7 +1329,7 @@ static int msm_pcm_capture_copy(struct snd_pcm_substream *substream,
 		offset = prtd->in_frame_info[idx].offset;
 		pr_debug("Offset value = %d\n", offset);
 
-		if (offset >= size) {
+		if (size && offset >= size) {
 			pr_err("%s: Invalid dsp buf offset\n", __func__);
 			ret = -EFAULT;
 			q6asm_cpu_buf_release(OUT, prtd->audio_client);
