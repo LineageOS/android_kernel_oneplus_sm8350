@@ -226,6 +226,7 @@ static inline char *dp_phy_aux_config_type_to_string(u32 cfg_type)
  * @l_pnswap: P/N swap status on each lane
  * @max_pclk_khz: maximum pixel clock supported for the platform
  * @max_lclk_khz: maximum link clock supported for the platform
+ * @max_hor_width: maximum horizontal width supported by the platform
  * @hw_cfg: DP HW specific settings
  * @has_mst: MST feature enable status
  * @has_mst_sideband: MST sideband feature enable status
@@ -263,6 +264,7 @@ struct dp_parser {
 	struct dp_aux_cfg aux_cfg[AUX_CFG_LEN];
 	u32 max_pclk_khz;
 	u32 max_lclk_khz;
+	u32 max_hor_width;
 	struct dp_hw_cfg hw_cfg;
 	bool has_mst;
 	bool has_mst_sideband;

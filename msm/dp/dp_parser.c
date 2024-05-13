@@ -167,6 +167,11 @@ static int dp_parser_misc(struct dp_parser *parser)
 	if (rc)
 		parser->max_lclk_khz = DP_MAX_LINK_CLK_KHZ;
 
+	rc = of_property_read_u32(of_node,
+		"qcom,max-horizontal-width", &parser->max_hor_width);
+	if (rc)
+		parser->max_hor_width = 0;
+
 	for (i = 0; i < MAX_DP_MST_STREAMS; i++) {
 		of_property_read_u32_index(of_node,
 				"qcom,pixel-base-off", i,

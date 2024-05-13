@@ -3220,6 +3220,13 @@ static enum drm_mode_status dp_display_validate_mode(
 
 	mutex_lock(&dp->session_lock);
 
+	if (dp->parser->max_hor_width &&
+		(mode->hdisplay > dp->parser->max_hor_width)) {
+		DP_DEBUG("[%s] mode is invalid exceeds max width %u\n",
+			mode->name, dp->parser->max_hor_width);
+		goto end;
+	}
+
 	dp_panel = panel;
 	if (!dp_panel->connector) {
 		DP_ERR("invalid connector\n");
