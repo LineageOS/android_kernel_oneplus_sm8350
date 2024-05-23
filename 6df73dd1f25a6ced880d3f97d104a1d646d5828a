@@ -33,6 +33,24 @@
       "message": "https://review.lineageos.org/c/LineageOS/android_kernel_oneplus_sdm845/+/392113",
       "revId": "6df73dd1f25a6ced880d3f97d104a1d646d5828a",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "a7cc308e_f707cc66",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 18745
+      },
+      "writtenOn": "2024-05-23T15:26:00Z",
+      "side": 1,
+      "message": "Already handled in oplus_chg_intf.c",
+      "parentUuid": "a87c1500_c6903232",
+      "revId": "6df73dd1f25a6ced880d3f97d104a1d646d5828a",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
