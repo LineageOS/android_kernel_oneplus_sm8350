@@ -5,8 +5,6 @@ ifeq ($(MODNAME),)
 else
 	KERNEL_BUILD := 0
 endif
-$(warning "wangkun here add the debug info")
-$(info $(KERNEL_BUILD))
 
 ifeq ($(KERNEL_BUILD), 1)
 	# These are configurable via Kconfig for kernel-based builds

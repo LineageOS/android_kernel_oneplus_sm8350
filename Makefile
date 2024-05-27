@@ -543,7 +543,6 @@ OPLUS_AGING_TEST := true
 #enable kasan
 OPLUS_KASAN_TEST := true
 endif
-$(warning OPLUS_KASAN_TEST is $(OPLUS_KASAN_TEST))
 
 ifeq ($(AGING_DEBUG_MASK),3)
 #enable rtb
@@ -594,8 +593,6 @@ OPLUS_MEMLEAK_DETECT := true
 endif
 
 #Add for memleak test
-$(warning TARGET_MEMLEAK_DETECT_TEST value is "$(TARGET_MEMLEAK_DETECT_TEST)")
-$(warning OPLUS_MEMLEAK_DETECT value is "$(OPLUS_MEMLEAK_DETECT)")
 export OPLUS_MEMLEAK_DETECT
 #endif
 
