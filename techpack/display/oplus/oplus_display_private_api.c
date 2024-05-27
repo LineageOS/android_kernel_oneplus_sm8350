@@ -1708,11 +1708,13 @@ static int oplus_boe_data_dimming_process_unlock(int brightness, int enable)
 	if (!panel->is_hbm_enabled && oplus_datadimming_vblank_count != 0) {
 		drm_crtc_wait_one_vblank(dsi_connector->state->crtc);
 #if defined(OPLUS_FEATURE_PXLW_IRIS5)
-	if (iris_is_chip_supported() && iris_is_pt_mode(panel))
-		rc = iris_update_backlight(1, brightness);
-	else
-#endif
+		if (iris_is_chip_supported() && iris_is_pt_mode(panel))
+			rc = iris_update_backlight(1, brightness);
+		else
+			rc = mipi_dsi_dcs_set_display_brightness(mipi_device, brightness);
+#else
 		rc = mipi_dsi_dcs_set_display_brightness(mipi_device, brightness);
+#endif
 		drm_crtc_wait_one_vblank(dsi_connector->state->crtc);
 	}
 
