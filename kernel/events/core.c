@@ -2041,11 +2041,11 @@ static void perf_group_detach(struct perf_event *event)
 	if (event->group_leader != event) {
 		list_del_init(&event->sibling_list);
 		event->group_leader->nr_siblings--;
-		event->group_leader->group_generation++;
 #ifdef CONFIG_PERF_KERNEL_SHARE
 		if (event->shared)
 			event->group_leader = event;
 #endif
+		event->group_leader->group_generation++;
 		goto out;
 	}
 
