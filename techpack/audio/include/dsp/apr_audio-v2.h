@@ -12582,6 +12582,17 @@ struct afe_param_id_clock_set_v2_t {
 	uint32_t	d;
 };
 
+#define AFE_PARAM_ID_CLOCK_MUX_CFG		0x000102fd
+struct afe_param_id_clock_mux_cfg_t {
+	char mux_string[128];
+	/* Name of the Mux string.
+	 * String name may varies for each target, so HLOS must pass the proper string based on IPCAT.
+	 * @values Valid string with a maximum of 128 characters
+	 */
+	uint32_t mux_value;
+	/* Value of the external m-clock. */
+};
+
 struct afe_clk_cfg {
 /* Minor version used for tracking the version of the I2S
  * configuration interface.
