@@ -186,6 +186,7 @@ struct va_macro_priv {
 	u16 current_clk_id;
 	int pcm_rate[VA_MACRO_NUM_DECIMATORS];
 	bool dev_up;
+	u32 mclk_freq;
 };
 
 static bool va_macro_get_data(struct snd_soc_component *component,
@@ -1567,6 +1568,12 @@ static int va_macro_hw_params(struct snd_pcm_substream *substream,
 		dai->name, dai->id, params_rate(params),
 		params_channels(params));
 
+	if (va_priv->mclk_freq != VA_MACRO_MCLK_FREQ) {
+		dev_err(va_dev, "%s: unsupported VA mclk: %u\n",
+			__func__, va_priv->mclk_freq);
+		return -EINVAL;
+	}
+
 	sample_rate = params_rate(params);
 	if (sample_rate > 16000)
 		va_priv->clk_div_switch = true;
@@ -2636,13 +2643,12 @@ static int va_macro_validate_dmic_sample_rate(u32 dmic_sample_rate,
 				      struct va_macro_priv *va_priv)
 {
 	u32 div_factor;
-	u32 mclk_rate = VA_MACRO_MCLK_FREQ;
 
 	if (dmic_sample_rate == VA_MACRO_DMIC_SAMPLE_RATE_UNDEFINED ||
-	    mclk_rate % dmic_sample_rate != 0)
+	    va_priv->mclk_freq % dmic_sample_rate != 0)
 		goto undefined_rate;
 
-	div_factor = mclk_rate / dmic_sample_rate;
+	div_factor = va_priv->mclk_freq / dmic_sample_rate;
 
 	switch (div_factor) {
 	case 2:
@@ -2670,13 +2676,13 @@ static int va_macro_validate_dmic_sample_rate(u32 dmic_sample_rate,
 
 	/* Valid dmic DIV factors */
 	dev_dbg(va_priv->dev, "%s: DMIC_DIV = %u, mclk_rate = %u\n",
-		__func__, div_factor, mclk_rate);
+		__func__, div_factor, va_priv->mclk_freq);
 
 	return dmic_sample_rate;
 
 undefined_rate:
 	dev_dbg(va_priv->dev, "%s: Invalid rate %d, for mclk %d\n",
-		 __func__, dmic_sample_rate, mclk_rate);
+		 __func__, dmic_sample_rate, va_priv->mclk_freq);
 	dmic_sample_rate = VA_MACRO_DMIC_SAMPLE_RATE_UNDEFINED;
 
 	return dmic_sample_rate;
@@ -3061,7 +3067,7 @@ static int va_macro_probe(struct platform_device *pdev)
 {
 	struct macro_ops ops;
 	struct va_macro_priv *va_priv;
-	u32 va_base_addr, sample_rate = 0;
+	u32 va_base_addr, sample_rate = 0, mclk_freq = 0;
 	char __iomem *va_io_base;
 	bool va_without_decimation = false;
 	const char *micb_supply_str = "va-vdd-micb-supply";
@@ -3074,6 +3080,7 @@ static int va_macro_probe(struct platform_device *pdev)
 	struct clk *lpass_audio_hw_vote = NULL;
 	u32 is_used_va_swr_gpio = 0;
 	const char *is_used_va_swr_gpio_dt = "qcom,is-used-swr-gpio";
+	const char *cdc_mclk_clk_rate = "qcom,cdc-mclk-clk-rate";
 
 	va_priv = devm_kzalloc(&pdev->dev, sizeof(struct va_macro_priv),
 			    GFP_KERNEL);
@@ -3092,6 +3099,15 @@ static int va_macro_probe(struct platform_device *pdev)
 					"qcom,va-without-decimation");
 
 	va_priv->va_without_decimation = va_without_decimation;
+	ret = of_property_read_u32(pdev->dev.of_node, cdc_mclk_clk_rate,
+				   &mclk_freq);
+	if (ret) {
+		va_priv->mclk_freq = VA_MACRO_MCLK_FREQ;
+	} else {
+		va_priv->mclk_freq = mclk_freq;
+	}
+	dev_dbg(va_priv->dev,
+		"%s: mclk_freq = %u\n", __func__, va_priv->mclk_freq);
 	ret = of_property_read_u32(pdev->dev.of_node, dmic_sample_rate,
 				   &sample_rate);
 	if (ret) {
