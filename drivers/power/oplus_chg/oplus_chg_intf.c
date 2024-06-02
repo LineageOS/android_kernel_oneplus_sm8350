@@ -1603,7 +1603,7 @@ static int oplus_chg_intf_batt_get_prop(struct oplus_chg_mod *ocm,
 		break;
 	case OPLUS_CHG_PROP_CHARGE_COUNTER:
 		//pval->intval = chip->chg_ops->oplus_chg_get_charge_counter();
-		pval->intval = -ENODATA; //BSP,temp fix xts
+		pval->intval = chip->ui_soc * chip->batt_capacity_mah * 1000 / 100;
 		break;
 	case OPLUS_CHG_PROP_CHARGE_FULL_DESIGN:
 		rc = oplus_gauge_get_design_capacity();
