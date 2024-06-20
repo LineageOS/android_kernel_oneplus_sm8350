@@ -203,6 +203,11 @@ static ssize_t dload_mode_show(struct kobject *kobj,
 	case QCOM_DOWNLOAD_BOTHDUMP:
 		mode = "both";
 		break;
+#ifdef CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE_NODUMP
+	case QCOM_DOWNLOAD_NODUMP:
+		mode = "nodump";
+		break;
+#endif
 	default:
 		mode = "unknown";
 		break;
@@ -221,6 +226,12 @@ static ssize_t dload_mode_store(struct kobject *kobj,
 		mode = QCOM_DOWNLOAD_MINIDUMP;
 	else if (sysfs_streq(buf, "both"))
 		mode = QCOM_DOWNLOAD_BOTHDUMP;
+#ifdef CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE_NODUMP
+	else if (sysfs_streq(buf, "nodump")) {
+		mode = QCOM_DOWNLOAD_NODUMP;
+		qcom_scm_disable_sdi();
+	}
+#endif
 	else {
 		pr_err("Invalid dump mode request...\n");
 		pr_err("Supported dumps: 'full', 'mini', or 'both'\n");
