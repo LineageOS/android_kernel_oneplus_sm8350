@@ -219,6 +219,17 @@ static ssize_t dload_mode_store(struct kobject *kobj,
 				const char *buf, size_t count)
 {
 	enum qcom_download_mode mode;
+#ifdef CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE_NODUMP
+	int temp;
+
+	dump_mode = qcom_scm_get_download_mode(&temp, 0) ? dump_mode : temp;
+
+	if (dump_mode == QCOM_DOWNLOAD_NODUMP) {
+		pr_err("%s: Current dump mode already set: nodump\n", __func__);
+		pr_err("%s: Changing dump mode now is not allowed, reboot the device\n", __func__);
+		return -EINVAL;
+	}
+#endif
 
 	if (sysfs_streq(buf, "full"))
 		mode = QCOM_DOWNLOAD_FULLDUMP;
@@ -234,7 +245,11 @@ static ssize_t dload_mode_store(struct kobject *kobj,
 #endif
 	else {
 		pr_err("Invalid dump mode request...\n");
+#ifdef CONFIG_POWER_RESET_QCOM_DOWNLOAD_MODE_NODUMP
+		pr_err("Supported dumps: 'full', 'mini', 'both' or 'nodump'\n");
+#else
 		pr_err("Supported dumps: 'full', 'mini', or 'both'\n");
+#endif
 		return -EINVAL;
 	}
 
