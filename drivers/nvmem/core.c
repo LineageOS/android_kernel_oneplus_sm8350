@@ -161,6 +161,7 @@ static void nvmem_cell_add(struct nvmem_cell *cell)
 
 #ifdef CONFIG_QCOM_QFPROM_SYSFS
 	/* add attr for this cell */
+	sysfs_attr_init(&nvmem_cell_attr->attr);
 	nvmem_cell_attr->attr.name = cell->name;
 	nvmem_cell_attr->attr.mode = 0444;
 	nvmem_cell_attr->private = cell;

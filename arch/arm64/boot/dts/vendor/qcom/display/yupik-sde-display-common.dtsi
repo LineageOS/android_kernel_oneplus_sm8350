@@ -12,6 +12,7 @@
 #include "dsi-panel-sim-video.dtsi"
 #include "dsi-panel-ext-bridge-1080p.dtsi"
 #include "dsi-panel-ili9881p-720-video.dtsi"
+#include "dsi-panel-ext-bridge-4k30p.dtsi"
 #include <dt-bindings/clock/mdss-5nm-pll-clk.h>
 
 &soc {
@@ -381,4 +382,10 @@
 			qcom,default-topology-index = <0>;
 		};
 	};
+};
+
+&dsi_ext_bridge_4k30p {
+	qcom,dsi-select-clocks = "mux_byte_clk0", "mux_pixel_clk0",
+				"src_byte_clk0", "src_pixel_clk0",
+				"shadow_byte_clk0", "shadow_pixel_clk0";
 };
