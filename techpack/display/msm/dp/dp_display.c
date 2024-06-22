@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
  */
 
@@ -2119,6 +2119,8 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 		goto error;
 	}
 
+	dp->parser->is_edp = dp->dp_display.is_edp;
+
 	rc = dp->parser->parse(dp->parser);
 	if (rc) {
 		DP_ERR("device tree parsing failed\n");
@@ -2128,6 +2130,8 @@ static int dp_init_sub_modules(struct dp_display_private *dp)
 	dp->dp_display.is_mst_supported = dp->parser->has_mst;
 	dp->dp_display.dsc_cont_pps = dp->parser->dsc_continuous_pps;
 
+	dp->dp_display.no_backlight_support = dp->parser->no_backlight_support;
+	dp->dp_display.ext_hpd_en = dp->parser->ext_hpd_en;
 	dp->catalog = dp_catalog_get(dev, dp->parser);
 	if (IS_ERR(dp->catalog)) {
 		rc = PTR_ERR(dp->catalog);
@@ -2632,7 +2636,7 @@ static int dp_display_enable(struct dp_display *dp_display, void *panel)
 		goto end;
 
 	/*edp backlight enable and edp pwm enable*/
-	if (dp_display->is_edp) {
+	if ((dp_display->is_edp) && (!dp_display->no_backlight_support)) {
 		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_PWR, true);
 		if (rc) {
 			DP_ERR("Cannot turn edp backlight power on");
@@ -2732,7 +2736,7 @@ static int dp_display_post_enable(struct dp_display *dp_display, void *panel)
 
 	dp_display_stream_post_enable(dp, dp_panel);
 
-	if (dp_display->is_edp) {
+	if ((dp_display->is_edp) && (!dp_display->no_backlight_support)) {
 		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_EN, true);
 		if (rc) {
 			DP_ERR("Cannot turn edp backlight power on");
@@ -2802,7 +2806,7 @@ static int dp_display_pre_disable(struct dp_display *dp_display, void *panel)
 		goto end;
 	}
 
-	if (dp_display->is_edp) {
+	if ((dp_display->is_edp) && (!dp_display->no_backlight_support)) {
 		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_EN, false);
 		if (rc) {
 			DP_ERR("Cannot turn edp backlight power off");
@@ -2885,7 +2889,7 @@ static int dp_display_disable(struct dp_display *dp_display, void *panel)
 		goto end;
 	}
 
-	if (dp_display->is_edp) {
+	if ((dp_display->is_edp) && (!dp_display->no_backlight_support)) {
 		rc = dp->power->edp_panel_set_gpio(dp->power, DP_GPIO_EDP_BACKLIGHT_PWR, false);
 		if (rc)
 			DP_ERR("Cannot turn edp backlight power off\n");
@@ -3216,6 +3220,13 @@ static enum drm_mode_status dp_display_validate_mode(
 
 	mutex_lock(&dp->session_lock);
 
+	if (dp->parser->max_hor_width &&
+		(mode->hdisplay > dp->parser->max_hor_width)) {
+		DP_DEBUG("[%s] mode is invalid exceeds max width %u\n",
+			mode->name, dp->parser->max_hor_width);
+		goto end;
+	}
+
 	dp_panel = panel;
 	if (!dp_panel->connector) {
 		DP_ERR("invalid connector\n");
@@ -3416,6 +3427,9 @@ static int dp_display_set_backlight(struct dp_display *dp_display,
 		DP_ERR("invalid input\n");
 		return -EINVAL;
 	}
+
+	if(dp_display->no_backlight_support)
+		return 0;
 
 	dp = container_of(dp_display, struct dp_display_private, dp_display);
 	dp_panel = panel;
@@ -3911,8 +3925,8 @@ static int dp_display_get_display_type(struct dp_display *dp_display,
 	}
 
 	dp = container_of(dp_display, struct dp_display_private, dp_display);
-
-	*display_type = dp->parser->display_type;
+	if (dp->parser)
+		*display_type = dp->parser->display_type;
 
 	return 0;
 }

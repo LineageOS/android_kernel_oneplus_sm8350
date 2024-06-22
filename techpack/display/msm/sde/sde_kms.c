@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2014-2021, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
@@ -4539,6 +4539,12 @@ static int _sde_kms_get_splash_data(struct sde_kms *sde_kms,
 	num_displays = dsi_display_get_num_of_displays()
 				+ dp_display_get_num_of_boot_displays();
 	num_regions = of_property_count_u64_elems(node, "reg") / 2;
+
+	if (num_displays >= MAX_DSI_DISPLAYS) {
+		SDE_ERROR("invalid number of built in displays %d\n",
+				num_displays);
+		return -EINVAL;
+	}
 
 	data->num_splash_displays = num_displays;
 
