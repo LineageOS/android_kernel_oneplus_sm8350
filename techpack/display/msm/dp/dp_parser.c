@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  */
 
@@ -167,6 +167,11 @@ static int dp_parser_misc(struct dp_parser *parser)
 	if (rc)
 		parser->max_lclk_khz = DP_MAX_LINK_CLK_KHZ;
 
+	rc = of_property_read_u32(of_node,
+		"qcom,max-horizontal-width", &parser->max_hor_width);
+	if (rc)
+		parser->max_hor_width = 0;
+
 	for (i = 0; i < MAX_DP_MST_STREAMS; i++) {
 		of_property_read_u32_index(of_node,
 				"qcom,pixel-base-off", i,
@@ -174,13 +179,19 @@ static int dp_parser_misc(struct dp_parser *parser)
 	}
 
 	parser->display_type = of_get_property(of_node, "qcom,display-type", NULL);
-	if (!parser->display_type)
-		parser->display_type = "unknown";
+	if (!parser->display_type) {
+		if (parser->is_edp)
+			parser->display_type = "primary";
+		else
+			parser->display_type = "secondary";
+	}
 
 	parser->panel_notifier_support = of_property_read_bool(of_node,
 			"qcom,panel-notifier-support");
 	DP_DEBUG("panel-notifier-support = %d\n", parser->panel_notifier_support);
 
+	parser->ext_hpd_en = of_property_read_bool(of_node,
+			"qcom,dp-ext-hpd");
 	return 0;
 }
 
@@ -295,6 +306,8 @@ static void dp_parser_bl_config(struct dp_parser *parser)
 	} else {
 		parser->pwm_period_usecs = val;
 	}
+	parser->no_backlight_support = of_property_read_bool(of_node,
+			"qcom,no-backlight-support");
 }
 
 static int dp_parser_gpio(struct dp_parser *parser)
