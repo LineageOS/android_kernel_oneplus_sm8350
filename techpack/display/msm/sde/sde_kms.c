@@ -4586,7 +4586,11 @@ static int _sde_kms_get_splash_data(struct sde_kms *sde_kms,
 				+ dp_display_get_num_of_boot_displays();
 	num_regions = of_property_count_u64_elems(node, "reg") / 2;
 
+#if defined(OPLUS_FEATURE_PXLW_IRIS5) || defined(OPLUS_FEATURE_PXLW_IRISSOFT)
+	if (num_displays > MAX_DSI_DISPLAYS) {
+#else
 	if (num_displays >= MAX_DSI_DISPLAYS) {
+#endif
 		SDE_ERROR("invalid number of built in displays %d\n",
 				num_displays);
 		return -EINVAL;
