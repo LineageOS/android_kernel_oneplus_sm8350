@@ -2129,19 +2129,25 @@ static int q6lsm_mmapcallback(struct apr_client_data *data, void *priv)
 		lsm_common.set_custom_topology = 1;
 		return 0;
 	}
+	
+	/*
+	The payload_size can be either 4 or 8 bytes.
+	It has to be verified whether the payload_size is
+	atleast 4 bytes. If it is less, returns errorcode.
 
-	if (data->payload_size >= (2 * sizeof(uint32_t))) {
-		command = payload[0];
-		retcode = payload[1];
-	} else if (data->payload_size >= sizeof(uint32_t)) {
-		command = payload[0];
-		retcode = 0;
-	} else {
+	The opcode for 4 bytes is 0x12A80
+	The opcode for 8 bytes is 0x110E8.
+	 
+	*/
+
+	if (data->payload_size < (2 * sizeof(uint16_t))) {
 		pr_err("%s: payload has invalid size[%d]\n", __func__,
 			data->payload_size);
 		return -EINVAL;
 	}
 
+	command = payload[0];
+	retcode = payload[1];
 	sid = (data->token >> 8) & 0x0F;
 	pr_debug("%s: opcode 0x%x command 0x%x return code 0x%x SID 0x%x\n",
 		 __func__, data->opcode, command, retcode, sid);
