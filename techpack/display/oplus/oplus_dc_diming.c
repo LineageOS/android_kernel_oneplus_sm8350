@@ -1187,9 +1187,23 @@ int oplus_display_panel_set_dimlayer_enable(void *data)
 
 int oplus_display_panel_get_dimlayer_enable(void *data)
 {
+	struct dsi_display *display = NULL;
 	uint32_t *dimlayer_bl_enable = data;
 
-	(*dimlayer_bl_enable) = oplus_dimlayer_bl_enable_v2;
+	display = get_main_display();
+	if (!display)
+		return -EINVAL;
+
+	if (display->name) {
+		if (!strcmp(display->panel->oplus_priv.vendor_name, "ANA6706"))
+			(*dimlayer_bl_enable) = oplus_dimlayer_bl_enable;
+		else if (!strcmp(display->name, "qcom,mdss_dsi_oplus19101boe_nt37800_1080_2400_cmd"))
+			(*dimlayer_bl_enable) = oplus_dimlayer_bl_enable_v3;
+		else
+			(*dimlayer_bl_enable) = oplus_dimlayer_bl_enable_v2;
+	} else {
+		(*dimlayer_bl_enable) = oplus_dimlayer_bl_enable_v2;
+	}
 
 	return 0;
 }
