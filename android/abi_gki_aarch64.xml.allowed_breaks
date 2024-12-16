@@ -1,0 +1,98 @@
+# How to use this file: http://go/approve-abi-break
+# ABI freeze commit: ae37e86392ba5e33dc178c5ca16096029a2a3fe1
+
+11 function symbol(s) removed
+  'struct phy_device* of_phy_find_device(struct device_node*)'
+  'int reset_control_status(struct reset_control*)'
+  'void rproc_add_carveout(struct rproc*, struct rproc_mem_entry*)'
+  'void* rproc_da_to_va(struct rproc*, u64, int)'
+  'struct resource_table* rproc_elf_find_loaded_rsc_table(struct rproc*, const struct firmware*)'
+  'int rproc_elf_load_rsc_table(struct rproc*, const struct firmware*)'
+  'int rproc_elf_load_segments(struct rproc*, const struct firmware*)'
+  'int rproc_elf_sanity_check(struct rproc*, const struct firmware*)'
+  'struct rproc_mem_entry* rproc_mem_entry_init(struct device*, void*, dma_addr_t, int, u32, int(*)(struct rproc*, struct rproc_mem_entry*), int(*)(struct rproc*, struct rproc_mem_entry*), const char*, ...)'
+  'struct rproc_mem_entry* rproc_of_resm_mem_entry_init(struct device*, u32, int, u32, const char*, ...)'
+  'irqreturn_t rproc_vq_interrupt(struct rproc*, int)'
+
+type 'struct elevator_mq_ops' changed
+  member changed from 'bool(* bio_merge)(struct blk_mq_hw_ctx*, struct bio*, unsigned int)' to 'bool(* bio_merge)(struct request_queue*, struct bio*, unsigned int)'
+    type changed from 'bool(*)(struct blk_mq_hw_ctx*, struct bio*, unsigned int)' to 'bool(*)(struct request_queue*, struct bio*, unsigned int)'
+      pointed-to type changed from 'bool(struct blk_mq_hw_ctx*, struct bio*, unsigned int)' to 'bool(struct request_queue*, struct bio*, unsigned int)'
+        parameter 1 type changed from 'struct blk_mq_hw_ctx*' to 'struct request_queue*'
+          pointed-to type changed from 'struct blk_mq_hw_ctx' to 'struct request_queue'
+
+type 'struct usbnet' changed
+  member 'u64 android_kabi_reserved1' was removed
+  member 'union { struct { u32 rx_speed; u32 tx_speed; }; struct { u64 android_kabi_reserved1; }; union { }; }' was added
+
+type 'struct inet_connection_sock' changed
+  member changed from 'struct { int enabled; int search_high; int search_low; int probe_size; u32 probe_timestamp; } icsk_mtup' to 'struct { int search_high; int search_low; int enabled; int probe_size; u32 probe_timestamp; } icsk_mtup'
+    type changed from 'struct { int enabled; int search_high; int search_low; int probe_size; u32 probe_timestamp; }' to 'struct { int search_high; int search_low; int enabled; int probe_size; u32 probe_timestamp; }'
+      byte size changed from 20 to 16
+      2 members ('int search_high' .. 'int search_low') changed
+        offset changed by -32
+      member 'int probe_size' changed
+        offset changed by -95
+      member 'u32 probe_timestamp' changed
+        offset changed by -32
+  member 'u32 icsk_probes_tstamp' was added
+
+type 'struct usbnet' changed
+  member changed from 'union { struct { u32 rx_speed; u32 tx_speed; }; struct { u64 android_kabi_reserved1; } __UNIQUE_ID_android_kabi_hide213; union { }; }' to 'union { struct { u32 rx_speed; u32 tx_speed; }; struct { u64 android_kabi_reserved1; }; union { }; }'
+    type changed from 'union { struct { u32 rx_speed; u32 tx_speed; }; struct { u64 android_kabi_reserved1; } __UNIQUE_ID_android_kabi_hide213; union { }; }' to 'union { struct { u32 rx_speed; u32 tx_speed; }; struct { u64 android_kabi_reserved1; }; union { }; }'
+      member 'struct { u64 android_kabi_reserved1; } __UNIQUE_ID_android_kabi_hide213' was removed
+      member 'struct { u64 android_kabi_reserved1; }' was added
+
+type 'struct sock' changed
+  member 'u64 android_kabi_reserved1' was removed
+  member 'union { spinlock_t sk_peer_lock; struct { u64 android_kabi_reserved1; }; union { }; }' was added
+
+type 'struct fib_rules_ops' changed
+  member changed from 'bool(* suppress)(struct fib_rule*, struct fib_lookup_arg*)' to 'bool(* suppress)(struct fib_rule*, int, struct fib_lookup_arg*)'
+    type changed from 'bool(*)(struct fib_rule*, struct fib_lookup_arg*)' to 'bool(*)(struct fib_rule*, int, struct fib_lookup_arg*)'
+      pointed-to type changed from 'bool(struct fib_rule*, struct fib_lookup_arg*)' to 'bool(struct fib_rule*, int, struct fib_lookup_arg*)'
+        parameter 2 type changed from 'struct fib_lookup_arg*' to 'int'
+        parameter 3 of type 'struct fib_lookup_arg*' was added
+
+type 'struct snd_pcm_runtime' changed
+  byte size changed from 760 to 800
+  member 'struct mutex buffer_mutex' was added
+  member 'atomic_t buffer_accessing' was added
+
+type 'struct snd_pcm_runtime' changed
+  byte size changed from 792 to 800
+  member 'atomic_t buffer_accessing' was added
+
+function symbol changed from 'int hex_to_bin(char)' to 'int hex_to_bin(unsigned char)'
+  type changed from 'int(char)' to 'int(unsigned char)'
+    parameter 1 type changed from 'char' to 'unsigned char'
+
+type 'struct tcp_sock' changed
+  member 'u8 unused' was removed
+  member 'u8 fastopen_client_fail' was added
+  member 'u32 max_packets_seq' was removed
+  member 'u32 cwnd_usage_seq' was added
+
+type 'struct sk_buff' changed
+  member 'u64 android_kabi_reserved1' was removed
+  member 'union { struct { __u8 scm_io_uring; __u8 android_kabi_reserved1_padding1; __u16 android_kabi_reserved1_padding2; __u32 android_kabi_reserved1_padding3; }; struct { u64 android_kabi_reserved1; }; union { }; }' was added
+
+type 'struct anon_vma' changed
+  byte size changed from 88 to 104
+  member 'unsigned long int num_children' was added
+  member 'unsigned long int num_active_vmas' was added
+
+function symbol changed from 'struct irq_domain* __irq_domain_add(struct fwnode_handle*, int, irq_hw_number_t, int, const struct irq_domain_ops*, void*)' to 'struct irq_domain* __irq_domain_add(struct fwnode_handle*, unsigned int, irq_hw_number_t, int, const struct irq_domain_ops*, void*)'
+  type changed from 'struct irq_domain*(struct fwnode_handle*, int, irq_hw_number_t, int, const struct irq_domain_ops*, void*)' to 'struct irq_domain*(struct fwnode_handle*, unsigned int, irq_hw_number_t, int, const struct irq_domain_ops*, void*)'
+    parameter 2 type changed from 'int' to 'unsigned int'
+
+type 'struct perf_event' changed
+  member 'unsigned int group_generation' was added
+
+type 'struct usb_role_switch' changed
+  member 'bool registered' was added
+
+type 'struct tcp_sock' changed
+  member 'u8 unused' was removed
+  member 'u8 fastopen_client_fail' was added
+
