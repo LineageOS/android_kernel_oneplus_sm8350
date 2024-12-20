@@ -3035,7 +3035,7 @@ static int cam_tfe_mgr_stop_hw(void *hw_mgr_priv, void *stop_hw_args)
 		master_base_idx = ctx->base[0].idx;
 
 	/*Change slave mode*/
-	if (csid_halt_type == CAM_CSID_HALT_IMMEDIATELY)
+	if (csid_halt_type == CAM_TFE_CSID_HALT_IMMEDIATELY)
 		cam_tfe_mgr_csid_change_halt_mode(ctx,
 			CAM_TFE_CSID_HALT_MODE_INTERNAL);
 
