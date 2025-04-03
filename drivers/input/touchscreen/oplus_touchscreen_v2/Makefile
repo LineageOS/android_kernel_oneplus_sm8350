@@ -4,6 +4,7 @@
 subdir-ccflags-$(CONFIG_TOUCHPANEL_MTK_PLATFORM) += -I$(srctree)/drivers/misc/mediatek/include/
 subdir-ccflags-$(CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY) += -I$(srctree)/drivers/misc/mediatek/include/
 
+CFLAGS_touchpanel_proc.o := -Wframe-larger-than=4096
 
 oplus_bsp_tp_comon-y := util_interface/touch_interfaces.o
 oplus_bsp_tp_comon-y += touch_comon_api/touch_comon_api.o
