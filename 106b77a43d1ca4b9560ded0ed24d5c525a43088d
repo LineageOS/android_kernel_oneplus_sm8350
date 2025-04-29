@@ -52,6 +52,24 @@
       "parentUuid": "12c08837_aab57c21",
       "revId": "106b77a43d1ca4b9560ded0ed24d5c525a43088d",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "ffb990df_6a60fbaf",
+        "filename": "arch/arm64/configs/vendor/lahaina-qgki_defconfig",
+        "patchSetId": 3
+      },
+      "lineNbr": 1,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2025-04-29T10:41:11Z",
+      "side": 1,
+      "message": "option was missing because of LLVM\u003d1 not being set.",
+      "parentUuid": "b16a8996_6828a0cc",
+      "revId": "106b77a43d1ca4b9560ded0ed24d5c525a43088d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
