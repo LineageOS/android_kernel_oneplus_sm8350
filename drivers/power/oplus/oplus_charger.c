@@ -195,6 +195,11 @@ bool __attribute__((weak)) oplus_is_ptcrb_version(void)
 	return false;
 }
 
+void __attribute__((weak)) oplus_set_otg_switch_status_default(bool value)
+{
+	return;
+}
+
 /****************************************/
 #define RESET_MCU_DELAY_30S		6
 static int reset_mcu_delay = 0;
@@ -3394,6 +3399,7 @@ int oplus_chg_init(struct oplus_chg_chip *chip)
 		chg_err("Can't get shell_back\n");
 	}
 	chip->temperature = oplus_chg_match_temp_for_chging();
+	oplus_set_otg_switch_status_default(true);
 	charger_xlog_printk(CHG_LOG_CRTI, " end\n");
 	return 0;
 
