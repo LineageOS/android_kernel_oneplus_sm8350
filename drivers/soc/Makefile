@@ -38,6 +38,10 @@ obj-y						+= oplus/sensor/
 obj-$(CONFIG_OPLUS_DEVICE_IFNO)  +=  oplus/device_info/
 #endif /* OPLUS_FEATURE_TP_BASIC */
 
+#ifdef OPLUS_FEATURE_THERMAL_HORAE
+obj-$(CONFIG_HORAE_THERMAL_SHELL) += oplus/thermal/
+#endif /* OPLUS_FEATURE_THERMAL_HORAE */
+
 #ifdef OPLUS_FEATURE_ESIM
 obj-y += oplus/misc/
 #endif /* OPLUS_FEATURE_ESIM */
