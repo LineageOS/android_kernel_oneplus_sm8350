@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "unresolved": true,
+      "key": {
+        "uuid": "e062c88f_a0f99c94",
+        "filename": "drivers/power/oplus_chg/oplus_chg_intf.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 1543,
+      "author": {
+        "id": 4550
+      },
+      "writtenOn": "2025-10-03T15:00:52Z",
+      "side": 1,
+      "message": "Just remove this?",
+      "range": {
+        "startLine": 1543,
+        "startChar": 2,
+        "endLine": 1543,
+        "endChar": 21
+      },
+      "revId": "b71c1f56985e47eeb14e760f07d84d347ab945eb",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
