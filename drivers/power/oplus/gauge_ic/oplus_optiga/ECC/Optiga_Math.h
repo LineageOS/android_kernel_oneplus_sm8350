@@ -90,15 +90,6 @@ typedef struct
 typedef void (*func2_pt)(uint32_t *, const uint32_t *);
 typedef void (*func3_pt)(uint32_t *, const uint32_t *, const uint32_t *);
 
-/* brief definition of sha256 context */
-typedef struct
-{
-	uint32_t H[8];      /*!< 8 working variables/final hash value */
-	uint32_t length;    /*!< length counter */
-	unsigned int next;  /*!< next unused byte in message buffer */
-	uint8_t M[64];      /*!< message buffer */
-} sha256_context_t;
-
 typedef uint32_t double_dwordvec_t[DOUBLE_ARRAY_LEN(MAX_DEGREE)];
 
 typedef enum _E_MAC_IDX
@@ -165,14 +156,6 @@ void mont_ecc_mul(dwordvec_t A, dwordvec_t B, dwordvec_t C, dwordvec_t D, const 
 BOOL ecc_point_on_curve(const eccpoint_t *p);
 void ecc_mul_projective(dwordvec_t X, dwordvec_t Y, dwordvec_t Z, const eccpoint_t *p, const dwordvec_t scalar);
 BOOL ecc_add_point_x(dwordvec_t point_x, const dwordvec_t X1, const dwordvec_t Y1, const dwordvec_t Z1, const dwordvec_t X2, const dwordvec_t Y2, const dwordvec_t Z2);
-
-// SHA256
-void sha256_compress(sha256_context_t *context);
-//void sha256_final(uint8_t *hash_value, sha256_context_t *context);
-//void sha256_update(const uint8_t *input_data, const uint32_t input_length, sha256_context_t *context);
-void sha256_init(sha256_context_t *context);
-void sha256(uint8_t *hash_value, const uint8_t *input_data, const uint32_t input_length);
-
 
 #endif				/* _BIF_AUTHENTICATION_H_ */
 
