@@ -22,6 +22,30 @@
       },
       "revId": "b71c1f56985e47eeb14e760f07d84d347ab945eb",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "f873cfb1_988fb658",
+        "filename": "drivers/power/oplus_chg/oplus_chg_intf.c",
+        "patchSetId": 6
+      },
+      "lineNbr": 1543,
+      "author": {
+        "id": 18745
+      },
+      "writtenOn": "2025-10-05T15:06:00Z",
+      "side": 1,
+      "message": "Done",
+      "parentUuid": "e062c88f_a0f99c94",
+      "range": {
+        "startLine": 1543,
+        "startChar": 2,
+        "endLine": 1543,
+        "endChar": 21
+      },
+      "revId": "b71c1f56985e47eeb14e760f07d84d347ab945eb",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
