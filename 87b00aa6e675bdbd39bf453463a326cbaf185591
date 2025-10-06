@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "c9d66332_1ee811f7",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 28223
+      },
+      "writtenOn": "2025-10-06T21:07:09Z",
+      "side": 1,
+      "message": "```MT2111_IND:/ # cat /sys/class/power_supply/battery/cycle_count\n16\nMT2111_IND:/ # cat /sys/class/oplus_chg/battery/battery_cc\n16\n```",
+      "revId": "87b00aa6e675bdbd39bf453463a326cbaf185591",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
