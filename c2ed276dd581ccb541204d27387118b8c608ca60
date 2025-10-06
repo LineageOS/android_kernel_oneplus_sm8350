@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "04768eae_d205d011",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 3
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 28223
+      },
+      "writtenOn": "2025-10-06T21:09:06Z",
+      "side": 1,
+      "message": "```MT2111_IND:/ # cat /sys/class/power_supply/battery/charge_full_design\n4500000\n```",
+      "revId": "c2ed276dd581ccb541204d27387118b8c608ca60",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
