@@ -15,6 +15,7 @@
 #include "oplus_display_private_api.h"
 #include "oplus_display_panel.h"
 #include "oplus_adfr.h"
+#include "../../../drivers/input/oplus_fp_drivers/include/oplus_fp_common.h"
 
 #define DSI_PANEL_OPLUS_DUMMY_VENDOR_NAME  "PanelVendorDummy"
 #define DSI_PANEL_OPLUS_DUMMY_MANUFACTURE_NAME  "dummy1024"
@@ -44,6 +45,7 @@ extern int oplus_onscreenfp_status;
 extern u32 oplus_onscreenfp_vblank_count;
 extern ktime_t oplus_onscreenfp_pressed_time;
 extern unsigned int is_project(int project);
+extern int opticalfp_irq_handler(struct fp_underscreen_info *fp_tpinfo);
 
 static struct oplus_brightness_alpha brightness_alpha_lut[] = {
 	{0, 0xff},
@@ -817,6 +819,11 @@ int oplus_display_panel_notify_fp_press(void *data)
 		return 0;
 
 	pr_err("notify fingerpress %s\n", onscreenfp_status ? "on" : "off");
+	if (onscreenfp_status == 0) {
+		struct fp_underscreen_info fp_tpinfo;
+		memset(&fp_tpinfo, 0, sizeof(fp_tpinfo));
+		opticalfp_irq_handler(&fp_tpinfo);
+	}
 	if (OPLUS_DISPLAY_AOD_SCENE == get_oplus_display_scene()) {
 		if (onscreenfp_status) {
 			on_time = ktime_get();

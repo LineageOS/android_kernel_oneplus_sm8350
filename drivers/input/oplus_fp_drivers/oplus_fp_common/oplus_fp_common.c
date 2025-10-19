@@ -226,13 +226,14 @@ void opticalfp_irq_handler_register(opticalfp_handler handler) {
 }
 EXPORT_SYMBOL(opticalfp_irq_handler_register);
 
-static int opticalfp_irq_handler(struct fp_underscreen_info *tp_info) {
+int opticalfp_irq_handler(struct fp_underscreen_info *tp_info) {
     if (g_opticalfp_irq_handler) {
         return g_opticalfp_irq_handler(tp_info);
     } else {
         return FP_UNKNOWN;
     }
 }
+EXPORT_SYMBOL(opticalfp_irq_handler);
 
 static int opticalfp_touch_event_notify(struct notifier_block *self, unsigned long action, void *data) {
 	struct touchpanel_event *event = (struct touchpanel_event*)data;
