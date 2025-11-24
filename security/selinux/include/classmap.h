@@ -247,9 +247,7 @@ struct security_class_mapping secclass_map[] = {
 	{ "xdp_socket",
 	  { COMMON_SOCK_PERMS, NULL } },
 	{ "perf_event",
-	  { "open", "cpu", "kernel", "tracepoint", "read", "write", NULL } },
-	{ "anon_inode",
-	  { COMMON_FILE_PERMS, NULL } },
+	  {"open", "cpu", "kernel", "tracepoint", "read", "write", NULL } },
 	{ NULL }
   };
 
