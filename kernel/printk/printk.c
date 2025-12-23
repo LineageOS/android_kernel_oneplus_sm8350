@@ -177,7 +177,7 @@ __setup("printk.devkmsg=", control_devkmsg);
 char devkmsg_log_str[DEVKMSG_STR_MAX_SIZE] = "ratelimit";
 
 int devkmsg_sysctl_set_loglvl(struct ctl_table *table, int write,
-			      void __user *buffer, size_t *lenp, loff_t *ppos)
+			      void *buffer, size_t *lenp, loff_t *ppos)
 {
 	char old_str[DEVKMSG_STR_MAX_SIZE];
 	unsigned int old;
@@ -3060,7 +3060,7 @@ static void wake_up_klogd_work_func(struct irq_work *irq_work)
 
 static DEFINE_PER_CPU(struct irq_work, wake_up_klogd_work) = {
 	.func = wake_up_klogd_work_func,
-	.flags = IRQ_WORK_LAZY,
+	.flags = ATOMIC_INIT(IRQ_WORK_LAZY),
 };
 
 void wake_up_klogd(void)
