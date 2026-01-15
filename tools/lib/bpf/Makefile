@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
 # Most of this file is copied from tools/lib/traceevent/Makefile
 
+RM ?= rm
+srctree = $(abs_srctree)
+
 LIBBPF_VERSION := $(shell \
 	grep -oE '^LIBBPF_([0-9.]+)' libbpf.map | \
 	sort -rV | head -n1 | cut -d'_' -f2)
@@ -143,6 +146,8 @@ LIB_TARGET	:= $(addprefix $(OUTPUT),$(LIB_TARGET))
 LIB_FILE	:= $(addprefix $(OUTPUT),$(LIB_FILE))
 PC_FILE		:= $(addprefix $(OUTPUT),$(PC_FILE))
 
+TAGS_PROG := $(if $(shell which etags 2>/dev/null),etags,ctags)
+
 GLOBAL_SYM_COUNT = $(shell readelf -s --wide $(BPF_IN_SHARED) | \
 			   cut -d "@" -f1 | sed 's/_v[0-9]_[0-9]_[0-9].*//' | \
 			   sed 's/\[.*\]//' | \
@@ -196,7 +201,7 @@ $(OUTPUT)libbpf.so.$(LIBBPF_VERSION): $(BPF_IN_SHARED)
 	@ln -sf $(@F) $(OUTPUT)libbpf.so.$(LIBBPF_MAJOR_VERSION)
 
 $(OUTPUT)libbpf.a: $(BPF_IN_STATIC)
-	$(QUIET_LINK)$(RM) $@; $(AR) rcs $@ $^
+	$(QUIET_LINK)$(RM) -f $@; $(AR) rcs $@ $^
 
 $(OUTPUT)test_libbpf: test_libbpf.cpp $(OUTPUT)libbpf.a
 	$(QUIET_LINK)$(CXX) $(INCLUDES) $^ -lelf -o $@
@@ -277,7 +282,7 @@ clean:
 
 
 
-PHONY += force elfdep bpfdep
+PHONY += force elfdep bpfdep cscope tags
 force:
 
 elfdep:
@@ -285,6 +290,14 @@ elfdep:
 
 bpfdep:
 	@if [ "$(feature-bpf)" != "1" ]; then echo "BPF API too old"; exit 1 ; fi
+
+cscope:
+	ls *.c *.h > cscope.files
+	cscope -b -q -I $(srctree)/include -f cscope.out
+
+tags:
+	$(RM) -f TAGS tags
+	ls *.c *.h | xargs $(TAGS_PROG) -a
 
 # Declare the contents of the .PHONY variable as phony.  We keep that
 # information in a variable so we can use it in if_changed and friends.

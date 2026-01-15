@@ -69,13 +69,37 @@ config TREE_SRCU
 	help
 	  This option selects the full-fledged version of SRCU.
 
+config TASKS_RCU_GENERIC
+	def_bool TASKS_RCU || TASKS_RUDE_RCU || TASKS_TRACE_RCU
+	select SRCU
+	help
+	  This option enables generic infrastructure code supporting
+	  task-based RCU implementations.  Not for manual selection.
+
 config TASKS_RCU
 	def_bool PREEMPTION
-	select SRCU
 	help
 	  This option enables a task-based RCU implementation that uses
 	  only voluntary context switch (not preemption!), idle, and
-	  user-mode execution as quiescent states.
+	  user-mode execution as quiescent states.  Not for manual selection.
+
+config TASKS_RUDE_RCU
+	def_bool 0
+	help
+	  This option enables a task-based RCU implementation that uses
+	  only context switch (including preemption) and user-mode
+	  execution as quiescent states.  It forces IPIs and context
+	  switches on all online CPUs, including idle ones, so use
+	  with caution.
+
+config TASKS_TRACE_RCU
+	def_bool 0
+	help
+	  This option enables a task-based RCU implementation that uses
+	  explicit rcu_read_lock_trace() read-side markers, and allows
+	  these readers to appear in the idle loop as well as on the CPU
+	  hotplug code paths.  It can force IPIs on online CPUs, including
+	  idle ones, so use with caution.
 
 config RCU_STALL_COMMON
 	def_bool ( TREE_RCU || PREEMPT_RCU )
