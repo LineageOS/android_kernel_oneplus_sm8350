@@ -3189,7 +3189,7 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 	unsigned long flags;
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct lsm_priv *prtd = NULL;
-	struct snd_soc_pcm_runtime *rtd;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct msm_pcm_stream_app_type_cfg cfg_data = {0};
 	struct lsm_char_dev *lsm_dev;
 	struct snd_soc_component *component = NULL;
@@ -3201,11 +3201,13 @@ static int msm_lsm_close(struct snd_pcm_substream *substream)
 		pr_err("%s: Invalid private_data", __func__);
 		return -EINVAL;
 	}
+
+	component = snd_soc_rtdcom_lookup(rtd, DRV_NAME);
 	if (!component || !component->dev) {
 		pr_err("%s: Invalid component\n", __func__);
 		return -EINVAL;
 	}
-	rtd = substream->private_data;
+
 	lsm_dev = (struct lsm_char_dev *) dev_get_drvdata(component->dev);
 	if (!lsm_dev) {
 		pr_err("%s: platform data is NULL\n", __func__);
