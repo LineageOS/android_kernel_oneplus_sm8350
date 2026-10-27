@@ -87,6 +87,13 @@ void gf_cleanup_pwr_list(struct gf_dev* gf_dev) {
         if (gf_dev->pwr_list[index].pwr_type == FP_POWER_MODE_GPIO) {
             gpio_free(gf_dev->pwr_list[index].pwr_gpio);
         }
+        /* The memset below drops the regulator handle. Release it first, or the
+         * LDO stays on after the HAL closes the device, and the next open takes
+         * a second enabled handle. */
+        if (gf_dev->pwr_list[index].pwr_type == FP_POWER_MODE_LDO &&
+                gf_dev->pwr_list[index].vreg) {
+            vreg_setup(gf_dev, &(gf_dev->pwr_list[index]), false);
+        }
         pr_info("---- free pwr ok  with mode = %d, index = %d  ----\n",
                 gf_dev->pwr_list[index].pwr_type, index);
         memset(&(gf_dev->pwr_list[index]), 0, sizeof(fp_power_info_t));
