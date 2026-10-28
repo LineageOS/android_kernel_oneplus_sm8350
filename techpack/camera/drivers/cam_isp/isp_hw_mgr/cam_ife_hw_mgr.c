@@ -6032,6 +6032,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		if (bw_config_u->num_rdi != bw_config->num_rdi) {
 			CAM_ERR(CAM_ISP, "num_rdi changed,userspace:%d, kernel:%d", bw_config_u->num_rdi,
 				bw_config->num_rdi);
+			cam_common_mem_free(bw_config);
 			return -EINVAL;
 		}
 
@@ -6044,6 +6045,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 					"Max size exceeded in bw config num_rdi:%u size per port:%lu",
 					bw_config->num_rdi,
 					sizeof(struct cam_isp_bw_vote));
+				cam_common_mem_free(bw_config);
 				return -EINVAL;
 			}
 		}
@@ -6056,6 +6058,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				blob_size, sizeof(struct cam_isp_bw_config) +
 				(bw_config->num_rdi - 1) *
 				sizeof(struct cam_isp_bw_vote));
+			cam_common_mem_free(bw_config);
 			return -EINVAL;
 		}
 
@@ -6063,6 +6066,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			(bw_config->usage_type >= CAM_IFE_HW_NUM_MAX)) {
 			CAM_ERR(CAM_ISP, "Invalid inputs usage type %d",
 				bw_config->usage_type);
+			cam_common_mem_free(bw_config);
 			return -EINVAL;
 		}
 
@@ -6073,6 +6077,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			bw_config, sizeof(prepare_hw_data->bw_config[0]));
 		prepare_hw_data->bw_config_version = CAM_ISP_BW_CONFIG_V1;
 		prepare_hw_data->bw_config_valid[bw_config->usage_type] = true;
+		cam_common_mem_free(bw_config);
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_BW_CONFIG_V2: {
@@ -6107,6 +6112,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 		if (bw_config_u->num_paths != bw_config->num_paths) {
 			CAM_ERR(CAM_ISP, "num_paths changed,userspace:%d, kernel:%d", bw_config_u->num_paths,
 					bw_config->num_paths);
+			cam_common_mem_free(bw_config);
 			return -EINVAL;
 		}
 
@@ -6121,6 +6127,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 					bw_config->num_paths - 1,
 					sizeof(
 					struct cam_axi_per_path_bw_vote));
+				cam_common_mem_free(bw_config);
 				return -EINVAL;
 			}
 		}
@@ -6134,6 +6141,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 				blob_size, bw_config->num_paths,
 				sizeof(struct cam_isp_bw_config_v2),
 				sizeof(struct cam_axi_per_path_bw_vote));
+			cam_common_mem_free(bw_config);
 			return -EINVAL;
 		}
 
@@ -6141,6 +6149,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 			(bw_config->usage_type >= CAM_IFE_HW_NUM_MAX)) {
 			CAM_ERR(CAM_ISP, "Invalid inputs usage type %d",
 				bw_config->usage_type);
+			cam_common_mem_free(bw_config);
 			return -EINVAL;
 		}
 
@@ -6158,6 +6167,7 @@ static int cam_isp_packet_generic_blob_handler(void *user_data,
 
 		prepare_hw_data->bw_config_version = CAM_ISP_BW_CONFIG_V2;
 		prepare_hw_data->bw_config_valid[bw_config->usage_type] = true;
+		cam_common_mem_free(bw_config);
 	}
 		break;
 	case CAM_ISP_GENERIC_BLOB_TYPE_UBWC_CONFIG: {
