@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "d3587cb0_3d76289f",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29415
+      },
+      "writtenOn": "2026-11-01T23:39:53Z",
+      "side": 1,
+      "message": "arm64-v8a CtsWifiTestCases:android.net.wifi.aware.cts.SingleDeviceTest: Passed: 41, Failed: 0, Ignored: 0, Assumption Failed: 0 \narm64-v8a VtsHalWifiNanIfaceTargetTest: Passed: 14, Failed: 0, Ignored: 1, Assumption Failed: 0",
+      "revId": "d6473f1be16a7e38f03b17644627f643f3f9c9c1",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
