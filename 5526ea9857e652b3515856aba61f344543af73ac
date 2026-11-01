@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "509c3774_8b0d4e26",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 29415
+      },
+      "writtenOn": "2026-11-01T23:23:38Z",
+      "side": 1,
+      "message": "[13/54] WifiTest/WifiChipAidlTest#SetMultiStaPrimaryConnection/0_android_hardware_wifi_IWifi_default: PASSED (586ms)",
+      "revId": "5526ea9857e652b3515856aba61f344543af73ac",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    }
+  ]
+}
