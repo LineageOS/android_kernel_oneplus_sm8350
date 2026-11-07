@@ -4866,6 +4866,16 @@ static int _sde_crtc_check_secure_state(struct drm_crtc *crtc,
 extern int oplus_onscreenfp_status;
 extern int lcd_closebl_flag_fp;
 extern int oplus_dimlayer_hbm;
+extern ktime_t oplus_dimlayer_hbm_on_time;
+
+/*
+ * Right after an unlock SystemUI starts fingerprint authentication and
+ * cancels it about 20 ms later. Entering fingerprint mode for that blip
+ * switches the panel HBM on and off, a visible flicker. Enter only once
+ * the request has stood this long; the lock screen asks for it well
+ * before the screen turns on, so it is not delayed there.
+ */
+#define OPLUS_DIMLAYER_HBM_SETTLE_MS 100
 extern int oplus_dimlayer_bl_alpha_value;
 extern int oplus_dimlayer_bl_enable;
 extern bool oplus_ffl_trigger_finish;
@@ -4994,7 +5004,10 @@ static int sde_crtc_onscreenfinger_atomic_check(struct sde_crtc_state *cstate,
 			return 0;
 		}
 
-		if (dimlayer_hbm && display->panel->bl_config.bl_level != 0)
+		if (dimlayer_hbm && display->panel->bl_config.bl_level != 0 &&
+		    (display->panel->is_hbm_enabled ||
+		     ktime_ms_delta(ktime_get(), oplus_dimlayer_hbm_on_time) >=
+		     OPLUS_DIMLAYER_HBM_SETTLE_MS))
 			cstate->fingerprint_mode = true;
 		else
 			cstate->fingerprint_mode = false;

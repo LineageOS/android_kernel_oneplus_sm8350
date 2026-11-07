@@ -85,6 +85,8 @@ u32 oplus_last_backlight = 0;
 u32 oplus_backlight_delta = 0;
 
 int oplus_dimlayer_hbm = 0;
+/* When the fingerprint HAL last asked for dimlayer HBM */
+ktime_t oplus_dimlayer_hbm_on_time;
 
 #ifdef OPLUS_FEATURE_TP_BASIC
 int shutdown_flag = 0;
