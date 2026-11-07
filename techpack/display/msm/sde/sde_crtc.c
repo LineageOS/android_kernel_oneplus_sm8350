@@ -3514,7 +3514,7 @@ static void sde_crtc_atomic_begin(struct drm_crtc *crtc,
 		struct sde_crtc_state *new_sde_state = to_sde_crtc_state(crtc->state);
 		struct sde_crtc_state *old_sde_state = to_sde_crtc_state(old_state);
 
-		if (new_sde_state->fingerprint_mode != old_sde_state->fingerprint_mode
+		if (new_sde_state->fingerprint_pressed != old_sde_state->fingerprint_pressed
 			|| new_sde_state->aod_skip_pcc != old_sde_state->aod_skip_pcc) {
 			//pr_err("oplus_pcc: %s %d\n", __func__, __LINE__);
 			sde_cp_crtc_pcc_change(crtc);
