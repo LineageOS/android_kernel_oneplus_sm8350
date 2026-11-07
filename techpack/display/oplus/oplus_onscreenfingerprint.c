@@ -751,6 +751,8 @@ int oplus_display_panel_get_dimlayer_hbm(void *data)
 	return 0;
 }
 
+extern ktime_t oplus_dimlayer_hbm_on_time;
+
 int oplus_display_panel_set_dimlayer_hbm(void *data)
 {
 	struct dsi_display *display = get_main_display();
@@ -774,6 +776,8 @@ int oplus_display_panel_set_dimlayer_hbm(void *data)
 			atomic_inc(&oplus_dimlayer_hbm_vblank_ref);
 		}
 	}
+	if (value)
+		oplus_dimlayer_hbm_on_time = ktime_get();
 	oplus_dimlayer_hbm = value;
 	pr_err("debug for oplus_display_set_dimlayer_hbm set oplus_dimlayer_hbm = %d\n", oplus_dimlayer_hbm);
 
