@@ -209,7 +209,7 @@ static struct rpmh_bw_votes *build_rpmh_bw_votes(struct bcm *bcms,
 	if (!votes)
 		return ERR_PTR(-ENOMEM);
 
-	votes->addrs = kcalloc(bcm_count, sizeof(*votes->cmds), GFP_KERNEL);
+	votes->addrs = kcalloc(bcm_count, sizeof(*votes->addrs), GFP_KERNEL);
 	if (!votes->addrs) {
 		free_rpmh_bw_votes(votes);
 		return ERR_PTR(-ENOMEM);
