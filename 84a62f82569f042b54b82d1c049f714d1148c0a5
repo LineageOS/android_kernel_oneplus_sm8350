@@ -33,6 +33,24 @@
       "message": "Rather pick the changes from upstream tags to fix the issue and push them to the common kernel android_kernel_qcom_sm8350",
       "revId": "84a62f82569f042b54b82d1c049f714d1148c0a5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "3b89f83c_154e3dc6",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 38487
+      },
+      "writtenOn": "2026-11-15T21:44:03Z",
+      "side": 1,
+      "message": "Thanks! I checked upstream: CLO already has this exact fix, but only on newer\ncamera-kernel branches, as 1e4920e63ec6 \"msm: camera: isp: Fix mem leak due\nmem_kdup usage\" (CRs-Fixed: 3923843) on camera-kernel.lnx.7.0, plus lnx.8.0,\nlnx.9.0 and the IoT branches. No LAHAINA tag picked it up: LA.UM.9.14.r1-26700\nstill allocates both copies and never frees them, although 25800 brought the\nTOCTOU change that introduced the leak.\n\nSo I\u0027ve pushed it as a backport of that commit to the common kernel:\nhttps://review.lineageos.org/c/LineageOS/android_kernel_qcom_sm8350/+/513707\n\nIt keeps the upstream author, Change-Id and CRs-Fixed. The only change is that\nthe BW_CONFIG_V3 hunks are dropped, since lahaina doesn\u0027t have them. The\nresulting code is identical to this change, which I tested on lemonade. I\u0027ll\nabandon this one once that lands.",
+      "parentUuid": "dc97ac27_82b755fe",
+      "revId": "84a62f82569f042b54b82d1c049f714d1148c0a5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
