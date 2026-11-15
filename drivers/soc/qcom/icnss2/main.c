@@ -2369,7 +2369,8 @@ int icnss_thermal_cdev_register(struct device *dev, unsigned long max_state,
 	dev_node = of_find_node_by_name(NULL, cdev_node_name);
 	if (!dev_node) {
 		icnss_pr_err("Failed to get cooling device node\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto free_tcdev;
 	}
 
 	icnss_pr_dbg("tcdev node->name=%s\n", dev_node->name);
@@ -2379,21 +2380,30 @@ int icnss_thermal_cdev_register(struct device *dev, unsigned long max_state,
 						dev_node,
 						cdev_node_name, icnss_tcdev,
 						&icnss_cooling_ops);
-		if (IS_ERR_OR_NULL(icnss_tcdev->tcdev)) {
+		if (IS_ERR(icnss_tcdev->tcdev)) {
 			ret = PTR_ERR(icnss_tcdev->tcdev);
 			icnss_pr_err("Cooling device register failed: %d, for cdev id %d\n",
 				     ret, icnss_tcdev->tcdev_id);
-		} else {
-			icnss_pr_dbg("Cooling device registered for cdev id %d",
-				     icnss_tcdev->tcdev_id);
-			list_add(&icnss_tcdev->tcdev_list,
-				 &priv->icnss_tcdev_list);
+			goto put_node;
 		}
+
+		icnss_pr_dbg("Cooling device registered for cdev id %d",
+			     icnss_tcdev->tcdev_id);
+		list_add(&icnss_tcdev->tcdev_list,
+			 &priv->icnss_tcdev_list);
 	} else {
 		icnss_pr_dbg("Cooling device registration not supported");
 		ret = -EOPNOTSUPP;
+		goto put_node;
 	}
 
+	of_node_put(dev_node);
+	return ret;
+
+put_node:
+	of_node_put(dev_node);
+free_tcdev:
+	kfree(icnss_tcdev);
 	return ret;
 }
 EXPORT_SYMBOL(icnss_thermal_cdev_register);
