@@ -88,7 +88,7 @@ void rmnet_ctl_endpoint_post(const void *data, size_t len)
 			skb->protocol = htons(ETH_P_MAP);
 			client->hooks.ctl_dl_client_hook(skb);
 		} else {
-			kfree(skb);
+			kfree_skb(skb);
 		}
 
 		rcu_read_unlock();
