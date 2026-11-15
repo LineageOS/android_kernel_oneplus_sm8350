@@ -16,6 +16,23 @@
       "message": "Hi! Could you please review it? It should be a quick PR. Only frees to avoid a memory leak. Thank you very much!",
       "revId": "84a62f82569f042b54b82d1c049f714d1148c0a5",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
+    },
+    {
+      "unresolved": false,
+      "key": {
+        "uuid": "dc97ac27_82b755fe",
+        "filename": "/PATCHSET_LEVEL",
+        "patchSetId": 1
+      },
+      "lineNbr": 0,
+      "author": {
+        "id": 19979
+      },
+      "writtenOn": "2026-11-15T20:54:56Z",
+      "side": 1,
+      "message": "Rather pick the changes from upstream tags to fix the issue and push them to the common kernel android_kernel_qcom_sm8350",
+      "revId": "84a62f82569f042b54b82d1c049f714d1148c0a5",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71"
     }
   ]
 }
