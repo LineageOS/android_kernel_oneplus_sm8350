@@ -1202,14 +1202,11 @@ static struct qseecom_registered_listener_list *__qseecom_find_svc(
 	list_for_each_entry(entry,
 			&qseecom.registered_listener_list_head, list) {
 		if (entry->svc.listener_id == listener_id)
-			break;
-	}
-	if ((entry != NULL) && (entry->svc.listener_id != listener_id)) {
-		pr_debug("Service id: %u is not found\n", listener_id);
-		return NULL;
+			return entry;
 	}
 
-	return entry;
+	pr_debug("Service id: %u is not found\n", listener_id);
+	return NULL;
 }
 
 static int qseecom_dmabuf_cache_operations(struct dma_buf *dmabuf,
@@ -2175,9 +2172,11 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 			}
 		}
 
-		if (ptr_svc == NULL) {
-			pr_err("Listener Svc %d does not exist\n", lstnr);
-			rc = -EINVAL;
+		if (list_entry_is_head(ptr_svc,
+				&qseecom.registered_listener_list_head, list)) {
+			pr_err("Service %d does not exist\n", lstnr);
+			rc = -ERESTARTSYS;
+			ptr_svc = NULL;
 			status = QSEOS_RESULT_FAILURE;
 			goto err_resp;
 		}
@@ -2185,15 +2184,6 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 		if (!ptr_svc->dmabuf) {
 			pr_err("Client dmabuf is not initialized\n");
 			rc = -EINVAL;
-			status = QSEOS_RESULT_FAILURE;
-			goto err_resp;
-		}
-
-		if (ptr_svc->svc.listener_id != lstnr) {
-			pr_err("Service %d does not exist\n",
-						lstnr);
-			rc = -ERESTARTSYS;
-			ptr_svc = NULL;
 			status = QSEOS_RESULT_FAILURE;
 			goto err_resp;
 		}
@@ -2514,9 +2504,11 @@ static int __qseecom_reentrancy_process_incomplete_cmd(
 			}
 		}
 
-		if (ptr_svc == NULL) {
-			pr_err("Listener Svc %d does not exist\n", lstnr);
-			rc = -EINVAL;
+		if (list_entry_is_head(ptr_svc,
+				&qseecom.registered_listener_list_head, list)) {
+			pr_err("Service %d does not exist\n", lstnr);
+			rc = -ERESTARTSYS;
+			ptr_svc = NULL;
 			status = QSEOS_RESULT_FAILURE;
 			goto err_resp;
 		}
@@ -2524,15 +2516,6 @@ static int __qseecom_reentrancy_process_incomplete_cmd(
 		if (!ptr_svc->dmabuf) {
 			pr_err("Client dmabuf is not initialized\n");
 			rc = -EINVAL;
-			status = QSEOS_RESULT_FAILURE;
-			goto err_resp;
-		}
-
-		if (ptr_svc->svc.listener_id != lstnr) {
-			pr_err("Service %d does not exist\n",
-						lstnr);
-			rc = -ERESTARTSYS;
-			ptr_svc = NULL;
 			status = QSEOS_RESULT_FAILURE;
 			goto err_resp;
 		}
@@ -2884,6 +2867,9 @@ static int qseecom_load_app(struct qseecom_dev_handle *data, void __user *argp)
 					pr_err("App %d (%s) ref_cnt overflow\n",
 						app_id, req.app_name);
 					ret = -EINVAL;
+					spin_unlock_irqrestore(
+						&qseecom.registered_app_list_lock,
+						flags);
 					goto loadapp_err;
 				}
 				entry->ref_cnt++;
@@ -5109,6 +5095,9 @@ int qseecom_start_app(struct qseecom_handle **handle,
 					pr_err("App %d (%s) ref_cnt overflow\n",
 						app_id, app_ireq.app_name);
 					ret = -EINVAL;
+					spin_unlock_irqrestore(
+						&qseecom.registered_app_list_lock,
+						flags);
 					goto err;
 				}
 				entry->ref_cnt++;

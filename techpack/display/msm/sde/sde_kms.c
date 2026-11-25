@@ -2181,8 +2181,12 @@ static int _sde_kms_drm_obj_init(struct sde_kms *sde_kms)
 	}
 
 	/* All CRTCs are compatible with all encoders */
-	for (i = 0; i < priv->num_encoders; i++)
+	for (i = 0; i < priv->num_encoders; i++) {
 		priv->encoders[i]->possible_crtcs = (1 << priv->num_crtcs) - 1;
+		if (catalog->max_cwb > 0)
+			priv->encoders[i]->possible_clones =
+				sde_encoder_get_clones(priv->encoders[i]);
+	}
 
 	return 0;
 fail:
@@ -2988,7 +2992,6 @@ end:
 	return rc;
 }
 
-
 static int sde_kms_check_secure_transition(struct msm_kms *kms,
 		struct drm_atomic_state *state)
 {
@@ -3103,6 +3106,44 @@ static void sde_kms_vm_res_release(struct msm_kms *kms,
 	sde_vm_unlock(sde_kms);
 }
 
+static int sde_kms_check_cwb_concurreny(struct msm_kms *kms,
+		struct drm_atomic_state *state)
+{
+	struct sde_kms *sde_kms;
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
+	struct drm_encoder *encoder;
+	struct sde_crtc_state *cstate;
+	int i = 0, cnt = 0, max_cwb = 0;
+
+	if (!kms || !state) {
+		SDE_ERROR("invalid arguments\n");
+		return -EINVAL;
+	}
+
+	sde_kms = to_sde_kms(kms);
+	max_cwb = sde_kms->catalog->max_cwb;
+	if (!max_cwb)
+		return 0;
+
+	for_each_oldnew_crtc_in_state(state, crtc, old_crtc_state, new_crtc_state, i) {
+		cstate = to_sde_crtc_state(new_crtc_state);
+		drm_for_each_encoder_mask(encoder, crtc->dev, cstate->cwb_enc_mask) {
+			cnt++;
+			SDE_DEBUG("crtc%d has cwb%d attached to it\n", crtc->base.id,
+					encoder->base.id);
+		}
+
+		if (cnt > max_cwb) {
+			SDE_ERROR("found %d cwb in the atomic state, max supported %d\n",
+					cnt, max_cwb);
+			return -EOPNOTSUPP;
+		}
+	}
+
+	return 0;
+}
+
 static int sde_kms_atomic_check(struct msm_kms *kms,
 		struct drm_atomic_state *state)
 {
@@ -3140,6 +3181,11 @@ static int sde_kms_atomic_check(struct msm_kms *kms,
 	 * Secure state
 	 */
 	ret = sde_kms_check_secure_transition(kms, state);
+	if (ret)
+		goto vm_clean_up;
+
+
+	ret = sde_kms_check_cwb_concurreny(kms, state);
 	if (ret)
 		goto vm_clean_up;
 

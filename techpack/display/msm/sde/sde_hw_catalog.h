@@ -98,6 +98,7 @@
 
 #define MAX_XIN_COUNT 16
 #define SSPP_SUBBLK_COUNT_MAX 2
+#define MAX_CWB_SESSIONS 1
 
 #define SDE_CTL_CFG_VERSION_1_0_0       0x100
 #define MAX_INTF_PER_CTL_V1                 2
@@ -1460,6 +1461,7 @@ struct sde_perf_cfg {
  * @has_vig_p010  indicates if vig pipe supports p010 format
  * @mdss_hw_block_size  Max offset of MDSS_HW block (0 offset), used for debug
  * @inline_rot_formats	formats supported by the inline rotator feature
+ * @max_cwb             max number of cwb supported
  * @irq_offset_list     list of sde_intr_irq_offsets to initialize irq table
  * @rc_count	number of rounded corner hardware instances
  * @demura_count number of demura hardware instances
@@ -1600,6 +1602,7 @@ struct sde_mdss_cfg {
 	struct sde_qdss_cfg qdss[MAX_BLOCKS];
 
 	/* Add additional block data structures here */
+	u32 max_cwb;
 
 	struct sde_perf_cfg perf;
 	struct sde_format_extended *dma_formats;

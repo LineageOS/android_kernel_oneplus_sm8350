@@ -1211,6 +1211,9 @@ no_thread_group:
 	tsk->exit_signal = SIGCHLD;
 
 #ifdef CONFIG_POSIX_TIMERS
+	spin_lock_irq(lock);
+	posix_cpu_timers_exit(tsk);
+	spin_unlock_irq(lock);
 	exit_itimers(sig);
 	flush_itimer_signals();
 #endif

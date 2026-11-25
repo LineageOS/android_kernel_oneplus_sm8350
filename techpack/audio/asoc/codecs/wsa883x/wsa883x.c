@@ -1884,12 +1884,9 @@ err_mem:
 	if (wsa883x->dai_driver) {
 		kfree(wsa883x->dai_driver->name);
 		kfree(wsa883x->dai_driver->playback.stream_name);
-		kfree(wsa883x->dai_driver);
 	}
-	if (wsa883x->driver) {
+	if (wsa883x->driver)
 		kfree(wsa883x->driver->name);
-		kfree(wsa883x->driver);
-	}
 err_irq:
 	wcd_free_irq(&wsa883x->irq_info, WSA883X_IRQ_INT_SAF2WAR, NULL);
 	wcd_free_irq(&wsa883x->irq_info, WSA883X_IRQ_INT_WAR2SAF, NULL);
@@ -1945,12 +1942,9 @@ static int wsa883x_swr_remove(struct swr_device *pdev)
 	if (wsa883x->dai_driver) {
 		kfree(wsa883x->dai_driver->name);
 		kfree(wsa883x->dai_driver->playback.stream_name);
-		kfree(wsa883x->dai_driver);
 	}
-	if (wsa883x->driver) {
+	if (wsa883x->driver)
 		kfree(wsa883x->driver->name);
-		kfree(wsa883x->driver);
-	}
 	swr_set_dev_data(pdev, NULL);
 	return 0;
 }

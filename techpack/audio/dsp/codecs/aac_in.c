@@ -343,7 +343,7 @@ static long aac_in_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	}
 	case AUDIO_GET_AAC_CONFIG: {
-		if (copy_to_user((void *)arg, &audio->codec_cfg,
+		if (copy_to_user((void *)arg, audio->codec_cfg,
 				 sizeof(struct msm_audio_aac_config))) {
 			pr_err("%s: copy_to_user for AUDIO_GET_AAC_CONFIG failed\n",
 				__func__);
